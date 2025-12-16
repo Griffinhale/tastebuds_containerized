@@ -22,10 +22,10 @@
 
 ## Important Constraints & Indexes
 - All primary keys are UUIDs generated in the API layer.
-- `menus.slug` unique + indexed for public lookups. Slugs are generated when a menu is created and never auto-regenerated, even if the title changes.
+- `menus.slug` unique + indexed for public lookups. Slugs are generated when a menu is created and never auto-regenerated, even if the title changes, and `/api/public/menus/{slug}` returns 404 unless `is_public=true`.
 - `media_sources`: `(source_name, external_id)` unique to prevent duplicates; index on `media_item_id` + `source_name` for ingestion lookups.
 - `user_item_states`: `(user_id, media_item_id)` unique + rating check constraint (0–10).
-- `courses`: `(menu_id, position)` unique; `course_items`: `(course_id, position)` unique to enforce ordering.
+- `courses`: `(menu_id, position)` unique; `course_items`: `(course_id, position)` unique to enforce ordering so `/api/public/menus/{slug}` and owner views both respect deterministic chronology.
 - `tags`: `(owner_id, name)` unique to keep user-specific tag namespaces.
 
 ## Canonical vs Metadata vs Raw

@@ -1,5 +1,5 @@
 # API Guide
-_Status (June 2024):_ Auth, menus/courses/items, tags, search, ingestion scaffolding, and public menu endpoints are online in the running stack; `/health` and `/docs` were smoke-tested successfully after applying `alembic upgrade head`.
+_Milestone – June 2024 (historical):_ Auth, menus/courses/items, tags, search, ingestion scaffolding, and public menu endpoints are online in the running stack; `/health` and `/docs` were smoke-tested successfully after applying `alembic upgrade head`.
 
 All routes are served under the configured `API_PREFIX` (default `/api`). Authenticated endpoints expect a `Bearer <access_token>` header.
 

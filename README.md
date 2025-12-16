@@ -4,7 +4,8 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 
 ---
 
-## Current Progress (June 2024)
+## Milestone – June 2024
+_Historical snapshot captured after the first compose deployment._
 - Docker Compose stack (`api`, `db`, optional `pgadmin`) builds/runs cleanly; `api` container now exports `PYTHONPATH=/app` so CLI tooling (Alembic, pytest) works both inside and outside Docker.
 - Initial Alembic migration `20240602_000001` succeeds end-to-end (enums are created idempotently) and is part of `docker compose exec api alembic upgrade head`.
 - Core routes (auth, menus/courses/items, tags, ingestion scaffolding, `/public/menus/{slug}`, `/health`, `/docs`) are live—recent smoke tests hit `/health` and `/docs` successfully.
@@ -74,18 +75,35 @@ cp .env.example .env
 ```
 Update the following at minimum:
 - `DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds`
-- `TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test` (create the `tastebuds_test` DB once via `docker compose exec db psql -U tastebuds -c 'CREATE DATABASE tastebuds_test;'`).
+- `TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test` (the Compose stack now bootstraps `tastebuds_test` alongside the main database, so no manual `CREATE DATABASE` step is required).
 - JWT secrets and every external API key listed in the next section.
+
+### Helper scripts (Docker & Flatpak friendly)
+Use `./scripts/dev.sh <command>` to interact with Docker Compose. The wrapper automatically prefixes commands with `flatpak-spawn --host` when it runs inside Flatpak (detected via `FLATPAK_ID`, or you can force it by exporting `TASTEBUDS_USE_FLATPAK=1`).
+
+Common examples:
+```bash
+./scripts/dev.sh up        # build + start containers
+./scripts/dev.sh down      # stop services
+./scripts/dev.sh logs api  # tail service logs
+./scripts/dev.sh migrate   # alembic upgrade head
+./scripts/dev.sh seed      # demo data
+./scripts/dev.sh test      # pytest inside the api image
+```
 
 ### Run the stack
 ```bash
-# Build images + start services in the background
-docker compose up --build -d
-
-# Apply migrations against the running DB
-docker compose exec api alembic upgrade head
+# Helper script (auto-detects Flatpak)
+./scripts/dev.sh up
+./scripts/dev.sh migrate
 
 # (Optional) seed demo content (user + mixed menu)
+./scripts/dev.sh seed
+```
+Prefer raw Docker commands? The wrapper simply runs:
+```bash
+docker compose up --build -d
+docker compose exec api alembic upgrade head
 docker compose exec api python -m app.scripts.seed
 ```
 The API lives at `http://localhost:8000` with docs at `/docs` (Swagger) and `/redoc`.
@@ -105,12 +123,17 @@ uvicorn app.main:app --reload
 ### Running tests
 Tastebuds ships with async pytest coverage that exercises ingestion mappings, menu slug behavior, and the public menu lookup path.
 
-**Inside Docker (recommended):**
+**Helper script (recommended):**
+```bash
+./scripts/dev.sh test
+```
+
+**Raw Docker command:**
 ```bash
 docker compose run --rm api sh -c "pip install -r requirements-dev.txt && TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test pytest app/tests"
 ```
 
-**Locally:**
+**Locally without containers:**
 ```bash
 cd api
 pytest app/tests
@@ -129,6 +152,8 @@ Ensure `TEST_DATABASE_URL` points at an isolated database; the pytest fixture au
 
 ## Example API Flow
 All routes live under `/api`. Authenticated requests expect `Authorization: Bearer $TOKEN`.
+
+> `jq` is optional. When it's unavailable, replace `| jq -r '.field'` with `| python3 -c 'import json,sys; print(json.load(sys.stdin)[\"field\"])'` (swap `field` for `id`, `slug`, etc.).
 
 ### Register & Login
 ```bash

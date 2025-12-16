@@ -33,7 +33,7 @@
 3. **Core Services**
    - Auth router (`/auth/register`, `/auth/login`), `GET /me`.
    - Media search service hitting DB, optionally connectors when `include_external`.
-   - CRUD routers for menus/courses/course-items with slug creation and public endpoint.
+   - CRUD routers for menus/courses/course-items with slug creation and the `/api/public/menus/{slug}` endpoint (slug stability even after title edits, 404 guard when `is_public=false`, ordering enforced by position columns).
    - Tag management endpoints so users can create/list/delete tags and attach them to media items.
 4. **Ingestion Layer**
    - Shared HTTP client with exponential backoff (tenacity).
@@ -64,7 +64,8 @@
 - **Search performance:** indexes on `title`, `media_type`, `slug`, `tags`; fallback to Postgres trigram extension on compose init.
 - **Secrets management:** `.env` + `env_file` in compose, `Settings` reading environment and raising if mandatory values absent in runtime modes.
 
-## 6. Progress Snapshot (June 2024)
+## 6. Milestone – June 2024
+_Historical snapshot kept for reference._
 - ✅ **Container & config** – Compose stack (`api`, `db`, `pgadmin`) builds cleanly; `api` image sets `PYTHONPATH=/app` so CLI tools (Alembic, pytest) can import the package.
 - ✅ **Database ready** – Initial migration `20240602_000001` (users/media/menus/tags enums) runs successfully; enums are idempotent and `alembic upgrade head` is part of the standard boot flow.
 - ✅ **Routers in place** – Auth, menus (incl. nested course/item CRUD), tags, ingest scaffolding, public slug route, and `/health` are wired up and responding (smoke test on `/docs` and `/health` confirmed).
