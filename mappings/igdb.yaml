@@ -1,0 +1,27 @@
+source: igdb
+canonical:
+  media_items:
+    title: name
+    description: summary
+    release_date: first_release_date (UNIX)
+    cover_image_url: cover.url
+    canonical_url: https://www.igdb.com/games/{slug|id}
+  game_items:
+    platforms: platforms[].name
+    developers: involved_companies[developer].company.name
+    publishers: involved_companies[publisher].company.name
+    genres: genres[].name
+metadata:
+  - upstream: genres[].name
+    stored_as: media_items.metadata.genres
+  - upstream: platforms[].name
+    stored_as: media_items.metadata.platforms
+raw_only:
+  - upstream: age_ratings
+    reason: Saved for future parental guidance flows
+  - upstream: multiplayer_modes
+    reason: Not normalized yet
+  - upstream: screenshots, dlcs, expansions
+    reason: Future gallery support
+data_notes:
+  - Release timestamps are converted with `datetime.utcfromtimestamp` before storing.

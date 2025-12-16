@@ -1,0 +1,30 @@
+source: google_books
+canonical:
+  media_items:
+    title: volumeInfo.title
+    subtitle: volumeInfo.subtitle
+    description: volumeInfo.description
+    release_date: volumeInfo.publishedDate
+    cover_image_url: volumeInfo.imageLinks.thumbnail
+    canonical_url: volumeInfo.infoLink
+  book_items:
+    authors: volumeInfo.authors
+    page_count: volumeInfo.pageCount
+    publisher: volumeInfo.publisher
+    language: volumeInfo.language
+    isbn_10: volumeInfo.industryIdentifiers[].ISBN_10
+    isbn_13: volumeInfo.industryIdentifiers[].ISBN_13
+metadata:
+  - upstream: volumeInfo.categories
+    stored_as: media_items.metadata.categories
+  - upstream: volumeInfo.maturityRating
+    stored_as: media_items.metadata.maturityRating
+raw_only:
+  - upstream: searchInfo
+    reason: Not currently exposed in experience flows
+  - upstream: panelizationSummary
+    reason: Rarely used layout metadata
+  - upstream: accessInfo
+    reason: Licensing/access data kept for future ingestion
+data_notes:
+  - Dates are parsed via `app.utils.datetime.parse_date` before storing in Postgres.

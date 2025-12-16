@@ -1,0 +1,29 @@
+source: tmdb
+canonical:
+  media_items:
+    title: title|name
+    description: overview
+    release_date: release_date|first_air_date
+    cover_image_url: poster_path (prefixed with https://image.tmdb.org/t/p/original)
+    canonical_url: https://www.themoviedb.org/{kind}/{id}
+  movie_items:
+    runtime_minutes: runtime|episode_run_time[0]
+    directors: credits.crew[job==Director].name OR created_by[].name (tv)
+    producers: credits.crew[job==Producer].name
+    tmdb_type: kind (movie|tv)
+metadata:
+  - upstream: genres
+    stored_as: media_items.metadata.genres
+  - upstream: spoken_languages
+    stored_as: media_items.metadata.languages
+  - upstream: status
+    stored_as: media_items.metadata.status
+raw_only:
+  - upstream: production_companies
+    reason: Retained for future organization metadata
+  - upstream: production_countries
+    reason: Potential filtering later
+  - upstream: videos, watch/providers, recommendations
+    reason: Not part of MVP flows
+data_notes:
+  - When identifier contains a prefix (e.g., movie:603) it drives the endpoint selection.

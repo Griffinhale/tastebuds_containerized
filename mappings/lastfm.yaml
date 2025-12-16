@@ -1,0 +1,27 @@
+source: lastfm
+canonical:
+  media_items:
+    title: track.name
+    description: track.wiki.summary
+    release_date: album.release_date
+    cover_image_url: album.image[-1].#text
+    canonical_url: track.url
+  music_items:
+    artist_name: artist.name
+    album_name: album.title
+    track_number: album.@attr.position
+    duration_ms: track.duration
+metadata:
+  - upstream: track.listeners
+    stored_as: media_items.metadata.listeners
+  - upstream: track.playcount
+    stored_as: media_items.metadata.playcount
+  - upstream: toptags.tag[].name
+    stored_as: media_items.metadata.tags
+raw_only:
+  - upstream: streamable, userplaycount
+    reason: User-specific data not yet modeled
+  - upstream: comments and nested album artist info
+    reason: Not surfaced in current UX
+data_notes:
+  - Identifiers may be MBIDs or `artist::track` tuples parsed in `LastFMConnector.parse_identifier`.
