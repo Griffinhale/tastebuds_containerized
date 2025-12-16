@@ -69,6 +69,6 @@ _Historical snapshot kept for reference._
 - ✅ **Container & config** – Compose stack (`api`, `db`, `pgadmin`) builds cleanly; `api` image sets `PYTHONPATH=/app` so CLI tools (Alembic, pytest) can import the package.
 - ✅ **Database ready** – Initial migration `20240602_000001` (users/media/menus/tags enums) runs successfully; enums are idempotent and `alembic upgrade head` is part of the standard boot flow.
 - ✅ **Routers in place** – Auth, menus (incl. nested course/item CRUD), tags, ingest scaffolding, public slug route, and `/health` are wired up and responding (smoke test on `/docs` and `/health` confirmed).
-- 🟡 **Seed/test coverage** – Base pytest scaffolding exists but still needs fixtures + sample data script to be wired into CI.
-- 🟡 **Ingestion connectors** – Connector classes live under `app/ingestion/`, but automated mapping tests plus attribute coverage documentation are still being expanded per source.
+- ✅ **Seed/test coverage** – Seed script now consumes fixture payloads from `app/samples/ingestion/` and pytest reuses the same data for ingestion regression tests.
+- ✅ **Ingestion connectors** – Connector classes live under `app/ingestion/`, with automated mapping tests guarding book/movie/game/music coverage per source.
 - 🔜 **Polish** – Need to add schema diagrams (`docs/schema.md`), sample Postman collection, and QA checklist once ingestion layer is finalized.

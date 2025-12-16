@@ -9,7 +9,7 @@ _Historical snapshot captured after the first compose deployment._
 - Docker Compose stack (`api`, `db`, optional `pgadmin`) builds/runs cleanly; `api` container now exports `PYTHONPATH=/app` so CLI tooling (Alembic, pytest) works both inside and outside Docker.
 - Initial Alembic migration `20240602_000001` succeeds end-to-end (enums are created idempotently) and is part of `docker compose exec api alembic upgrade head`.
 - Core routes (auth, menus/courses/items, tags, ingestion scaffolding, `/public/menus/{slug}`, `/health`, `/docs`) are live—recent smoke tests hit `/health` and `/docs` successfully.
-- Next focus areas: seed script + fixtures, automated ingestion mapping tests, and expanding docs (`docs/schema.md`, Postman collection).
+- Next focus areas: rounding out the docs deliverables (`docs/schema.md` diagram, Postman collection) plus a QA checklist for releases.
 
 ## Concept: Menus, Courses & the Media Diet
 - **Menus** are curated journeys owned by a user. Each menu implies an order of consumption and exposes a stable public slug that can be shared without authentication.
@@ -140,6 +140,12 @@ pytest app/tests
 ```
 Ensure `TEST_DATABASE_URL` points at an isolated database; the pytest fixture automatically creates/drops schemas per test run.
 
+Ingestion verification tests (`app/tests/test_ingestion_mapping.py`) replay fixture payloads stored in `app/samples/ingestion/*.json` for Google Books, TMDB, IGDB, and Last.fm, so regressions in connector mappings are caught without reaching external APIs.
+
+### Async SQLAlchemy gotchas
+- The API uses `AsyncSession` everywhere. Accessing relationship attributes (e.g., `menu.courses.append(...)`) can trigger lazy loads that rely on sync `greenlet_spawn` contexts and result in `MissingGreenlet` errors. Prefer assigning foreign keys directly (set `menu_id`/`course_id`), flush, and then reload via `selectinload` or explicit queries when you need relationships hydrated.
+- When adding nested create/update helpers, follow the pattern in `app/services/menu_service.py#create_menu`: insert the parent, flush to get IDs, insert children/items with FK values, and refresh the menu once everything is committed. This keeps async I/O predictable and ensures ordering constraints are satisfied before the response is serialized.
+
 ---
 
 ## Getting API Keys
@@ -240,12 +246,13 @@ Need more endpoints? See `docs/api.md` for the full surface area plus additional
 ---
 
 ## Database Migrations & Seeding
-- **Upgrade**: `docker compose exec api alembic upgrade head`
+- **Helper shortcuts**: `./scripts/dev.sh migrate` / `./scripts/dev.sh seed`
+- **Upgrade (raw command)**: `docker compose exec api alembic upgrade head`
 - **Downgrade**: `docker compose exec api alembic downgrade -1`
 - **Create a revision**: `docker compose exec api alembic revision --autogenerate -m "add music fields"`
 - **Seed demo data**: `docker compose exec api python -m app.scripts.seed`
 
-When changing schema, always update `docs/schema.md` and re-run any ingestion tests touched by the new columns.
+The seed script now bootstraps a cross-medium menu (book/movie/game/music) with realistic ingestion payloads pulled from `app/samples/ingestion/`. Those JSON fixtures double as regression data for mapping tests and keep `media_sources.raw_payload` representative even when running offline. When changing schema, always update `docs/schema.md` and re-run the ingestion tests touched by the new columns.
 
 ---
 

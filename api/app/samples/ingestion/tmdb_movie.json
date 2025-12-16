@@ -1,0 +1,23 @@
+{
+  "id": 603,
+  "title": "Cinematic Journeys",
+  "overview": "Anthology of visionary films",
+  "release_date": "2021-08-05",
+  "poster_path": "/cinematic-journeys.jpg",
+  "genres": [
+    {"id": 12, "name": "Adventure"},
+    {"id": 18, "name": "Drama"}
+  ],
+  "spoken_languages": [
+    {"english_name": "English", "iso_639_1": "en", "name": "English"}
+  ],
+  "status": "Released",
+  "runtime": 138,
+  "credits": {
+    "crew": [
+      {"job": "Director", "name": "T. Laird"},
+      {"job": "Producer", "name": "C. Fields"},
+      {"job": "Producer", "name": "H. Sen"}
+    ]
+  }
+}

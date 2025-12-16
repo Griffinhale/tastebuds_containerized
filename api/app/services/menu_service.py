@@ -71,8 +71,9 @@ async def create_menu(session: AsyncSession, owner_id: uuid.UUID, payload: MenuC
     await session.flush()
 
     for course_data in payload.courses:
-        course = await _create_course(session, menu, course_data)
-        menu.courses.append(course)
+        # Avoid touching relationship attributes directly; they lazily load
+        # and would try to emit sync IO inside async contexts.
+        await _create_course(session, menu, course_data)
 
     await session.commit()
     await session.refresh(menu)
@@ -160,7 +161,7 @@ async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreat
     await session.flush()
     for item_payload in payload.items:
         media = await _get_media(session, item_payload.media_item_id)
-        course.items.append(
+        session.add(
             CourseItem(
                 course_id=course.id,
                 media_item_id=media.id,

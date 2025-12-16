@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 import pytest_asyncio
+from passlib.context import CryptContext
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core import security
 from app.core.config import settings
 from app.db.base_class import Base
+
+
+@pytest.fixture(autouse=True)
+def _use_plaintext_passwords(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(security, "pwd_context", CryptContext(schemes=["plaintext"]))
 
 
 @pytest_asyncio.fixture()

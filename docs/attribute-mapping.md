@@ -2,7 +2,7 @@
 
 Tastebuds ingests upstream payloads with an \"always keep the source\" policy: every response is saved in `media_sources.raw_payload` while high-signal attributes hydrate normalized columns. When official docs aren't reachable at runtime we fall back to **mapping files + raw_payload capture + iterative expansion**—meaning we document the field, store the entire payload, and expose it once demand warrants a new column.
 
-Each connector lists the primary normalized fields and the attributes that currently stay inside `raw_payload`. The same information is stored in structured YAML manifests under `mappings/google_books.yaml`, `mappings/tmdb.yaml`, `mappings/igdb.yaml`, and `mappings/lastfm.yaml` to keep the source of truth alongside the code.
+Each connector lists the primary normalized fields and the attributes that currently stay inside `raw_payload`. The same information is stored in structured YAML manifests under `mappings/google_books.yaml`, `mappings/tmdb.yaml`, `mappings/igdb.yaml`, and `mappings/lastfm.yaml` to keep the source of truth alongside the code. Captured sample payloads live in `app/samples/ingestion/*.json` so tests and the seed script can replay realistic responses without calling upstream services.
 
 ## Google Books
 - **Fields captured**

@@ -1,0 +1,22 @@
+{
+  "id": 7346,
+  "slug": "quest-for-flavor",
+  "name": "Quest for Flavor",
+  "summary": "Indie narrative adventure",
+  "first_release_date": 1588982400,
+  "cover": {"url": "https://images.igdb.com/igdb/image/upload/t_cover_big/demo-cover.jpg"},
+  "genres": [
+    {"id": 31, "name": "Adventure"}
+  ],
+  "platforms": [
+    {"id": 6, "name": "PC (Microsoft Windows)"},
+    {"id": 130, "name": "Nintendo Switch"}
+  ],
+  "involved_companies": [
+    {
+      "company": {"id": 1, "name": "Calico Works"},
+      "developer": true,
+      "publisher": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Soundtrack of Curiosity",
+  "mbid": "demo-track-curiosity",
+  "url": "https://www.last.fm/music/Nia+Holloway/_/Soundtrack+of+Curiosity",
+  "duration": "226000",
+  "listeners": "12000",
+  "playcount": "48000",
+  "artist": {"name": "Nia Holloway"},
+  "album": {
+    "title": "Resonant Paths",
+    "@attr": {"position": 3},
+    "image": [
+      {"size": "small", "#text": "https://last.fm/demo-small.jpg"},
+      {"size": "medium", "#text": "https://last.fm/demo-medium.jpg"},
+      {"size": "extralarge", "#text": "https://last.fm/demo-cover.jpg"}
+    ]
+  },
+  "toptags": {
+    "tag": [
+      {"name": "ambient"},
+      {"name": "focus"}
+    ]
+  },
+  "wiki": {
+    "summary": "An ambient score to wind down.",
+    "published": "2022-03-14"
+  }
+}
