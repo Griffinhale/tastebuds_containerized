@@ -16,6 +16,7 @@ import {
   getMenu,
   listMenus
 } from '../lib/menus';
+import { CourseItemSearch } from './course-item-search';
 
 export function MenuDashboard() {
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -192,15 +193,18 @@ function CourseEditor({
       <div className="mt-4 space-y-3">
         <p className="text-xs uppercase tracking-wide text-slate-400">Items</p>
         {course.items.length === 0 && (
-          <p className="text-sm text-slate-300">Add an item using its media ID to populate this course.</p>
+          <p className="text-sm text-slate-300">
+            Add an item via search/ingest or paste a known media ID to populate this course.
+          </p>
         )}
         {course.items.map((item) => (
           <CourseItemRow key={item.id} item={item} menuId={menuId} onRefresh={onRefresh} />
         ))}
       </div>
 
-      <div className="mt-4 border-t border-slate-800 pt-4">
+      <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
         <AddCourseItemForm course={course} menuId={menuId} onSuccess={onRefresh} />
+        <CourseItemSearch menuId={menuId} course={course} onAdded={onRefresh} />
       </div>
 
       {error && <p className="mt-3 text-sm text-red-300">{error}</p>}

@@ -32,7 +32,8 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `:3000` and reads `.env`.
 - [ ] Home page cards show API status plus the signed-in widget; refresh/log out buttons work (cookies survive reloads).
 - [ ] `/login` and `/register` submit successfully against the FastAPI auth endpoints and set httpOnly cookies.
-- [ ] `/menus` lists existing menus and allows creating/deleting courses/items (still requires pasting an existing `media_item_id`).
+- [ ] `/menus` lists existing menus and allows creating/deleting courses/items. Search drawer adds catalog hits directly into a course.
+- [ ] Course search fan-out: toggle `Include external sources`, run a query, and confirm the results are ingested (metadata counts increment) and selectable.
 
 ## 6) Docs & Artifacts
 - [ ] `README.md` and `docs/*.md` match the shipped commands/endpoints.

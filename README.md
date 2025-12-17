@@ -9,7 +9,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; dedupe happens via `media_sources (source_name, external_id)`.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
-- Next.js frontend now includes login/register, session status, and a menus dashboard with inline course/item editors (media IDs are pasted manually until search UI ships).
+- Next.js frontend now includes login/register, session status, and a menus dashboard with inline course/item editors plus a search/ingest drawer.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -75,7 +75,7 @@ npm install
 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 - Auth pages live at `http://localhost:3000/login` and `/register`, hitting the FastAPI auth endpoints using `NEXT_PUBLIC_API_BASE`. Tokens are issued as httpOnly cookies; no `localStorage` usage.
-- After logging in, the home page shows your signed-in status via `/api/me`, and `/menus` lists/creates menus and lets you add/delete courses/items (paste an existing `media_item_id` for now). Use the refresh/log out buttons on the home page as needed.
+- After logging in, the home page shows your signed-in status via `/api/me`, and `/menus` lists/creates menus, lets you add/delete courses/items, and includes a search drawer that can ingest external matches. Use the refresh/log out buttons on the home page as needed.
 
 ## API quickstart
 Authenticated routes accept `Authorization: Bearer <access_token>` and the browser also gets httpOnly cookies (`access_token`, `refresh_token`) from register/login/refresh. Register/login returns both access and refresh tokens; refresh is available at `/api/auth/refresh`.

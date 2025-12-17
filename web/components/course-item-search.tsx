@@ -1,0 +1,292 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Course, createCourseItem } from '../lib/menus';
+import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
+
+type CourseItemSearchProps = {
+  menuId: string;
+  course: Course;
+  onAdded: () => Promise<void>;
+};
+
+const mediaTypeOptions: { label: string; value: MediaType }[] = [
+  { label: 'Books', value: 'book' },
+  { label: 'Movies', value: 'movie' },
+  { label: 'TV', value: 'tv' },
+  { label: 'Games', value: 'game' },
+  { label: 'Music', value: 'music' }
+];
+
+export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchProps) {
+  const [query, setQuery] = useState('');
+  const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
+  const [includeExternal, setIncludeExternal] = useState(true);
+  const [results, setResults] = useState<MediaSearchItem[]>([]);
+  const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [position, setPosition] = useState(course.items.length + 1);
+  const [notes, setNotes] = useState('');
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPosition(course.items.length + 1);
+  }, [course.items.length]);
+
+  const metadataEntries = useMemo(() => {
+    if (!metadata) return [];
+    return Object.entries(metadata).map(([key, value]) => {
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        value === null
+      ) {
+        return [key, String(value)] as [string, string];
+      }
+      return [key, JSON.stringify(value)] as [string, string];
+    });
+  }, [metadata]);
+
+  const resultSummary = useMemo(() => {
+    if (searching) {
+      return 'Searching...';
+    }
+    if (!hasSearched) {
+      return 'Use the search form to browse your catalog or ingest new matches.';
+    }
+    if (results.length === 0) {
+      return 'No matches yet. Try another query or toggle external sources.';
+    }
+    return `Showing ${results.length} item${results.length === 1 ? '' : 's'} (${source ?? 'internal'})`;
+  }, [hasSearched, results.length, searching, source]);
+
+  const toggleType = (value: MediaType) => {
+    setSelectedTypes((prev) =>
+      prev.includes(value) ? prev.filter((type) => type !== value) : [...prev, value]
+    );
+  };
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!query.trim()) {
+      setError('Enter a search query (at least 2 characters).');
+      return;
+    }
+    setSearching(true);
+    setError(null);
+    setStatusMessage(null);
+    setHasSearched(true);
+    try {
+      const response = await searchMedia({
+        query,
+        includeExternal,
+        types: selectedTypes.length ? selectedTypes : undefined
+      });
+      setResults(response.results);
+      setMetadata(response.metadata ?? null);
+      setSource(response.source);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Search failed.';
+      setError(message);
+      setResults([]);
+      setMetadata(null);
+      setSource(null);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleAdd(item: MediaSearchItem) {
+    if (addingId) return;
+    setAddingId(item.id);
+    setError(null);
+    setStatusMessage(null);
+    try {
+      await createCourseItem(menuId, course.id, {
+        media_item_id: item.id,
+        position,
+        notes: notes || undefined
+      });
+      await onAdded();
+      setStatusMessage(`Added "${item.title}" to ${course.title}.`);
+      setNotes('');
+      setPosition((prev) => prev + 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add item.';
+      setError(message);
+    } finally {
+      setAddingId(null);
+    }
+  }
+
+  return (
+    <section className="space-y-4 rounded-lg border border-dashed border-slate-800 bg-slate-950/30 p-4">
+      <header className="space-y-1">
+        <p className="text-sm font-semibold text-slate-200">Search catalog & ingest</p>
+        <p className="text-xs text-slate-400">
+          Look up existing media and optionally fan out to Google Books, TMDB, IGDB, and Last.fm. New
+          external matches are ingested automatically.
+        </p>
+      </header>
+
+      <form onSubmit={handleSearch} className="space-y-3">
+        <div className="flex flex-col gap-2 md:flex-row">
+          <input
+            type="text"
+            minLength={2}
+            required
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search title, artist, or keyword"
+            className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+          />
+          <button
+            type="submit"
+            disabled={searching}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {searching ? 'Searching…' : 'Search'}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {mediaTypeOptions.map((option) => {
+            const active = selectedTypes.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => toggleType(option.value)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  active
+                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <label className="flex items-center gap-2 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={includeExternal}
+            onChange={(event) => setIncludeExternal(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+          />
+          Include external sources (ingests matching results)
+        </label>
+      </form>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs uppercase tracking-wide text-slate-400">Next position</label>
+            <input
+              type="number"
+              min={1}
+              value={position}
+              onChange={(event) => setPosition(Number(event.target.value))}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs uppercase tracking-wide text-slate-400">Notes (optional)</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Serving notes for this course item."
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          When you add an item from the results below it will use this position and notes.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Results</p>
+        <p className="text-xs text-slate-400">{resultSummary}</p>
+        {metadataEntries.length > 0 && (
+          <dl className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 sm:grid-cols-2">
+            {metadataEntries.map(([key, value]) => (
+              <div key={key}>
+                <dt className="uppercase tracking-wide text-slate-500">{key}</dt>
+                <dd className="font-semibold text-white">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {error && <p className="text-xs text-red-300">{error}</p>}
+        {statusMessage && <p className="text-xs text-emerald-300">{statusMessage}</p>}
+      </div>
+
+      {results.length > 0 && (
+        <ul className="space-y-3">
+          {results.map((item) => (
+            <li key={item.id} className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex items-start gap-3">
+                  <div className="h-20 w-14 overflow-hidden rounded border border-slate-800 bg-slate-900/50">
+                    {item.cover_image_url ? (
+                      <img
+                        src={item.cover_image_url}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-slate-500">
+                        No art
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-400">{item.media_type}</p>
+                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                    {item.subtitle && <p className="text-xs text-slate-300">{item.subtitle}</p>}
+                    {item.release_date && (
+                      <p className="text-xs text-slate-400">Released {item.release_date}</p>
+                    )}
+                    {item.description && (
+                      <p className="mt-2 text-xs leading-relaxed text-slate-300">{item.description}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:items-end sm:text-right">
+                  <button
+                    onClick={() => handleAdd(item)}
+                    disabled={Boolean(addingId)}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {addingId === item.id ? 'Adding…' : 'Add to course'}
+                  </button>
+                  {item.canonical_url && (
+                    <a
+                      href={item.canonical_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-emerald-300 underline decoration-emerald-300/60"
+                    >
+                      View source
+                    </a>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
