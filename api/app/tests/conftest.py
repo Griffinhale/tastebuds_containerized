@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 import pytest_asyncio
+from httpx import AsyncClient
 from passlib.context import CryptContext
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core import security
 from app.core.config import settings
 from app.db.base_class import Base
+from app.api.deps import get_db
+from app.main import app
 
 
 @pytest.fixture(autouse=True)
@@ -42,3 +45,14 @@ async def session() -> AsyncSession:
             else:
                 await conn.run_sync(Base.metadata.drop_all)
         await engine.dispose()
+
+
+@pytest_asyncio.fixture()
+async def client(session: AsyncSession) -> AsyncClient:
+    async def _get_test_db():
+        yield session
+
+    app.dependency_overrides[get_db] = _get_test_db
+    async with AsyncClient(app=app, base_url="http://testserver") as async_client:
+        yield async_client
+    app.dependency_overrides.pop(get_db, None)

@@ -5,11 +5,11 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 ---
 
 ## Current Status (Dec 2025)
-- Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), the optional Next.js stub (`web`), and optional PgAdmin.
+- Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), the optional Next.js app (`web`), and optional PgAdmin.
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; dedupe happens via `media_sources (source_name, external_id)`.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
-- Next.js frontend is a placeholder that pings the API health endpoint; no auth/menu UI has shipped yet.
+- Next.js frontend now includes login/register, session status, and a menus dashboard with inline course/item editors (media IDs are pasted manually until search UI ships).
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -45,7 +45,7 @@ The Compose stack also reads `.env` for the web service.
 ./scripts/dev.sh migrate
 # optional helpers
 ./scripts/dev.sh seed   # demo data + menu
-./scripts/dev.sh web    # Next.js placeholder on :3000
+./scripts/dev.sh web    # Next.js auth + menus UI on :3000
 ```
 Raw commands if you prefer:
 ```bash
@@ -55,7 +55,7 @@ docker compose exec api python -m app.scripts.seed
 docker compose up --build -d web
 ```
 API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health`)  
-Web stub: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
+Web app: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
 
 ## Development without Docker
 ```bash
@@ -75,7 +75,7 @@ npm install
 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 - Auth pages live at `http://localhost:3000/login` and `/register`, hitting the FastAPI auth endpoints using `NEXT_PUBLIC_API_BASE`. Tokens are issued as httpOnly cookies; no `localStorage` usage.
-- After logging in, the home page shows your signed-in status via `/api/me`; use the refresh/log out buttons there as needed.
+- After logging in, the home page shows your signed-in status via `/api/me`, and `/menus` lists/creates menus and lets you add/delete courses/items (paste an existing `media_item_id` for now). Use the refresh/log out buttons on the home page as needed.
 
 ## API quickstart
 Authenticated routes accept `Authorization: Bearer <access_token>` and the browser also gets httpOnly cookies (`access_token`, `refresh_token`) from register/login/refresh. Register/login returns both access and refresh tokens; refresh is available at `/api/auth/refresh`.
@@ -145,7 +145,7 @@ curl "http://localhost:8000/api/search?q=blade%20runner&include_external=true" \
 # or locally
 cd api && TEST_DATABASE_URL=... pytest app/tests
 ```
-Pytest uses async fixtures and the ingestion samples under `app/samples/ingestion/`.
+Pytest uses async fixtures plus ingestion samples, and now includes API-level coverage for auth/token flows and menu CRUD.
 
 ## Troubleshooting
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.

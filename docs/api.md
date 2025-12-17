@@ -1,6 +1,6 @@
 # API Guide
 
-Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login returns both access and refresh tokens; a refresh endpoint has not been implemented yet.
+Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login/refresh return both access and refresh tokens and also set httpOnly cookies for browser clients.
 
 ## Health & Docs
 - `GET /health` and `GET /api/health` return `{"status":"ok"}`.

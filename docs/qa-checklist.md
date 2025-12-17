@@ -28,9 +28,11 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
 
-## 5) Frontend Stub
-- [ ] `./scripts/dev.sh web` builds/serves the Next.js placeholder on `:3000`.
-- [ ] The API status card reports healthy when `NEXT_PUBLIC_API_BASE` and `CORS_ORIGINS` are set correctly.
+## 5) Frontend App
+- [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `:3000` and reads `.env`.
+- [ ] Home page cards show API status plus the signed-in widget; refresh/log out buttons work (cookies survive reloads).
+- [ ] `/login` and `/register` submit successfully against the FastAPI auth endpoints and set httpOnly cookies.
+- [ ] `/menus` lists existing menus and allows creating/deleting courses/items (still requires pasting an existing `media_item_id`).
 
 ## 6) Docs & Artifacts
 - [ ] `README.md` and `docs/*.md` match the shipped commands/endpoints.

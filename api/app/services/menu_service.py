@@ -16,12 +16,13 @@ from app.utils.slugify import menu_slug
 async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Menu]:
     result = await session.execute(
         select(Menu)
-            .options(
-                selectinload(Menu.courses)
-                .selectinload(Course.items)
-                .selectinload(CourseItem.media_item)
-            )
-            .where(Menu.owner_id == user_id)
+        .execution_options(populate_existing=True)
+        .options(
+            selectinload(Menu.courses)
+            .selectinload(Course.items)
+            .selectinload(CourseItem.media_item)
+        )
+        .where(Menu.owner_id == user_id)
     )
     return result.scalars().all()
 
@@ -29,6 +30,7 @@ async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list
 async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.UUID | None = None) -> Menu:
     query = (
         select(Menu)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Menu.courses)
             .selectinload(Course.items)
@@ -48,6 +50,7 @@ async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.
 async def get_menu_by_slug(session: AsyncSession, slug: str) -> Menu | None:
     result = await session.execute(
         select(Menu)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Menu.courses)
             .selectinload(Course.items)
@@ -76,8 +79,7 @@ async def create_menu(session: AsyncSession, owner_id: uuid.UUID, payload: MenuC
         await _create_course(session, menu, course_data)
 
     await session.commit()
-    await session.refresh(menu)
-    return menu
+    return await _load_menu_with_children(session, menu.id)
 
 
 async def update_menu(session: AsyncSession, menu: Menu, payload: MenuUpdate) -> Menu:
@@ -88,8 +90,7 @@ async def update_menu(session: AsyncSession, menu: Menu, payload: MenuUpdate) ->
     if payload.is_public is not None:
         menu.is_public = payload.is_public
     await session.commit()
-    await session.refresh(menu)
-    return menu
+    return await _load_menu_with_children(session, menu.id)
 
 
 async def delete_menu(session: AsyncSession, menu: Menu) -> None:
@@ -198,6 +199,7 @@ async def _slug_exists(session: AsyncSession, slug: str) -> bool:
 async def _load_course_with_items(session: AsyncSession, course_id: uuid.UUID) -> Course:
     result = await session.execute(
         select(Course)
+        .execution_options(populate_existing=True)
         .options(selectinload(Course.items).selectinload(CourseItem.media_item))
         .where(Course.id == course_id)
     )
@@ -207,6 +209,23 @@ async def _load_course_with_items(session: AsyncSession, course_id: uuid.UUID) -
 
 async def _load_course_item_with_media(session: AsyncSession, course_item_id: uuid.UUID) -> CourseItem:
     result = await session.execute(
-        select(CourseItem).options(selectinload(CourseItem.media_item)).where(CourseItem.id == course_item_id)
+        select(CourseItem)
+        .execution_options(populate_existing=True)
+        .options(selectinload(CourseItem.media_item))
+        .where(CourseItem.id == course_item_id)
+    )
+    return result.scalar_one()
+
+
+async def _load_menu_with_children(session: AsyncSession, menu_id: uuid.UUID) -> Menu:
+    result = await session.execute(
+        select(Menu)
+        .execution_options(populate_existing=True)
+        .options(
+            selectinload(Menu.courses)
+            .selectinload(Course.items)
+            .selectinload(CourseItem.media_item)
+        )
+        .where(Menu.id == menu_id)
     )
     return result.scalar_one()

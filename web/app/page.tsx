@@ -39,8 +39,8 @@ export default function Home() {
         <Card title="Auth flows" description="Login/register UI now hits the FastAPI auth endpoints." href="/login" />
         <Card
           title="Menus & courses"
-          description="Build the editor with optimistic updates over the FastAPI schema."
-          href="https://nextjs.org/docs/app/building-your-application/data-fetching/fetching"
+          description="View your menus and create new ones via the FastAPI backend."
+          href="/menus"
         />
         <Card
           title="Search & ingestion"

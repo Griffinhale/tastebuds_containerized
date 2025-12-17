@@ -37,8 +37,13 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
-    response.delete_cookie(REFRESH_COOKIE_NAME, path="/")
+    secure = settings.environment.lower() == "production"
+    for name in (ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME):
+        directives = ["Path=/", "HttpOnly", "SameSite=Lax"]
+        if secure:
+            directives.append("Secure")
+        header_value = f"{name}=; {'; '.join(directives)}"
+        response.raw_headers.append((b"set-cookie", header_value.encode("latin-1")))
 
 
 def _token_response(user: UserRead) -> TokenPair:
