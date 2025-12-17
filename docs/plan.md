@@ -70,6 +70,44 @@
 5. Stand up the web UI (auth, menus, unified search/import flows, public menu pages) and containerize it alongside the API behind a reverse proxy.
 6. Harden homelab/public deployment story (TLS, proxy config, watchtower) and round out docs/tests (backend + frontend suites).
 
+## 5. Frontend Ticket Backlog (Next.js + TypeScript)
+1. **FE-001 – Next.js scaffolding & container wiring**
+   - Initialize `web/` with `create-next-app` (TypeScript, ESLint, Tailwind).
+   - Add shared config: absolute imports, env typing, axios/fetch wrapper pointed at FastAPI base URL.
+   - Create `web/Dockerfile` multi-stage build and extend `docker-compose.yml` with `web` + reverse proxy routing to `/api`.
+   - Acceptance: `docker compose up web` serves placeholder page, Hot Reload works via `scripts/dev.sh web`.
+2. **FE-002 – Auth foundation & API client utilities**
+   - Build typed API client module (SWR or RTK Query) handling JWT access/refresh, httpOnly cookie storage, and 401 retries via `/auth/refresh`.
+   - Implement login/register forms with validation, success redirects, and error toasts.
+   - Add protected route guard (middleware or layout) that checks session state before rendering app shell.
+3. **FE-003 – App chrome & navigation**
+   - Create responsive layout (sidebar/nav, header with user menu) with dark/light theme toggle.
+   - Wire menu links for Dashboard, Menus, Search, Settings.
+   - Ensure layout consumes auth context (shows avatar/email, exposes logout).
+4. **FE-004 – Unified search UI hooked to orchestrator**
+   - Build search page with filters (`media_type`, `sources[]`, `include_external`, pagination tokens).
+   - Integrate autocomplete/typeahead that hits `/api/search` and surfaces both DB + external connector results, including provenance badges.
+   - Provide CTA to “import” external results -> triggers `/api/ingest/{source}` then refreshes local list.
+5. **FE-005 – Menu & course editor**
+   - Implement menu list/create forms with slug visibility, public toggle, cover image.
+   - Build drag-and-drop course/item editing experience. Integrate search drawer from FE-004 to attach media items inline.
+   - Persist optimistic updates via API service, handle ordering/position updates, surface validation errors from FastAPI.
+6. **FE-006 – Public menu & share pages**
+   - SSR-friendly route `/menus/[slug]` fetching `/api/public/menus/{slug}` without auth, apply open graph tags for social cards.
+   - Provide share panel (copy link, embed code placeholder, “Open in Tastebuds” CTA).
+   - Handle private menu states (404 display) and loading skeletons.
+7. **FE-007 – Account & settings views**
+   - Add profile editor (display name, bio), password reset/change flows against API.
+   - Surface API key statuses (external connectors) and allow toggling optional privacy settings once backend supports them.
+8. **FE-008 – Frontend testing & QA automation**
+   - Configure Jest + React Testing Library for components (auth forms, menu editor pieces).
+   - Add Cypress/Playwright smoke path: login -> search -> import item -> publish menu -> view public page.
+   - Wire tests into CI (GitHub Actions) and document commands in README.
+9. **FE-009 – Deployment & homelab polish**
+   - Finalize Traefik/nginx config for `web` + `api`, including HTTPS (Let’s Encrypt or homelab certs) and caching headers for static assets.
+   - Document watchtower/image update flow, env vars for public URLs, CDN strategy if self-hosted.
+   - Provide README section for publishing (ports, DNS, secrets).
+
 ## 5. Risks & Mitigations
 - **External API schema drift:** capture complete `raw_payload`, isolate mapping functions, document mapping for easy extension.
 - **Rate limit/backoff:** tenacity-based retry with jitter, connectors expose `max_results` and chunked ingestion for multi-result.
