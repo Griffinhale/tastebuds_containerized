@@ -25,6 +25,12 @@ def _current_time() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _ensure_timezone(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt
+    return dt.replace(tzinfo=timezone.utc)
+
+
 def _build_refresh_token(user_id: uuid.UUID) -> tuple[str, RefreshToken]:
     token_value = _generate_token_value()
     token_hash = _hash_token(token_value)
@@ -72,7 +78,9 @@ async def rotate_refresh_token(session: AsyncSession, token_value: str) -> tuple
             await session.commit()
         return None
 
-    if token.expires_at <= now:
+    token.expires_at = _ensure_timezone(token.expires_at)
+    expires_at = token.expires_at
+    if expires_at <= now:
         token.revoked_at = now
         token.revoked_reason = "expired"
         await session.commit()
