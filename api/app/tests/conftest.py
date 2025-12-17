@@ -9,10 +9,10 @@ from passlib.context import CryptContext
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.api.deps import get_db
 from app.core import security
 from app.core.config import settings
 from app.db.base_class import Base
-from app.api.deps import get_db
 from app.main import app
 
 

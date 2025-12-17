@@ -41,7 +41,11 @@ class IGDBConnector(BaseConnector):
 
     async def fetch(self, identifier: str) -> ConnectorResult:
         token = await self._ensure_token()
-        query = f"fields name,summary,first_release_date,cover.url,genres.name,platforms.name,involved_companies.company.name,involved_companies.publisher,involved_companies.developer; where id = {identifier};"
+        query = (
+            "fields name,summary,first_release_date,cover.url,genres.name,platforms.name,"
+            "involved_companies.company.name,involved_companies.publisher,involved_companies.developer;"
+            f" where id = {identifier};"
+        )
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(
                 "https://api.igdb.com/v4/games",

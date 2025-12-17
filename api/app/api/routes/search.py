@@ -107,7 +107,11 @@ async def search(
     external_counts: dict[str, int] = {}
     if connector_sources:
         external_items, external_counts = await media_service.search_external_sources(
-            session, q, per_source=external_per_source, sources=connector_sources, allowed_media_types=allowed_media_types
+            session,
+            q,
+            per_source=external_per_source,
+            sources=connector_sources,
+            allowed_media_types=allowed_media_types,
         )
         for item in external_items:
             items_by_id[str(item.id)] = MediaItemBase.model_validate(item)

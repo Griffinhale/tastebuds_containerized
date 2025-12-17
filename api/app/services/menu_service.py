@@ -4,8 +4,8 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import case, select, update
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.media import MediaItem
 from app.models.menu import Course, CourseItem, Menu

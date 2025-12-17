@@ -13,6 +13,7 @@ from app.db.base_class import Base
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from app.models.menu import CourseItem
+    from app.models.tagging import MediaItemTag
     from app.models.user import User
 
 

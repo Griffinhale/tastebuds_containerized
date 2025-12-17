@@ -5,8 +5,8 @@ from typing import Iterable
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.ingestion import get_connector
 from app.ingestion.base import ConnectorResult
