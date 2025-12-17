@@ -11,8 +11,8 @@ jobs:
       run:
         working-directory: api
     env:
-      DATABASE_URL: sqlite+aiosqlite:///:memory:
-      TEST_DATABASE_URL: sqlite+aiosqlite:///:memory:
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+      TEST_DATABASE_URL: "sqlite+aiosqlite:///:memory:"
       JWT_SECRET_KEY: dummy-secret
       TMDB_API_AUTH_HEADER: dummy-token
     steps:
