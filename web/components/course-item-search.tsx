@@ -18,6 +18,9 @@ const mediaTypeOptions: { label: string; value: MediaType }[] = [
   { label: 'Music', value: 'music' }
 ];
 
+const RESULTS_PER_PAGE = 10;
+const EXTERNAL_RESULTS_PER_SOURCE = 2;
+
 export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchProps) {
   const [query, setQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
@@ -25,6 +28,9 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [results, setResults] = useState<MediaSearchItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreInternal, setHasMoreInternal] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -62,8 +68,13 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     if (results.length === 0) {
       return 'No matches yet. Try another query or toggle external sources.';
     }
-    return `Showing ${results.length} item${results.length === 1 ? '' : 's'} (${source ?? 'internal'})`;
-  }, [hasSearched, results.length, searching, source]);
+    const paging = metadata?.paging as { page?: number } | undefined;
+    const pageNumber = paging?.page ?? currentPage;
+    const pageSuffix = pageNumber && pageNumber > 1 ? ` (page ${pageNumber})` : '';
+    return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${pageSuffix} (${
+      source ?? 'internal'
+    })`;
+  }, [currentPage, hasSearched, metadata, results.length, searching, source]);
 
   const toggleType = (value: MediaType) => {
     setSelectedTypes((prev) =>
@@ -71,34 +82,85 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     );
   };
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function performSearch(pageToLoad: number, append = false) {
     if (!query.trim()) {
       setError('Enter a search query (at least 2 characters).');
       return;
     }
-    setSearching(true);
+    if (append) {
+      if (loadingMore || searching) {
+        return;
+      }
+      setLoadingMore(true);
+    } else {
+      if (searching) {
+        return;
+      }
+      setSearching(true);
+    }
+    if (!append) {
+      setHasSearched(true);
+    }
     setError(null);
     setStatusMessage(null);
-    setHasSearched(true);
     try {
       const response = await searchMedia({
         query,
         includeExternal,
-        types: selectedTypes.length ? selectedTypes : undefined
+        types: selectedTypes.length ? selectedTypes : undefined,
+        page: pageToLoad,
+        perPage: RESULTS_PER_PAGE,
+        externalPerSource: EXTERNAL_RESULTS_PER_SOURCE
       });
-      setResults(response.results);
       setMetadata(response.metadata ?? null);
       setSource(response.source);
+      setResults((prev) => {
+        if (!append) {
+          return response.results;
+        }
+        const seen = new Set(prev.map((item) => item.id));
+        const additions = response.results.filter((item) => !seen.has(item.id));
+        return [...prev, ...additions];
+      });
+      const paging = response.metadata?.paging as {
+        page?: number;
+        per_page?: number;
+        total_internal?: number;
+      } | undefined;
+      const pageNumber = paging?.page ?? pageToLoad;
+      const perPageValue = paging?.per_page ?? RESULTS_PER_PAGE;
+      const totalInternal =
+        typeof paging?.total_internal === 'number' ? paging.total_internal : 0;
+      setCurrentPage(pageNumber);
+      setHasMoreInternal(pageNumber * perPageValue < totalInternal);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Search failed.';
       setError(message);
-      setResults([]);
-      setMetadata(null);
-      setSource(null);
+      if (!append) {
+        setResults([]);
+        setMetadata(null);
+        setSource(null);
+        setHasMoreInternal(false);
+      }
     } finally {
-      setSearching(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setSearching(false);
+      }
     }
+  }
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await performSearch(1);
+  }
+
+  async function handleLoadMore() {
+    if (loadingMore || searching) {
+      return;
+    }
+    await performSearch(currentPage + 1, true);
   }
 
   async function handleAdd(item: MediaSearchItem) {
@@ -310,6 +372,18 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             </li>
           ))}
         </ul>
+      )}
+      {hasMoreInternal && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore || searching}
+            className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading…' : 'Load more results'}
+          </button>
+        </div>
       )}
     </section>
   );

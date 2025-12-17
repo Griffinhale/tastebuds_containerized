@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     google_books_api_key: Optional[str] = None
     tmdb_api_key: Optional[str] = None
+    tmdb_api_auth_header: Optional[str] = None
     igdb_client_id: Optional[str] = None
     igdb_client_secret: Optional[str] = None
     lastfm_api_key: Optional[str] = None

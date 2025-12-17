@@ -16,8 +16,9 @@ IMAGE_BASE = "https://image.tmdb.org/t/p/original"
 class TMDBConnector(BaseConnector):
     source_name = "tmdb"
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, auth_token: str | None = None) -> None:
         self.api_key = api_key or settings.tmdb_api_key
+        self.auth_token = auth_token or settings.tmdb_api_auth_header
 
     def parse_identifier(self, identifier: str) -> str:
         if identifier.startswith("http"):
@@ -26,6 +27,15 @@ class TMDBConnector(BaseConnector):
             if len(parts) >= 2 and parts[0] in {"movie", "tv"}:
                 return f"{parts[0]}:{parts[1]}"
         return super().parse_identifier(identifier)
+
+    def _auth(self) -> tuple[dict[str, str], dict[str, str]]:
+        headers: dict[str, str] = {"accept": "application/json"}
+        params: dict[str, str] = {}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        else:
+            raise ExternalAPIError("TMDB API credentials missing")
+        return headers, params
 
     async def fetch(self, identifier: str) -> ConnectorResult:
         token = self.parse_identifier(identifier)
@@ -44,11 +54,11 @@ class TMDBConnector(BaseConnector):
         raise ExternalAPIError("TMDB resource not found")
 
     async def _fetch(self, kind: str, tmdb_id: str) -> ConnectorResult | None:
-        if not self.api_key:
-            raise ExternalAPIError("TMDB API key missing")
+        headers, params = self._auth()
         payload = await fetch_json(
             f"https://api.themoviedb.org/3/{kind}/{tmdb_id}",
-            params={"api_key": self.api_key, "append_to_response": "credits"},
+            headers=headers,
+            params={**params, "append_to_response": "credits"},
         )
         if not payload:
             return None
@@ -96,18 +106,29 @@ class TMDBConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
-        if not self.api_key:
+        try:
+            headers, params = self._auth()
+        except ExternalAPIError:
             return []
-        payload = await fetch_json(
-            "https://api.themoviedb.org/3/search/multi",
-            params={"api_key": self.api_key, "query": query, "page": 1},
-        )
         identifiers: list[str] = []
-        for result in payload.get("results", []):
-            media_type = result.get("media_type")
-            tmdb_id = result.get("id")
-            if media_type in {"movie", "tv"} and tmdb_id is not None:
-                identifiers.append(f"{media_type}:{tmdb_id}")
+        for search_kind in ("movie", "tv"):
+            payload = await fetch_json(
+                f"https://api.themoviedb.org/3/search/{search_kind}",
+                headers=headers,
+                params={
+                    **params,
+                    "query": query,
+                    "page": 1,
+                    "include_adult": "false",
+                    "language": "en-US",
+                },
+            )
+            for result in payload.get("results", []):
+                tmdb_id = result.get("id")
+                if tmdb_id is not None:
+                    identifiers.append(f"{search_kind}:{tmdb_id}")
+                if len(identifiers) >= limit:
+                    break
             if len(identifiers) >= limit:
                 break
         return identifiers

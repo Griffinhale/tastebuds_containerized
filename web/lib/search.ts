@@ -4,6 +4,14 @@ import { apiFetch } from './api';
 
 export type MediaType = 'book' | 'movie' | 'tv' | 'game' | 'music';
 
+export type SearchSource =
+  | 'internal'
+  | 'external'
+  | 'google_books'
+  | 'tmdb'
+  | 'igdb'
+  | 'lastfm';
+
 export type MediaSearchItem = {
   id: string;
   media_type: MediaType;
@@ -26,6 +34,10 @@ type SearchParams = {
   query: string;
   types?: MediaType[];
   includeExternal?: boolean;
+  page?: number;
+  perPage?: number;
+  sourceFilters?: SearchSource[];
+  externalPerSource?: number;
 };
 
 export async function searchMedia(params: SearchParams): Promise<MediaSearchResponse> {
@@ -37,6 +49,20 @@ export async function searchMedia(params: SearchParams): Promise<MediaSearchResp
   params.types?.forEach((type) => {
     searchParams.append('types', type);
   });
+  if (params.page) {
+    searchParams.set('page', String(params.page));
+  }
+  if (params.perPage) {
+    searchParams.set('per_page', String(params.perPage));
+  }
+  if (params.sourceFilters) {
+    params.sourceFilters.forEach((source) => {
+      searchParams.append('sources', source);
+    });
+  }
+  if (params.externalPerSource) {
+    searchParams.set('external_per_source', String(params.externalPerSource));
+  }
 
   const queryString = searchParams.toString();
   return apiFetch<MediaSearchResponse>(`/search?${queryString}`, undefined, { isServer: false });

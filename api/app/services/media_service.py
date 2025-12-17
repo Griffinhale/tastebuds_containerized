@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from typing import Iterable, Sequence
+from typing import Iterable
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,8 @@ from app.models.media import (
     MovieItem,
     MusicItem,
 )
+
+DEFAULT_EXTERNAL_SOURCES = ("google_books", "tmdb", "igdb", "lastfm")
 
 
 async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
@@ -36,29 +38,68 @@ async def get_media_with_sources(session: AsyncSession, media_id: uuid.UUID) -> 
 
 
 async def search_media(
-    session: AsyncSession, *, query: str, media_types: Iterable[MediaType] | None = None, limit: int = 20
-) -> Sequence[MediaItem]:
-    stmt = select(MediaItem).where(MediaItem.title.ilike(f"%{query}%"))
+    session: AsyncSession,
+    *,
+    query: str,
+    media_types: Iterable[MediaType] | None = None,
+    offset: int = 0,
+    limit: int = 20,
+) -> tuple[list[MediaItem], int]:
+    filtered_stmt = select(MediaItem).where(MediaItem.title.ilike(f"%{query}%"))
     if media_types:
-        stmt = stmt.where(MediaItem.media_type.in_(list(media_types)))
-    stmt = stmt.order_by(func.lower(MediaItem.title)).limit(limit)
-    result = await session.execute(stmt)
-    return result.scalars().all()
+        filtered_stmt = filtered_stmt.where(MediaItem.media_type.in_(list(media_types)))
+    count_stmt = select(func.count()).select_from(filtered_stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar_one()
+    paged_stmt = (
+        filtered_stmt.order_by(func.lower(MediaItem.title))
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await session.execute(paged_stmt)
+    return result.scalars().all(), total
 
 
-async def search_external_sources(session: AsyncSession, query: str, per_source: int = 1) -> list[MediaItem]:
+async def search_external_sources(
+    session: AsyncSession,
+    query: str,
+    per_source: int = 1,
+    sources: Iterable[str] | None = None,
+) -> tuple[list[MediaItem], dict[str, int]]:
+    normalized_sources: list[str] = []
+    seen: set[str] = set()
+    source_candidates = sources or DEFAULT_EXTERNAL_SOURCES
+    for source in source_candidates:
+        normalized = source.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if normalized in DEFAULT_EXTERNAL_SOURCES:
+            normalized_sources.append(normalized)
+
     aggregated: list[MediaItem] = []
-    for source in ("google_books", "tmdb", "igdb", "lastfm"):
+    counts: dict[str, int] = {}
+    for source in normalized_sources:
+        counts[source] = 0
         try:
             connector = get_connector(source)
+        except ValueError:
+            continue
+        identifiers: list[str] = []
+        try:
             identifiers = await connector.search(query, limit=per_source)
-            for identifier in identifiers:
-                result = await connector.fetch(identifier)
-                media = await upsert_media(session, result)
-                aggregated.append(media)
         except Exception:
             continue
-    return aggregated
+        fetched = 0
+        for identifier in identifiers[:per_source]:
+            try:
+                result = await connector.fetch(identifier)
+            except Exception:
+                continue
+            media = await upsert_media(session, result)
+            aggregated.append(media)
+            fetched += 1
+        counts[source] = fetched
+    return aggregated, counts
 
 
 async def ingest_from_source(
