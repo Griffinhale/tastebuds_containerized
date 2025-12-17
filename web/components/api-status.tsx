@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
@@ -16,7 +16,9 @@ export function ApiStatus() {
       .then((res) => {
         if (cancelled) return;
         setStatus('ok');
-        setMessage(`API reachable at ${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'}`);
+        setMessage(
+          `API reachable at ${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'}`
+        );
       })
       .catch((err: Error) => {
         if (cancelled) return;
@@ -31,8 +33,7 @@ export function ApiStatus() {
 
   const color =
     status === 'ok' ? 'text-emerald-300' : status === 'error' ? 'text-red-300' : 'text-slate-200';
-  const indicator =
-    status === 'ok' ? '●' : status === 'error' ? '○' : '…';
+  const indicator = status === 'ok' ? '●' : status === 'error' ? '○' : '…';
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">

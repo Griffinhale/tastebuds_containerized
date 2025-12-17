@@ -73,8 +73,8 @@ export async function createMenu(input: CreateMenuInput) {
       body: JSON.stringify({
         title: input.title,
         description: input.description,
-        is_public: input.is_public ?? false
-      })
+        is_public: input.is_public ?? false,
+      }),
     },
     { isServer: false }
   );
@@ -88,8 +88,8 @@ export async function createCourse(menuId: string, input: CreateCourseInput) {
       body: JSON.stringify({
         title: input.title,
         description: input.description,
-        position: input.position
-      })
+        position: input.position,
+      }),
     },
     { isServer: false }
   );
@@ -99,7 +99,11 @@ export async function deleteCourse(menuId: string, courseId: string) {
   await apiFetch(`/menus/${menuId}/courses/${courseId}`, { method: 'DELETE' }, { isServer: false });
 }
 
-export async function createCourseItem(menuId: string, courseId: string, input: CreateCourseItemInput) {
+export async function createCourseItem(
+  menuId: string,
+  courseId: string,
+  input: CreateCourseItemInput
+) {
   return apiFetch<CourseItem>(
     `/menus/${menuId}/courses/${courseId}/items`,
     {
@@ -107,15 +111,19 @@ export async function createCourseItem(menuId: string, courseId: string, input: 
       body: JSON.stringify({
         media_item_id: input.media_item_id,
         position: input.position,
-        notes: input.notes
-      })
+        notes: input.notes,
+      }),
     },
     { isServer: false }
   );
 }
 
 export async function deleteCourseItem(menuId: string, itemId: string) {
-  await apiFetch(`/menus/${menuId}/course-items/${itemId}`, { method: 'DELETE' }, { isServer: false });
+  await apiFetch(
+    `/menus/${menuId}/course-items/${itemId}`,
+    { method: 'DELETE' },
+    { isServer: false }
+  );
 }
 
 export async function reorderCourseItems(menuId: string, courseId: string, itemIds: string[]) {
@@ -123,7 +131,7 @@ export async function reorderCourseItems(menuId: string, courseId: string, itemI
     `/menus/${menuId}/courses/${courseId}/reorder-items`,
     {
       method: 'POST',
-      body: JSON.stringify({ item_ids: itemIds })
+      body: JSON.stringify({ item_ids: itemIds }),
     },
     { isServer: false }
   );
@@ -131,5 +139,8 @@ export async function reorderCourseItems(menuId: string, courseId: string, itemI
 
 export async function getPublicMenuBySlug(slug: string) {
   const encoded = encodeURIComponent(slug.trim());
-  return apiFetch<Menu>(`/public/menus/${encoded}`, undefined, { isServer: true, withCredentials: false });
+  return apiFetch<Menu>(`/public/menus/${encoded}`, undefined, {
+    isServer: true,
+    withCredentials: false,
+  });
 }

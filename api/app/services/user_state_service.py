@@ -23,9 +23,7 @@ async def upsert_state(
     media = await session.get(MediaItem, media_item_id)
     if not media:
         raise ValueError("Media item not found")
-    stmt = select(UserItemState).where(
-        UserItemState.user_id == user_id, UserItemState.media_item_id == media_item_id
-    )
+    stmt = select(UserItemState).where(UserItemState.user_id == user_id, UserItemState.media_item_id == media_item_id)
     result = await session.execute(stmt)
     state = result.scalar_one_or_none()
     if state:

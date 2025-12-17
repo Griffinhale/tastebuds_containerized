@@ -26,9 +26,9 @@ export async function apiFetch<T>(
     headers: {
       'Content-Type': 'application/json',
       ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
-      ...(init?.headers || {})
+      ...(init?.headers || {}),
     },
-    cache: init?.cache ?? 'no-store'
+    cache: init?.cache ?? 'no-store',
   });
 
   if (!res.ok) {

@@ -1,16 +1,10 @@
-"use client";
+'use client';
 
 import { apiFetch } from './api';
 
 export type MediaType = 'book' | 'movie' | 'tv' | 'game' | 'music';
 
-export type SearchSource =
-  | 'internal'
-  | 'external'
-  | 'google_books'
-  | 'tmdb'
-  | 'igdb'
-  | 'lastfm';
+export type SearchSource = 'internal' | 'external' | 'google_books' | 'tmdb' | 'igdb' | 'lastfm';
 
 export type MediaSearchItem = {
   id: string;

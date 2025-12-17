@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import Link from 'next/link';
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -16,7 +16,7 @@ import {
   deleteCourseItem,
   getMenu,
   listMenus,
-  reorderCourseItems
+  reorderCourseItems,
 } from '../lib/menus';
 import { CourseItemSearch } from './course-item-search';
 
@@ -32,7 +32,9 @@ export function MenuDashboard() {
   }, []);
 
   const mutateMenu = useCallback((menuId: string, updater: (menu: Menu) => Menu) => {
-    setMenus((current) => current.map((existing) => (existing.id === menuId ? updater(existing) : existing)));
+    setMenus((current) =>
+      current.map((existing) => (existing.id === menuId ? updater(existing) : existing))
+    );
     setLastUpdated(new Date());
   }, []);
 
@@ -98,7 +100,9 @@ export function MenuDashboard() {
           </button>
         </div>
         {lastUpdated && !loading && !error && (
-          <p className="mt-2 text-xs text-slate-400">Last updated {lastUpdated.toLocaleTimeString()}</p>
+          <p className="mt-2 text-xs text-slate-400">
+            Last updated {lastUpdated.toLocaleTimeString()}
+          </p>
         )}
 
         {!loading && !error && menus.length > 0 && (
@@ -131,7 +135,7 @@ export function MenuDashboard() {
 function MenuCard({
   menu,
   onRefresh,
-  onMenuMutate
+  onMenuMutate,
 }: {
   menu: Menu;
   onRefresh: () => Promise<void>;
@@ -141,7 +145,9 @@ function MenuCard({
     (updatedCourse: Course) => {
       onMenuMutate((current) => ({
         ...current,
-        courses: current.courses.map((course) => (course.id === updatedCourse.id ? updatedCourse : course))
+        courses: current.courses.map((course) =>
+          course.id === updatedCourse.id ? updatedCourse : course
+        ),
       }));
     },
     [onMenuMutate]
@@ -151,7 +157,7 @@ function MenuCard({
     (courseId: string) => {
       onMenuMutate((current) => ({
         ...current,
-        courses: current.courses.filter((course) => course.id !== courseId)
+        courses: current.courses.filter((course) => course.id !== courseId),
       }));
     },
     [onMenuMutate]
@@ -161,7 +167,7 @@ function MenuCard({
     (newCourse: Course) => {
       onMenuMutate((current) => ({
         ...current,
-        courses: [...current.courses, newCourse].sort((a, b) => a.position - b.position)
+        courses: [...current.courses, newCourse].sort((a, b) => a.position - b.position),
       }));
     },
     [onMenuMutate]
@@ -208,7 +214,11 @@ function MenuCard({
             onCourseRemoved={() => handleCourseRemoved(course.id)}
           />
         ))}
-        <AddCourseForm menuId={menu.id} nextPosition={menu.courses.length + 1} onCourseAdded={handleCourseAdded} />
+        <AddCourseForm
+          menuId={menu.id}
+          nextPosition={menu.courses.length + 1}
+          onCourseAdded={handleCourseAdded}
+        />
       </div>
     </li>
   );
@@ -219,7 +229,7 @@ function CourseEditor({
   menuId,
   onRefresh,
   onCourseUpdated,
-  onCourseRemoved
+  onCourseRemoved,
 }: {
   course: Course;
   menuId: string;
@@ -308,7 +318,9 @@ function CourseEditor({
     <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Position {course.position}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Position {course.position}
+          </p>
           <h4 className="text-base font-semibold text-white">{course.title}</h4>
           {course.description && <p className="text-sm text-slate-200">{course.description}</p>}
         </div>
@@ -328,7 +340,9 @@ function CourseEditor({
             Add an item via search/ingest or paste a known media ID to populate this course.
           </p>
         ) : (
-          <p className="text-[11px] text-slate-500">Drag items to reorder; changes save automatically.</p>
+          <p className="text-[11px] text-slate-500">
+            Drag items to reorder; changes save automatically.
+          </p>
         )}
         {course.items.map((item) => (
           <CourseItemRow
@@ -345,7 +359,7 @@ function CourseEditor({
                     onDragStart: () => handleDragStart(item.id),
                     onDragOver: (event) => handleDragOver(event, item.id),
                     onDrop: () => handleDrop(item.id),
-                    onDragEnd: () => resetDragState()
+                    onDragEnd: () => resetDragState(),
                   }
                 : undefined
             }
@@ -379,7 +393,7 @@ function CourseItemRow({
   item,
   menuId,
   onItemRemoved,
-  dragState
+  dragState,
 }: {
   item: CourseItem;
   menuId: string;
@@ -407,8 +421,8 @@ function CourseItemRow({
     ? dragState.isDragging
       ? 'opacity-60 ring-2 ring-emerald-400/40'
       : dragState.isDragOver
-      ? 'border-emerald-400/70 bg-slate-900'
-      : ''
+        ? 'border-emerald-400/70 bg-slate-900'
+        : ''
     : '';
 
   return (
@@ -498,7 +512,7 @@ function CreateMenuForm({ onCreated }: { onCreated: (menu: Menu) => void }) {
     const payload: CreateMenuInput = {
       title,
       description: description || undefined,
-      is_public: isPublic
+      is_public: isPublic,
     };
 
     try {
@@ -516,7 +530,9 @@ function CreateMenuForm({ onCreated }: { onCreated: (menu: Menu) => void }) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
       <p className="text-sm font-semibold text-emerald-300">Create a new menu</p>
-      <p className="text-sm text-slate-200">Menus organize your recommended courses with ordered media.</p>
+      <p className="text-sm text-slate-200">
+        Menus organize your recommended courses with ordered media.
+      </p>
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div className="space-y-1">
@@ -574,7 +590,7 @@ function CreateMenuForm({ onCreated }: { onCreated: (menu: Menu) => void }) {
 function AddCourseForm({
   menuId,
   nextPosition,
-  onCourseAdded
+  onCourseAdded,
 }: {
   menuId: string;
   nextPosition: number;
@@ -597,7 +613,7 @@ function AddCourseForm({
     const payload: CreateCourseInput = {
       title,
       description: description || undefined,
-      position
+      position,
     };
 
     try {
@@ -673,7 +689,7 @@ function AddCourseForm({
 function AddCourseItemForm({
   course,
   menuId,
-  onItemAdded
+  onItemAdded,
 }: {
   course: Course;
   menuId: string;
@@ -696,7 +712,7 @@ function AddCourseItemForm({
     const payload: CreateCourseItemInput = {
       media_item_id: mediaItemId,
       position,
-      notes: notes || undefined
+      notes: notes || undefined,
     };
 
     try {

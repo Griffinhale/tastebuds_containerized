@@ -1,4 +1,5 @@
 import Link from 'next/link';
+
 import { MenuDashboard } from '../../components/menu-dashboard';
 
 export default function MenusPage() {
@@ -12,8 +13,8 @@ export default function MenusPage() {
         <p className="text-sm uppercase tracking-wide text-emerald-300">Menus & courses</p>
         <h1 className="text-3xl font-semibold text-white">Create and manage your menus.</h1>
         <p className="text-base text-slate-200">
-          Menus are ordered collections of courses and course items. Start with the basics here, then expand
-          into per-course editors and drag-and-drop workflows as the UI evolves.
+          Menus are ordered collections of courses and course items. Start with the basics here,
+          then expand into per-course editors and drag-and-drop workflows as the UI evolves.
         </p>
       </header>
 

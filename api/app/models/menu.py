@@ -54,9 +54,7 @@ class Course(Base):
 
 class CourseItem(Base):
     __tablename__ = "course_items"
-    __table_args__ = (
-        UniqueConstraint("course_id", "position", name="uq_course_items_position"),
-    )
+    __table_args__ = (UniqueConstraint("course_id", "position", name="uq_course_items_position"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"))

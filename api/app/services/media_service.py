@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.ingestion import get_connector
 from app.ingestion.base import ConnectorResult
+from app.ingestion.observability import CircuitOpenError, ingestion_monitor
 from app.models.media import (
     BookItem,
     GameItem,
@@ -30,9 +31,7 @@ async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaIt
 
 async def get_media_with_sources(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
     result = await session.execute(
-        select(MediaItem)
-        .options(selectinload(MediaItem.sources))
-        .where(MediaItem.id == media_id)
+        select(MediaItem).options(selectinload(MediaItem.sources)).where(MediaItem.id == media_id)
     )
     return result.scalar_one_or_none()
 
@@ -50,11 +49,7 @@ async def search_media(
         filtered_stmt = filtered_stmt.where(MediaItem.media_type.in_(list(media_types)))
     count_stmt = select(func.count()).select_from(filtered_stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
-    paged_stmt = (
-        filtered_stmt.order_by(func.lower(MediaItem.title))
-        .offset(offset)
-        .limit(limit)
-    )
+    paged_stmt = filtered_stmt.order_by(func.lower(MediaItem.title)).offset(offset).limit(limit)
     result = await session.execute(paged_stmt)
     return result.scalars().all(), total
 
@@ -85,9 +80,18 @@ async def search_external_sources(
             connector = get_connector(source)
         except ValueError:
             continue
-        identifiers: list[str] = []
+        if not ingestion_monitor.allow_call(source):
+            await ingestion_monitor.record_skip(source, "search", reason="circuit_open", context={"query": query})
+            continue
         try:
-            identifiers = await connector.search(query, limit=per_source)
+            identifiers = await ingestion_monitor.track(
+                source,
+                "search",
+                lambda: connector.search(query, limit=per_source),
+                context={"query": query},
+            )
+        except CircuitOpenError:
+            continue
         except Exception:
             continue
         seen_ids: set[str] = set()
@@ -96,8 +100,23 @@ async def search_external_sources(
             if not identifier or identifier in seen_ids:
                 continue
             seen_ids.add(identifier)
+            if not ingestion_monitor.allow_call(source):
+                await ingestion_monitor.record_skip(
+                    source,
+                    "fetch",
+                    reason="circuit_open",
+                    context={"identifier": identifier},
+                )
+                continue
             try:
-                result = await connector.fetch(identifier)
+                result = await ingestion_monitor.track(
+                    source,
+                    "fetch",
+                    lambda ident=identifier: connector.fetch(ident),
+                    context={"identifier": identifier},
+                )
+            except CircuitOpenError:
+                continue
             except Exception:
                 continue
             if allowed_media_types and result.media_type not in allowed_media_types:
@@ -113,7 +132,23 @@ async def ingest_from_source(
     session: AsyncSession, *, source: str, identifier: str, force_refresh: bool = False
 ) -> MediaItem:
     connector = get_connector(source)
-    result = await connector.fetch(identifier)
+    if not ingestion_monitor.allow_call(source):
+        await ingestion_monitor.record_skip(
+            source,
+            "fetch",
+            reason="circuit_open",
+            context={"identifier": identifier, "force_refresh": force_refresh},
+        )
+        raise HTTPException(status_code=503, detail=f"{source} temporarily unavailable")
+    try:
+        result = await ingestion_monitor.track(
+            source,
+            "fetch",
+            lambda: connector.fetch(identifier),
+            context={"identifier": identifier, "force_refresh": force_refresh},
+        )
+    except CircuitOpenError as exc:
+        raise HTTPException(status_code=503, detail=f"{source} temporarily unavailable") from exc
     return await upsert_media(session, result, force_refresh=force_refresh)
 
 

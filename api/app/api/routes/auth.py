@@ -53,9 +53,7 @@ async def _token_response(session: AsyncSession, user: UserRead) -> TokenPair:
 
 
 @router.post("/register", response_model=TokenPair)
-async def register(
-    payload: UserCreate, response: Response, session: AsyncSession = Depends(get_db)
-) -> TokenPair:
+async def register(payload: UserCreate, response: Response, session: AsyncSession = Depends(get_db)) -> TokenPair:
     user = await user_service.create_user(
         session, email=payload.email, password=payload.password, display_name=payload.display_name
     )

@@ -44,7 +44,7 @@ class TMDBConnector(BaseConnector):
         media_type_hint = None
         if ":" in token:
             media_type_hint, token = token.split(":", 1)
-        for endpoint in ([media_type_hint] if media_type_hint else ["movie", "tv"]):
+        for endpoint in [media_type_hint] if media_type_hint else ["movie", "tv"]:
             try:
                 data = await self._fetch(endpoint, token)
                 if data:
@@ -84,9 +84,7 @@ class TMDBConnector(BaseConnector):
                 "runtime_minutes": runtime,
                 "directors": directors,
                 "producers": [
-                    c.get("name")
-                    for c in payload.get("credits", {}).get("crew", [])
-                    if c.get("job") == "Producer"
+                    c.get("name") for c in payload.get("credits", {}).get("crew", []) if c.get("job") == "Producer"
                 ],
                 "tmdb_type": kind,
             }

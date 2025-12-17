@@ -30,6 +30,4 @@ class User(Base):
 
     menus: Mapped[list["Menu"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     item_states: Mapped[list["UserItemState"]] = relationship(back_populates="user")
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")

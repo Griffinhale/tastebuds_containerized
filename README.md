@@ -163,7 +163,7 @@ GitHub Actions run on push/PR:
 ## Troubleshooting
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.
 - Missing env vars or API keys: the API logs list the missing key; ensure `.env` is loaded and rebuild the `api` container.
-- TMDB/IGDB/Last.fm/Google Books failures: check credentials and rate limits; every ingestion stores `raw_payload` so you can replay without refetching.
+- TMDB/IGDB/Last.fm/Google Books failures: connectors now emit structured ingestion logs and apply per-source circuit breakers with exponential backoff. If calls get skipped, look for `ingestion_circuit_open`/`ingestion_skip` events and wait for cooldowns to elapse before retrying.
 - Compose port conflicts: adjust `docker-compose.yml` published ports if 5432/8000/3000 are busy.
 
 ## Reference docs

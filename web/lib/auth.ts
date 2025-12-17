@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { apiFetch } from './api';
 
@@ -46,7 +46,7 @@ export async function login(email: string, password: string) {
     '/auth/login',
     {
       method: 'POST',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password }),
     },
     { isServer: false }
   );
@@ -59,7 +59,7 @@ export async function register(email: string, password: string, displayName: str
     '/auth/register',
     {
       method: 'POST',
-      body: JSON.stringify({ email, password, display_name: displayName })
+      body: JSON.stringify({ email, password, display_name: displayName }),
     },
     { isServer: false }
   );
@@ -72,7 +72,7 @@ export async function refreshTokens() {
     const res = await apiFetch<AuthResponse>(
       '/auth/refresh',
       {
-        method: 'POST'
+        method: 'POST',
       },
       { isServer: false }
     );

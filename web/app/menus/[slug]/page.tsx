@@ -31,10 +31,7 @@ async function loadMenu(slug: string): Promise<Menu> {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
     const menu = await getMenuBySlug(params.slug);
-    const totalItems = menu.courses.reduce(
-      (count, course) => count + course.items.length,
-      0,
-    );
+    const totalItems = menu.courses.reduce((count, course) => count + course.items.length, 0);
     const shareUrl = buildShareUrl(menu.slug);
     const description =
       menu.description ||
@@ -79,37 +76,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function PublicMenuPage({ params }: PageProps) {
   const menu = await loadMenu(params.slug);
-  const totalItems = menu.courses.reduce(
-    (count, course) => count + course.items.length,
-    0,
-  );
+  const totalItems = menu.courses.reduce((count, course) => count + course.items.length, 0);
   const shareUrl = buildShareUrl(menu.slug);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
-      <Link
-        href="/"
-        className="text-sm text-emerald-300 underline decoration-emerald-300/60"
-      >
+      <Link href="/" className="text-sm text-emerald-300 underline decoration-emerald-300/60">
         ← Back home
       </Link>
 
       <header className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/10">
-        <p className="text-xs uppercase tracking-wide text-emerald-300">
-          Public menu
-        </p>
+        <p className="text-xs uppercase tracking-wide text-emerald-300">Public menu</p>
         <h1 className="text-3xl font-semibold text-white">{menu.title}</h1>
         {menu.description && (
-          <p className="text-base leading-relaxed text-slate-200">
-            {menu.description}
-          </p>
+          <p className="text-base leading-relaxed text-slate-200">{menu.description}</p>
         )}
         <dl className="grid gap-4 border-t border-slate-800 pt-4 text-sm sm:grid-cols-3">
           <InfoItem label="Slug" value={menu.slug} />
-          <InfoItem
-            label="Courses"
-            value={`${menu.courses.length}`}
-          />
+          <InfoItem label="Courses" value={`${menu.courses.length}`} />
           <InfoItem label="Items" value={`${totalItems}`} />
         </dl>
       </header>
@@ -117,13 +101,11 @@ export default async function PublicMenuPage({ params }: PageProps) {
       <section className="space-y-4">
         {menu.courses.length === 0 ? (
           <p className="rounded-xl border border-slate-800 bg-slate-950/40 p-6 text-sm text-slate-300">
-            This menu is published but has no courses yet. Add courses via the
-            dashboard to fill it out.
+            This menu is published but has no courses yet. Add courses via the dashboard to fill it
+            out.
           </p>
         ) : (
-          menu.courses.map((course) => (
-            <CourseSection key={course.id} course={course} />
-          ))
+          menu.courses.map((course) => <CourseSection key={course.id} course={course} />)
         )}
       </section>
 
@@ -139,25 +121,18 @@ function ShareablePreview({ menu, shareUrl }: { menu: Menu; shareUrl: string }) 
   return (
     <section className="space-y-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-950/80 via-slate-900/50 to-emerald-900/30 p-6 shadow-lg shadow-emerald-500/10">
       <div className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-emerald-200">
-          Share-ready preview
-        </p>
-        <h2 className="text-2xl font-semibold text-white">
-          Invite someone to browse this menu.
-        </h2>
+        <p className="text-xs uppercase tracking-wide text-emerald-200">Share-ready preview</p>
+        <h2 className="text-2xl font-semibold text-white">Invite someone to browse this menu.</h2>
         <p className="text-sm text-emerald-100/80">
-          We surface a preview of recent additions below and include metadata
-          for social networks, so shared links look polished everywhere.
+          We surface a preview of recent additions below and include metadata for social networks,
+          so shared links look polished everywhere.
         </p>
       </div>
 
       {previewItems.length > 0 ? (
         <ul className="grid gap-3 sm:grid-cols-3">
           {previewItems.map((item) => (
-            <li
-              key={item.id}
-              className="rounded-xl border border-white/10 bg-white/5 p-3"
-            >
+            <li key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
               {item.media_item?.cover_image_url ? (
                 <img
                   src={item.media_item.cover_image_url}
@@ -178,9 +153,7 @@ function ShareablePreview({ menu, shareUrl }: { menu: Menu; shareUrl: string }) 
                   {item.media_item?.title || 'Untitled media'}
                 </p>
                 {item.media_item?.subtitle && (
-                  <p className="text-xs text-white/70">
-                    {item.media_item.subtitle}
-                  </p>
+                  <p className="text-xs text-white/70">{item.media_item.subtitle}</p>
                 )}
               </div>
             </li>
@@ -201,13 +174,9 @@ function CourseSection({ course }: { course: Course }) {
   return (
     <article className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-6">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
-          Course {course.position}
-        </p>
+        <p className="text-xs uppercase tracking-wide text-slate-400">Course {course.position}</p>
         <h2 className="text-2xl font-semibold text-white">{course.title}</h2>
-        {course.description && (
-          <p className="text-sm text-slate-300">{course.description}</p>
-        )}
+        {course.description && <p className="text-sm text-slate-300">{course.description}</p>}
       </header>
 
       {course.items.length === 0 ? (
@@ -250,12 +219,8 @@ function CourseItemCard({ item }: { item: CourseItem }) {
             <p className="text-xs uppercase tracking-wide text-slate-400">
               Position {item.position}
             </p>
-            <p className="text-sm font-semibold text-white">
-              {media?.title || 'Untitled media'}
-            </p>
-            {media?.subtitle && (
-              <p className="text-xs text-slate-400">{media.subtitle}</p>
-            )}
+            <p className="text-sm font-semibold text-white">{media?.title || 'Untitled media'}</p>
+            {media?.subtitle && <p className="text-xs text-slate-400">{media.subtitle}</p>}
             {media?.release_date && (
               <p className="text-xs text-slate-500">
                 Released{' '}
@@ -266,13 +231,9 @@ function CourseItemCard({ item }: { item: CourseItem }) {
                 })}
               </p>
             )}
-            {item.notes && (
-              <p className="mt-2 text-xs text-emerald-200">Notes: {item.notes}</p>
-            )}
+            {item.notes && <p className="mt-2 text-xs text-emerald-200">Notes: {item.notes}</p>}
             {media?.description && (
-              <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                {media.description}
-              </p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">{media.description}</p>
             )}
           </div>
         </div>
@@ -294,9 +255,7 @@ function CourseItemCard({ item }: { item: CourseItem }) {
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-400">
-        {label}
-      </dt>
+      <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
       <dd className="text-lg font-semibold text-white">{value}</dd>
     </div>
   );
@@ -315,9 +274,7 @@ function collectPreviewImages(menu: Menu) {
 }
 
 function buildShareUrl(slug: string) {
-  const normalizedBase = appBaseUrl.endsWith('/')
-    ? appBaseUrl.slice(0, -1)
-    : appBaseUrl;
+  const normalizedBase = appBaseUrl.endsWith('/') ? appBaseUrl.slice(0, -1) : appBaseUrl;
   return `${normalizedBase}/menus/${slug}`;
 }
 
@@ -327,7 +284,7 @@ function getPreviewItems(menu: Menu): PreviewItem[] {
       course.items.map((item) => ({
         ...item,
         coursePosition: course.position,
-      })),
+      }))
     )
     .slice(0, 3);
 }

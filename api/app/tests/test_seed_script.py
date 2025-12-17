@@ -13,9 +13,7 @@ from app.scripts import seed as seed_script
 async def test_seed_populates_demo_menu(session):
     await seed_script.seed(session=session)
 
-    result = await session.execute(
-        select(Menu).options(selectinload(Menu.courses).selectinload(Course.items))
-    )
+    result = await session.execute(select(Menu).options(selectinload(Menu.courses).selectinload(Course.items)))
     menus = result.scalars().all()
     assert len(menus) == 1
     menu = menus[0]

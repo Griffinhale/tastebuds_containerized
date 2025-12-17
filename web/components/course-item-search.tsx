@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
@@ -15,7 +15,7 @@ const mediaTypeOptions: { label: string; value: MediaType }[] = [
   { label: 'Movies', value: 'movie' },
   { label: 'TV', value: 'tv' },
   { label: 'Games', value: 'game' },
-  { label: 'Music', value: 'music' }
+  { label: 'Music', value: 'music' },
 ];
 
 const RESULTS_PER_PAGE = 10;
@@ -110,7 +110,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         types: selectedTypes.length ? selectedTypes : undefined,
         page: pageToLoad,
         perPage: RESULTS_PER_PAGE,
-        externalPerSource: EXTERNAL_RESULTS_PER_SOURCE
+        externalPerSource: EXTERNAL_RESULTS_PER_SOURCE,
       });
       setMetadata(response.metadata ?? null);
       setSource(response.source);
@@ -122,15 +122,16 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         const additions = response.results.filter((item) => !seen.has(item.id));
         return [...prev, ...additions];
       });
-      const paging = response.metadata?.paging as {
-        page?: number;
-        per_page?: number;
-        total_internal?: number;
-      } | undefined;
+      const paging = response.metadata?.paging as
+        | {
+            page?: number;
+            per_page?: number;
+            total_internal?: number;
+          }
+        | undefined;
       const pageNumber = paging?.page ?? pageToLoad;
       const perPageValue = paging?.per_page ?? RESULTS_PER_PAGE;
-      const totalInternal =
-        typeof paging?.total_internal === 'number' ? paging.total_internal : 0;
+      const totalInternal = typeof paging?.total_internal === 'number' ? paging.total_internal : 0;
       setCurrentPage(pageNumber);
       setHasMoreInternal(pageNumber * perPageValue < totalInternal);
     } catch (err) {
@@ -172,7 +173,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       const created = await createCourseItem(menuId, course.id, {
         media_item_id: item.id,
         position,
-        notes: notes || undefined
+        notes: notes || undefined,
       });
       onAdded(created);
       setStatusMessage(`Added "${item.title}" to ${course.title}.`);
@@ -191,8 +192,8 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       <header className="space-y-1">
         <p className="text-sm font-semibold text-slate-200">Search catalog & ingest</p>
         <p className="text-xs text-slate-400">
-          Look up existing media and optionally fan out to Google Books, TMDB, IGDB, and Last.fm. New
-          external matches are ingested automatically.
+          Look up existing media and optionally fan out to Google Books, TMDB, IGDB, and Last.fm.
+          New external matches are ingested automatically.
         </p>
       </header>
 
@@ -260,7 +261,9 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs uppercase tracking-wide text-slate-400">Notes (optional)</label>
+            <label className="text-xs uppercase tracking-wide text-slate-400">
+              Notes (optional)
+            </label>
             <textarea
               rows={2}
               value={notes}
@@ -337,14 +340,18 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
                     )}
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-400">{item.media_type}</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-400">
+                      {item.media_type}
+                    </p>
                     <p className="text-sm font-semibold text-white">{item.title}</p>
                     {item.subtitle && <p className="text-xs text-slate-300">{item.subtitle}</p>}
                     {item.release_date && (
                       <p className="text-xs text-slate-400">Released {item.release_date}</p>
                     )}
                     {item.description && (
-                      <p className="mt-2 text-xs leading-relaxed text-slate-300">{item.description}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                        {item.description}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -394,7 +401,7 @@ function DrawerStateCard({
   description,
   tone = 'default',
   actionLabel,
-  onAction
+  onAction,
 }: {
   title: string;
   description: string;

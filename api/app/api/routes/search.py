@@ -45,9 +45,7 @@ async def search(
     sources: list[SearchSource] | None = Query(default=None, alias="sources"),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=DEFAULT_PER_PAGE, ge=1, le=MAX_PER_PAGE),
-    external_per_source: int = Query(
-        default=DEFAULT_EXTERNAL_PER_SOURCE, ge=1, le=MAX_EXTERNAL_PER_SOURCE
-    ),
+    external_per_source: int = Query(default=DEFAULT_EXTERNAL_PER_SOURCE, ge=1, le=MAX_EXTERNAL_PER_SOURCE),
     session: AsyncSession = Depends(get_db),
 ) -> SearchResult:
     include_internal = True
@@ -68,6 +66,7 @@ async def search(
             for candidate in candidates
             if not allowed_media_types.isdisjoint(connector_types.get(candidate, set()))
         ]
+
     if sources:
         include_internal = SearchSource.INTERNAL in sources
         if SearchSource.EXTERNAL in sources:
@@ -91,9 +90,7 @@ async def search(
         )
         internal_items = [MediaItemBase.model_validate(item) for item in internal_results]
 
-    items_by_id: dict[str, MediaItemBase] = {
-        str(item.id): item for item in internal_items
-    }
+    items_by_id: dict[str, MediaItemBase] = {str(item.id): item for item in internal_items}
     metadata: dict[str, Any] = {
         "paging": {
             "page": page,

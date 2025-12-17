@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import Link from 'next/link';
 import { FormEvent, useMemo, useState } from 'react';
@@ -22,15 +22,15 @@ const copy: Record<
     actionLabel: 'Sign in',
     helper: "Don't have an account?",
     helperHref: '/register',
-    helperText: 'Create one'
+    helperText: 'Create one',
   },
   register: {
     title: 'Create account',
     actionLabel: 'Register',
     helper: 'Already registered?',
     helperHref: '/login',
-    helperText: 'Go to login'
-  }
+    helperText: 'Go to login',
+  },
 };
 
 export function AuthForm({ variant }: { variant: Variant }) {
@@ -134,7 +134,10 @@ export function AuthForm({ variant }: { variant: Variant }) {
 
       <p className="mt-4 text-sm text-slate-200">
         {currentCopy.helper}{' '}
-        <Link className="text-emerald-300 underline decoration-emerald-300/60" href={currentCopy.helperHref}>
+        <Link
+          className="text-emerald-300 underline decoration-emerald-300/60"
+          href={currentCopy.helperHref}
+        >
           {currentCopy.helperText}
         </Link>
       </p>

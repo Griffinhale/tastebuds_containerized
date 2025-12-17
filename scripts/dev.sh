@@ -42,7 +42,19 @@ Commands:
   seed       Execute the demo seed script
   test       Run pytest inside the api image (installs dev deps automatically)
   web        Run the web frontend (Next.js) via docker compose
+  lint       Run ruff checks for the API and prettier for the web app inside containers
+  fmt        Autoformat API (ruff format) and web (prettier --write) inside containers
 USAGE
+}
+
+run_node_task() {
+  local cmd="$1"
+  local workdir="${2:-$ROOT_DIR/web}"
+  if should_use_flatpak; then
+    flatpak-spawn --host docker run --rm -v "$workdir:/work" -w /work node:20-alpine sh -c "$cmd"
+  else
+    docker run --rm -v "$workdir:/work" -w /work node:20-alpine sh -c "$cmd"
+  fi
 }
 
 cmd="${1:-}" || true
@@ -75,6 +87,14 @@ case "$cmd" in
     ;;
   web)
     run_compose up --build -d web
+    ;;
+  lint)
+    run_compose run --rm api sh -c "pip install -r requirements-dev.txt && python -m ruff check app"
+    run_node_task "npm ci && npm run prettier:check"
+    ;;
+  fmt)
+    run_compose run --rm api sh -c "pip install -r requirements-dev.txt && python -m ruff format app"
+    run_node_task "npm ci && npx prettier --write \"**/*.{js,jsx,ts,tsx,md,mdx,json,css,scss}\""
     ;;
   *)
     usage

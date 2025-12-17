@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
@@ -69,7 +69,8 @@ export function CurrentUser() {
   }, []);
 
   const statusText = useMemo(() => {
-    if (!profile && !loading && !error) return 'Not signed in yet. Log in or register to see your profile.';
+    if (!profile && !loading && !error)
+      return 'Not signed in yet. Log in or register to see your profile.';
     if (loading) return 'Fetching your profile...';
     if (error) return error;
     if (profile) return `Signed in as ${profile.display_name || profile.email}`;
@@ -131,7 +132,9 @@ export function CurrentUser() {
       {profile && (
         <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-white">{profile.display_name || profile.email}</span>
+            <span className="font-semibold text-white">
+              {profile.display_name || profile.email}
+            </span>
             <span className="text-xs text-slate-400">User ID: {profile.id}</span>
           </div>
           <p className="text-xs text-slate-300">Email: {profile.email}</p>

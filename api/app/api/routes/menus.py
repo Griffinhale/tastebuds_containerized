@@ -11,8 +11,8 @@ from app.models.user import User
 from app.schema.menu import (
     CourseCreate,
     CourseItemCreate,
-    CourseItemReorder,
     CourseItemRead,
+    CourseItemReorder,
     CourseRead,
     MenuCreate,
     MenuRead,

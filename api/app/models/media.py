@@ -59,14 +59,9 @@ class MediaItem(Base):
     game: Mapped["GameItem | None"] = relationship(back_populates="media_item", uselist=False)
     music: Mapped["MusicItem | None"] = relationship(back_populates="media_item", uselist=False)
     sources: Mapped[list["MediaSource"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
-    tag_links: Mapped[list["MediaItemTag"]] = relationship(
-        back_populates="media_item", cascade="all, delete-orphan"
-    )
+    tag_links: Mapped[list["MediaItemTag"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
     course_items: Mapped[list["CourseItem"]] = relationship(back_populates="media_item")
-    user_states: Mapped[list["UserItemState"]] = relationship(
-        back_populates="media_item", cascade="all, delete-orphan"
-    )
-
+    user_states: Mapped[list["UserItemState"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
 
 
 class BookItem(Base):

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+
 import { ApiStatus } from '../components/api-status';
 import { CurrentUser } from '../components/current-user';
 
@@ -11,8 +12,8 @@ export default function Home() {
           Next.js is wired up - connect to the FastAPI backend and start building menus.
         </h1>
         <p className="text-base text-slate-200">
-          This placeholder checks the API base URL and gives you a jumping-off point for auth, search,
-          and menu flows.
+          This placeholder checks the API base URL and gives you a jumping-off point for auth,
+          search, and menu flows.
         </p>
       </header>
 
@@ -36,7 +37,11 @@ export default function Home() {
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Card title="Auth flows" description="Login/register UI now hits the FastAPI auth endpoints." href="/login" />
+        <Card
+          title="Auth flows"
+          description="Login/register UI now hits the FastAPI auth endpoints."
+          href="/login"
+        />
         <Card
           title="Menus & courses"
           description="View your menus and create new ones via the FastAPI backend."
@@ -57,15 +62,7 @@ export default function Home() {
   );
 }
 
-function Card({
-  title,
-  description,
-  href
-}: {
-  title: string;
-  description: string;
-  href: string;
-}) {
+function Card({ title, description, href }: { title: string; description: string; href: string }) {
   return (
     <Link
       href={href}

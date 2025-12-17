@@ -21,10 +21,10 @@ from app.models.media import (
     UserItemStatus,
 )
 from app.models.menu import Menu
+from app.samples import load_ingestion_sample
 from app.schema.media import UserItemStateUpdate
 from app.schema.menu import CourseCreate, CourseItemCreate, MenuCreate
 from app.schema.tag import TagCreate
-from app.samples import load_ingestion_sample
 from app.services import menu_service, tag_service, user_service, user_state_service
 from app.utils.slugify import menu_slug
 
@@ -288,19 +288,13 @@ async def _ensure_menu(session: AsyncSession, user_id, media_items: dict[str, Me
 
 async def _ensure_tags(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> None:
     tag_names = ("Inspiration", "Cinematic", "Reflective")
-    existing_tags = {
-        tag.name: tag for tag in await tag_service.list_tags(session, user_id) if tag.owner_id == user_id
-    }
+    existing_tags = {tag.name: tag for tag in await tag_service.list_tags(session, user_id) if tag.owner_id == user_id}
     for name in tag_names:
         if name not in existing_tags:
             existing_tags[name] = await tag_service.create_tag(session, user_id, TagCreate(name=name))
 
-    await tag_service.add_tag_to_media(
-        session, user_id, existing_tags["Inspiration"].id, media_items["book"].id
-    )
-    await tag_service.add_tag_to_media(
-        session, user_id, existing_tags["Cinematic"].id, media_items["movie"].id
-    )
+    await tag_service.add_tag_to_media(session, user_id, existing_tags["Inspiration"].id, media_items["book"].id)
+    await tag_service.add_tag_to_media(session, user_id, existing_tags["Cinematic"].id, media_items["movie"].id)
 
 
 async def _ensure_user_states(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> None:

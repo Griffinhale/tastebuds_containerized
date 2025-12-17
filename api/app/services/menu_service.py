@@ -17,11 +17,7 @@ async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(
-            selectinload(Menu.courses)
-            .selectinload(Course.items)
-            .selectinload(CourseItem.media_item)
-        )
+        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
         .where(Menu.owner_id == user_id)
     )
     return result.scalars().all()
@@ -31,11 +27,7 @@ async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.
     query = (
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(
-            selectinload(Menu.courses)
-            .selectinload(Course.items)
-            .selectinload(CourseItem.media_item)
-        )
+        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
         .where(Menu.id == menu_id)
     )
     if owner_id:
@@ -51,11 +43,7 @@ async def get_menu_by_slug(session: AsyncSession, slug: str) -> Menu | None:
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(
-            selectinload(Menu.courses)
-            .selectinload(Course.items)
-            .selectinload(CourseItem.media_item)
-        )
+        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
         .where(Menu.slug == slug, Menu.is_public.is_(True))
     )
     return result.scalar_one_or_none()
@@ -172,10 +160,7 @@ async def reorder_course_items(
     if not item_ids:
         return db_course
 
-    whens = [
-        (CourseItem.id == item_id, position)
-        for position, item_id in enumerate(item_ids, start=1)
-    ]
+    whens = [(CourseItem.id == item_id, position) for position, item_id in enumerate(item_ids, start=1)]
     num_items = len(item_ids)
     await session.execute(
         update(CourseItem)
@@ -267,11 +252,7 @@ async def _load_menu_with_children(session: AsyncSession, menu_id: uuid.UUID) ->
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(
-            selectinload(Menu.courses)
-            .selectinload(Course.items)
-            .selectinload(CourseItem.media_item)
-        )
+        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
         .where(Menu.id == menu_id)
     )
     return result.scalar_one()
