@@ -33,8 +33,10 @@ class TMDBConnector(BaseConnector):
         params: dict[str, str] = {}
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
+        elif self.api_key:
+            params["api_key"] = self.api_key
         else:
-            raise ExternalAPIError("TMDB API credentials missing")
+            raise ExternalAPIError("TMDB API credentials missing; set TMDB_API_AUTH_HEADER or TMDB_API_KEY")
         return headers, params
 
     async def fetch(self, identifier: str) -> ConnectorResult:

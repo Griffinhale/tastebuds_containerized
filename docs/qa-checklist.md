@@ -3,7 +3,7 @@
 Tastebuds ships Docker-first. Use this checklist for release candidates to confirm the Compose stack, migrations, ingestion layer, and public surfaces stay healthy.
 
 ## 1) Environment & Containers
-- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB bearer via `TMDB_API_AUTH_HEADER`, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
+- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB via `TMDB_API_AUTH_HEADER` or `TMDB_API_KEY`, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
 - [ ] `./scripts/dev.sh up` builds/starts services; `docker compose ps` shows `db` as healthy.
 - [ ] `./scripts/dev.sh migrate` succeeds and reports the latest Alembic revision.
 - [ ] (Optional) `./scripts/dev.sh seed` loads demo data without errors.

@@ -92,8 +92,8 @@ SEED_MEDIA: tuple[SeedMediaDefinition, ...] = (
             "tmdb_type": "movie",
         },
         source_name="tmdb",
-        external_id="demo-movie-603",
-        canonical_url="https://www.themoviedb.org/movie/demo-movie-603",
+        external_id="603",
+        canonical_url="https://www.themoviedb.org/movie/603",
         raw_payload=load_ingestion_sample("tmdb_movie"),
     ),
     SeedMediaDefinition(

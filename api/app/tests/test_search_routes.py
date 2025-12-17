@@ -21,6 +21,17 @@ class StubConnector(BaseConnector):
         return self._results_by_id[identifier]
 
 
+class FailingConnector(BaseConnector):
+    def __init__(self, source_name: str) -> None:
+        self.source_name = source_name
+
+    async def search(self, query: str, limit: int = 3) -> list[str]:
+        raise AssertionError(f"{self.source_name} connector should not have been called")
+
+    async def fetch(self, identifier: str) -> ConnectorResult:
+        raise AssertionError(f"{self.source_name} connector should not have been called")
+
+
 @pytest.mark.asyncio
 async def test_search_pagination_produces_metadata(client, session):
     media_titles = [f'Test Series {i}' for i in range(1, 7)]
@@ -111,3 +122,195 @@ async def test_search_external_ingests_multi_source(client, monkeypatch, session
     assert payload['metadata']['source_counts']['tmdb'] == 2
     assert payload['metadata']['source_counts']['google_books'] == 1
     assert len(payload['results']) >= 4
+
+
+@pytest.mark.asyncio
+async def test_search_sources_filter_limits_external_only(client, monkeypatch, session):
+    tmdb_results = [
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title='TMDB Pick 1',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='tmdb',
+            source_id='movie:9001',
+            raw_payload={},
+        ),
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title='TMDB Pick 2',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='tmdb',
+            source_id='movie:9002',
+            raw_payload={},
+        ),
+    ]
+    connectors = {
+        'tmdb': StubConnector('tmdb', tmdb_results),
+        'google_books': StubConnector('google_books', []),
+        'igdb': StubConnector('igdb', []),
+        'lastfm': StubConnector('lastfm', []),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr('app.services.media_service.get_connector', _fake_get_connector)
+
+    response = await client.get(
+        '/api/search',
+        params=[('q', 'Fan'), ('sources', 'tmdb'), ('external_per_source', '2')],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['source'] == 'external'
+    assert payload['metadata']['counts']['internal'] == 0
+    assert payload['metadata']['source_counts']['internal'] == 0
+    assert payload['metadata']['source_counts']['tmdb'] == 2
+    assert 'google_books' not in payload['metadata']['source_counts']
+
+
+@pytest.mark.asyncio
+async def test_search_types_filter_drops_incompatible_sources(client, monkeypatch, session):
+    session.add(MediaItem(media_type=MediaType.BOOK, title='Fan Query'))
+    session.add(MediaItem(media_type=MediaType.MOVIE, title='Fan Query 2'))
+    await session.commit()
+
+    connectors = {
+        'google_books': StubConnector(
+            'google_books',
+            [
+                ConnectorResult(
+                    media_type=MediaType.BOOK,
+                    title='Book Find 1',
+                    description=None,
+                    release_date=None,
+                    cover_image_url=None,
+                    canonical_url=None,
+                    metadata={},
+                    source_name='google_books',
+                    source_id='book:abc',
+                    raw_payload={},
+                )
+            ],
+        ),
+        'tmdb': FailingConnector('tmdb'),
+        'igdb': FailingConnector('igdb'),
+        'lastfm': FailingConnector('lastfm'),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr('app.services.media_service.get_connector', _fake_get_connector)
+
+    response = await client.get(
+        '/api/search',
+        params=[
+            ('q', 'Fan'),
+            ('include_external', 'true'),
+            ('external_per_source', '1'),
+            ('types', 'book'),
+        ],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['metadata']['counts']['internal'] == 1
+    assert payload['metadata']['source_counts']['internal'] == 1
+    assert payload['metadata']['source_counts']['google_books'] == 1
+    assert 'tmdb' not in payload['metadata']['source_counts']
+    assert payload['source'] == 'internal+external'
+
+
+@pytest.mark.asyncio
+async def test_search_external_per_source_limits_counts(client, monkeypatch, session):
+    session.add(MediaItem(media_type=MediaType.BOOK, title='Fan Query'))
+    await session.commit()
+
+    tmdb_results = [
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title='TMDB Pick 1',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='tmdb',
+            source_id='movie:9001',
+            raw_payload={},
+        ),
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title='TMDB Pick 2',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='tmdb',
+            source_id='movie:9002',
+            raw_payload={},
+        ),
+    ]
+    google_results = [
+        ConnectorResult(
+            media_type=MediaType.BOOK,
+            title='Book Find 1',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='google_books',
+            source_id='book:abc',
+            raw_payload={},
+        ),
+        ConnectorResult(
+            media_type=MediaType.BOOK,
+            title='Book Find 2',
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url=None,
+            metadata={},
+            source_name='google_books',
+            source_id='book:def',
+            raw_payload={},
+        ),
+    ]
+    connectors = {
+        'google_books': StubConnector('google_books', google_results),
+        'tmdb': StubConnector('tmdb', tmdb_results),
+        'igdb': StubConnector('igdb', []),
+        'lastfm': StubConnector('lastfm', []),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr('app.services.media_service.get_connector', _fake_get_connector)
+
+    response = await client.get(
+        '/api/search',
+        params=[
+            ('q', 'Fan'),
+            ('include_external', 'true'),
+            ('external_per_source', '1'),
+        ],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['metadata']['counts']['internal'] == 1
+    assert payload['metadata']['counts']['external_ingested'] == 2
+    assert payload['metadata']['source_counts']['external'] == 2
+    assert payload['metadata']['source_counts']['tmdb'] == 1
+    assert payload['metadata']['source_counts']['google_books'] == 1
+    assert len(payload['results']) >= 3

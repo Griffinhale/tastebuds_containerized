@@ -28,7 +28,7 @@ Set at minimum:
 - `JWT_SECRET_KEY` (required for token issuance)
 - `NEXT_PUBLIC_API_BASE` and `API_INTERNAL_BASE` (defaults are fine for Compose); `NEXT_PUBLIC_APP_BASE_URL` powers share links/OG metadata for public menus
 - `CORS_ORIGINS` (comma-separated list of allowed browser origins)
-- External API credentials: `GOOGLE_BOOKS_API_KEY`, `TMDB_API_AUTH_HEADER` (TMDB v4 bearer), `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `LASTFM_API_KEY`
+- External API credentials: `GOOGLE_BOOKS_API_KEY`, `TMDB_API_AUTH_HEADER` (TMDB v4 bearer, preferred) _or_ `TMDB_API_KEY` as a fallback, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `LASTFM_API_KEY`. TMDB credentials are validated at startup.
 The Compose stack also reads `.env` for the web service.
 
 ## Helper script (Docker & Flatpak friendly)
@@ -102,7 +102,7 @@ curl -X POST http://localhost:8000/api/ingest/google_books \
 curl -X POST http://localhost:8000/api/ingest/tmdb \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"external_id":"movie:603"}'
+  -d '{"external_id":"603"}'  # or "movie:603" / "tv:123"
 ```
 Build and share a menu:
 ```bash
@@ -153,6 +153,12 @@ curl "http://localhost:8000/api/search?q=zelda&types=game&sources=internal&sourc
 cd api && TEST_DATABASE_URL=... pytest app/tests
 ```
 Pytest uses async fixtures plus ingestion samples, and now includes API-level coverage for auth/token flows and menu CRUD.
+
+## CI
+GitHub Actions run on push/PR:
+- Backend: Ruff (`python -m ruff check app`) + `pytest app/tests` with SQLite.
+- Compose parity check: `./scripts/dev.sh test`.
+- Frontend: `npm ci` then `npm run lint`, `npm run prettier:check`, `npm run typecheck`.
 
 ## Troubleshooting
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.

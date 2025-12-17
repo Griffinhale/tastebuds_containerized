@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,6 +56,13 @@ class Settings(BaseSettings):
             if origins:
                 return origins
         return DEFAULT_CORS_ORIGINS.copy()
+
+    @model_validator(mode="after")
+    def _validate_tmdb_credentials(self) -> "Settings":
+        if not (self.tmdb_api_auth_header or self.tmdb_api_key):
+            msg = "TMDB_API_AUTH_HEADER (preferred) or TMDB_API_KEY must be set for TMDB ingestion"
+            raise ValueError(msg)
+        return self
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

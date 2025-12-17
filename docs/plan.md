@@ -7,11 +7,11 @@
 - Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, a `/menus` dashboard with inline course/item editors plus drag-to-reorder, catalog search + ingestion with paging/source counts, and shareable public menu pages at `/menus/[slug]`.
 
 ## Near-Term Priorities
-1. **Connector reliability & credentials:** align TMDB on the v4 bearer token (and add fallback or clear errors), tighten logging for missing keys, and add ingestion/search tests that assert per-source counts. _External fan-out works but will silently skip when env vars are wrong; TMDB still references API keys in old docs._
-2. **Search correctness & coverage:** add API-level tests for pagination, `sources`/`types` filters, and mixed internal/external merges, plus guardrails against duplicate IDs when connectors return overlapping results. _Metadata now includes paging and source counts but lacks regression coverage._
-3. **Quality & automation:** introduce lint/format + test pipelines (Ruff/pytest for API, ESLint/Prettier/TypeScript checks for web) and wire CI to `./scripts/dev.sh test` so regressions surface automatically. _Currently all checks are manual._
-4. **Auth/session transparency:** surface per-device session listings with revoke controls and basic audit trails in both API and web. _Refresh rotation/revocation works, but there is no visibility into active sessions._
-5. **Deployment polish:** add a reverse proxy/TLS overlay and document homelab/public hosting paths once connector/auth hardening lands.
+1. **Connector reliability & observability:** add structured logging/metrics for ingestion attempts (per-source success/skip/fail), bubble credential/quotas errors into response metadata, and add circuit-breaker/backoff to external fan-out so rate-limit spikes do not slow the API.
+2. **Search relevance & dedupe:** enforce deterministic ordering for merged internal+external results, add cross-connector dedupe (e.g., TMDB vs internal duplicates), and expose source-level timing/counts for debugging queries.
+3. **Auth/session transparency:** surface per-device session listings with revoke controls and basic audit trails in both API and web. _Refresh rotation/revocation works, but there is no visibility into active sessions._
+4. **Deployment polish:** add a reverse proxy/TLS overlay and document homelab/public hosting paths once connector/auth hardening lands.
+5. **Frontend UX fit-and-finish:** add loading/empty/error states to the ingest drawer, tighten accessibility (focus order/ARIA), and add smoke tests for the critical flows (login, menu CRUD, search/ingest).
 
 ## Stack at a Glance
 - **Backend:** FastAPI, SQLAlchemy 2, Alembic, async sessions everywhere.

@@ -60,8 +60,8 @@ Clears auth cookies. Returns `204 No Content`.
 ## Ingestion
 `POST /api/ingest/{source}` - Supported sources: `google_books`, `tmdb`, `igdb`, `lastfm`.
 - Body: `{ "external_id": "...", "url": "...", "force_refresh": false }` (either `external_id` or `url` is required).
-- Identifier hints: Google Books volume ID or URL; TMDB accepts `movie:603`/`tv:123` or a TMDB URL; IGDB expects a numeric ID; Last.fm accepts `Artist::Track`, MBID, or a track URL.
-- TMDB requires a v4 bearer token supplied via `TMDB_API_AUTH_HEADER` (full `Authorization` header value).
+- Identifier hints: Google Books volume ID or URL; TMDB accepts `603`/`movie:603`/`tv:123` or a TMDB URL; IGDB expects a numeric ID; Last.fm accepts `Artist::Track`, MBID, or a track URL.
+- TMDB prefers a v4 bearer token via `TMDB_API_AUTH_HEADER` (full `Authorization` header value); `TMDB_API_KEY` is accepted as a fallback. Credentials are validated at startup.
 - Dedupe: unique `(source_name, external_id)` in `media_sources`; `force_refresh=true` replays the connector and overwrites stored payloads.
 - Response: `{ media_item: { ...sources[] }, source_name }`.
 
@@ -92,6 +92,6 @@ Ordering is enforced via unique `(menu_id, position)` for courses and `(course_i
 
 ## Short Example Flow
 1. Register/login to obtain `access_token`.
-2. `POST /api/ingest/tmdb` with `{"external_id":"movie:603"}` to ingest a film.
+2. `POST /api/ingest/tmdb` with `{"external_id":"603"}` (or `movie:603`) to ingest a film.
 3. `POST /api/menus` with a course that references the ingested media ID.
 4. `GET /api/public/menus/{slug}` to share the published menu.

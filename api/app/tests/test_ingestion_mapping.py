@@ -49,14 +49,14 @@ async def test_movie_ingestion_populates_extension(session):
         description="Anthology of visionary films",
         release_date=None,
         cover_image_url="https://image.tmdb.org/t/p/original/cinematic-journeys.jpg",
-        canonical_url="https://www.themoviedb.org/movie/demo-movie-603",
+        canonical_url="https://www.themoviedb.org/movie/603",
         metadata={
             "genres": ["Drama", "Adventure"],
             "languages": [{"english_name": "English", "iso_639_1": "en", "name": "English"}],
             "status": "Released",
         },
         source_name="tmdb",
-        source_id="movie:603",
+        source_id="603",
         raw_payload=load_ingestion_sample("tmdb_movie"),
         extensions={
             "movie": {
