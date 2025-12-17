@@ -1,123 +1,66 @@
-# Tastebuds (Containerized)
+﻿# Tastebuds (Containerized)
 
-Tastebuds is a database-first "media diet" curator. Users ingest books, films, games, and tracks into a normalized catalog, then craft shareable Menus composed of chronologically ordered Courses that walk a friend through a cross-medium experience.
-
----
-
-## Milestone – June 2024
-_Historical snapshot captured after the first compose deployment._
-- Docker Compose stack (`api`, `db`, optional `pgadmin`) builds/runs cleanly; `api` container now exports `PYTHONPATH=/app` so CLI tooling (Alembic, pytest) works both inside and outside Docker.
-- Initial Alembic migration `20240602_000001` succeeds end-to-end (enums are created idempotently) and is part of `docker compose exec api alembic upgrade head`.
-- Core routes (auth, menus/courses/items, tags, ingestion scaffolding, `/public/menus/{slug}`, `/health`, `/docs`) are live—recent smoke tests hit `/health` and `/docs` successfully.
-- Docs deliverables now include the schema diagram (`docs/schema.md`), Postman collection (`docs/tastebuds.postman_collection.json`), and release QA checklist.
-
-## Concept: Menus, Courses & the Media Diet
-- **Menus** are curated journeys owned by a user. Each menu implies an order of consumption and exposes a stable public slug that can be shared without authentication.
-- **Courses** sit inside a menu and group items into beats ("Appetizer", "Feature", "Encore"). Ordering happens at both the course level and inside each course through `position` columns—so the chronology is always explicit.
-- **Course Items** reference normalized `media_items` rows, meaning a menu can mix formats. A course can start with a book, progress to a movie, and end with a track without duplicating metadata.
-- **User state & annotations** are tracked separately through `user_item_states` (status enum: `consumed`, `currently_consuming`, `want_to_consume`, `paused`, `dropped` + rating/favorite flags, timestamps, and notes). Tags sit on `media_items` via `media_item_tags` to power personal taxonomies.
-- This is more than a watchlist: Menus preserve intent + commentary, highlight what was consumed vs. what's aspirational, and produce a permalink slug for sharing the finished tasting menu.
-
-### Slugs & static sharing
-- Slugs are generated when menus are created (`slugify(title)` plus a numeric suffix when needed). They do **not** change automatically if the title changes, so existing links stay valid.
-- `is_public=false` keeps a menu private (returns 404 from `/api/public/menus/{slug}`). Toggling `is_public=true` exposes the immutable slug.
-- Ordering is enforced via unique `(menu_id, position)` constraints for courses and `(course_id, position)` for items, so public responses always reflect a deterministic chronology.
+Tastebuds is a database-first "media diet" curator. Users ingest books, films, games, and tracks into a normalized catalog, then craft shareable menus of chronologically ordered courses.
 
 ---
+
+## Current Status (Dec 2025)
+- Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), the optional Next.js stub (`web`), and optional PgAdmin.
+- Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
+- Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; dedupe happens via `media_sources (source_name, external_id)`.
+- Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
+- Next.js frontend is a placeholder that pings the API health endpoint; no auth/menu UI has shipped yet.
 
 ## Architecture & Data Model
-Tastebuds treats the database schema as the product contract. FastAPI, SQLAlchemy, and Alembic orchestrate the API and migrations, but Postgres owns ordering, deduplication, and sharing semantics.
+- FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
+- Postgres 15 stores canonical media rows plus 1:1 extensions (`book_items`, `movie_items`, `game_items`, `music_items`), ingestion sources, menus/courses/items, tags, and per-user item states.
+- Connectors normalize upstream payloads, stash full raw payloads, and populate canonical+metadata+extension fields. Mapping notes live in `docs/attribute-mapping.md` and `mappings/*.yaml`.
+- Next.js (app router, Tailwind) lives in `web/` and is wired for `NEXT_PUBLIC_API_BASE` (browser) and `API_INTERNAL_BASE` (server).
 
-### Tables at a glance
-- `media_items` holds shape-agnostic metadata (title, description, release_date, media_type discriminator, JSONB metadata) plus relationships to tags, sources, and user states.
-- Medium extensions (`book_items`, `movie_items`, `game_items`, `music_items`) are 1:1 tables keyed by `media_item_id` so each medium only stores the attributes it needs.
-- `media_sources` deduplicates ingestion via a unique `(source_name, external_id)` constraint and stores the raw provider payload for lossless reprocessing.
-- `user_item_states` stores per-user status/rating/favorite/notes with timestamps, enabling personal views that don't pollute canonical metadata.
-- `menus → courses → course_items` capture ordering with uniqueness constraints on `(menu_id, position)` and `(course_id, position)` to guarantee chronological integrity.
-- `tags` + `media_item_tags` allow global or user-scoped annotations that travel with menu exports.
-
-```text
-users ──┐
-        ├─ menus ── courses ── course_items ── media_items
-        └─ user_item_states ──┘                ├─ book_items / movie_items / game_items / music_items
-media_items ── media_sources (source_name, external_id, raw_payload)
-media_items ── media_item_tags ── tags
-```
-
-See `docs/schema.md` for diagrams, entity notes, and index/constraint commentary.
-
-### Canonical vs metadata vs raw payloads
-- **Canonical columns** live directly on `media_items` (title, subtitle, release_date, cover_image_url, canonical_url) or extension tables. They are typed fields indexed for filtering/search.
-- **Metadata JSONB** (`media_items.metadata`) stores semi-structured data like categories, listener counts, languages, and platforms when we still need queryable JSON operators but not a dedicated column yet.
-- **Raw payloads** are stored verbatim per source inside `media_sources.raw_payload`. They are write-only until a developer promotes a field via the mapping workflow below.
-
----
-
-## Ingestion & Attribute Mapping Strategy
-- Async connectors for Google Books, TMDB (movie + TV), IGDB, and Last.fm normalize upstream payloads into `ConnectorResult` objects before they touch the DB. The connectors decide the media_type, populate shared + extension columns, and always stash the upstream response in `media_sources.raw_payload`.
-- Attribute coverage for each provider lives in `docs/attribute-mapping.md` and structured YAML manifests under `mappings/{google_books,tmdb,igdb,lastfm}.yaml`. When the live docs for a provider aren't reachable we lean on **mapping files + captured `raw_payload` samples + iterative expansion**.
-- Extending mappings safely:
-  1. Update the relevant `mappings/<source>.yaml` entry to document whether the field should be canonical, metadata, or raw-only.
-  2. Model the new attribute (JSON key in `metadata` or Alembic migration for a new column/extension field).
-  3. Update the connector under `api/app/ingestion/` to populate it and capture tests in `api/app/tests`.
-  4. Refresh `docs/attribute-mapping.md` so downstream consumers know what to expect.
-
-### `/api/ingest/{source}` endpoint
-- Accepts a source name (`google_books`, `tmdb`, `igdb`, `lastfm`) plus either an `external_id`, a provider URL, or the connector-specific identifier format.
-- Each request normalizes the upstream payload, upserts the canonical `media_items` row, inserts/updates medium extension records, and captures the verbatim `raw_payload` in `media_sources`.
-- Deduplication is enforced per `(source_name, external_id)`; subsequent calls return the existing media row unless `force_refresh=true`, which re-fetches the provider data and replays the mapping.
-- The response mirrors the stored media object (with extension + metadata fields) so clients can immediately reference the resulting IDs in menus, tags, or user states.
-
----
-
-## Getting Started
-### Prerequisites
-- Docker + Docker Compose
-- Python 3.11+ (optional but useful for running scripts/tests without containers)
-
-### Configure your environment
+## Configure your environment
 ```bash
 cp .env.example .env
 ```
-Update the following at minimum:
-- `DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds`
-- `TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test` (the Compose stack now bootstraps `tastebuds_test` alongside the main database, so no manual `CREATE DATABASE` step is required).
-- JWT secrets and every external API key listed in the next section.
+Set at minimum:
+- `DATABASE_URL` / `TEST_DATABASE_URL` (Compose defaults target `db`)
+- `JWT_SECRET_KEY` (required for token issuance)
+- `NEXT_PUBLIC_API_BASE` and `API_INTERNAL_BASE` (defaults are fine for Compose)
+- `CORS_ORIGINS` (comma-separated list of allowed browser origins)
+- External API keys: `GOOGLE_BOOKS_API_KEY`, `TMDB_API_KEY`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `LASTFM_API_KEY`
+The Compose stack also reads `.env` for the web service.
 
-### Helper scripts (Docker & Flatpak friendly)
-Use `./scripts/dev.sh <command>` to interact with Docker Compose. The wrapper automatically prefixes commands with `flatpak-spawn --host` when it runs inside Flatpak (detected via `FLATPAK_ID`, or you can force it by exporting `TASTEBUDS_USE_FLATPAK=1`).
+## Helper script (Docker & Flatpak friendly)
+`./scripts/dev.sh <command>` wraps `docker compose` and auto-prefers `flatpak-spawn --host` when needed.
+- `up`: build and start the stack
+- `down`: stop services
+- `logs [svc]`: tail logs
+- `migrate`: `alembic upgrade head` in the `api` container
+- `seed`: run the demo seed script
+- `test`: run pytest inside the API image against `TEST_DATABASE_URL`
+- `web`: build/start the Next.js container
 
-Common examples:
+## Run the stack
 ```bash
-./scripts/dev.sh up        # build + start containers
-./scripts/dev.sh down      # stop services
-./scripts/dev.sh logs api  # tail service logs
-./scripts/dev.sh migrate   # alembic upgrade head
-./scripts/dev.sh seed      # demo data
-./scripts/dev.sh test      # pytest inside the api image
-```
-
-### Run the stack
-```bash
-# Helper script (auto-detects Flatpak)
 ./scripts/dev.sh up
 ./scripts/dev.sh migrate
-
-# (Optional) seed demo content (user + mixed menu)
-./scripts/dev.sh seed
+# optional helpers
+./scripts/dev.sh seed   # demo data + menu
+./scripts/dev.sh web    # Next.js placeholder on :3000
 ```
-Prefer raw Docker commands? The wrapper simply runs:
+Raw commands if you prefer:
 ```bash
 docker compose up --build -d
 docker compose exec api alembic upgrade head
 docker compose exec api python -m app.scripts.seed
+docker compose up --build -d web
 ```
-The API lives at `http://localhost:8000` with docs at `/docs` (Swagger) and `/redoc`.
+API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health`)  
+Web stub: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
 
-### Development without Docker
+## Development without Docker
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # or Scripts\activate on Windows
 pip install -r api/requirements-dev.txt
 export DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@localhost:5432/tastebuds
 export TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@localhost:5432/tastebuds_test
@@ -125,176 +68,92 @@ cd api
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
-
-### Running tests
-Tastebuds ships with async pytest coverage that exercises ingestion mappings, menu slug behavior, and the public menu lookup path.
-
-**Helper script (recommended):**
+Frontend only:
 ```bash
-./scripts/dev.sh test
+cd web
+npm install
+npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
-**Raw Docker command:**
+## API quickstart
+Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login returns both access and refresh tokens; a refresh endpoint is not implemented yet.
 ```bash
-docker compose run --rm api sh -c "pip install -r requirements-dev.txt && TEST_DATABASE_URL=postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test pytest app/tests"
-```
-
-**Locally without containers:**
-```bash
-cd api
-pytest app/tests
-```
-Ensure `TEST_DATABASE_URL` points at an isolated database; the pytest fixture automatically creates/drops schemas per test run.
-
-Ingestion verification tests (`app/tests/test_ingestion_mapping.py`) replay fixture payloads stored in `app/samples/ingestion/*.json` for Google Books, TMDB, IGDB, and Last.fm, so regressions in connector mappings are caught without reaching external APIs.
-
-### Async SQLAlchemy gotchas
-- The API uses `AsyncSession` everywhere. Accessing relationship attributes (e.g., `menu.courses.append(...)`) can trigger lazy loads that rely on sync `greenlet_spawn` contexts and result in `MissingGreenlet` errors. Prefer assigning foreign keys directly (set `menu_id`/`course_id`), flush, and then reload via `selectinload` or explicit queries when you need relationships hydrated.
-- When adding nested create/update helpers, follow the pattern in `app/services/menu_service.py#create_menu`: insert the parent, flush to get IDs, insert children/items with FK values, and refresh the menu once everything is committed. This keeps async I/O predictable and ensures ordering constraints are satisfied before the response is serialized.
-
----
-
-## Getting API Keys
-- **Google Books** – enable the Books API inside Google Cloud Console and create an API key. Set `GOOGLE_BOOKS_API_KEY`.
-- **TMDB** – create an account at themoviedb.org, request an API key (v3), and place it in `TMDB_API_KEY`.
-- **IGDB** – register an application in the Twitch Developer Console to get a client ID + secret. Tastebuds exchanges these for an OAuth token at runtime (`IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`). Tokens are fetched and refreshed automatically; no manual access token env var is required.
-- **Last.fm** – register for an API account at https://www.last.fm/api/account/create and use the key inside `LASTFM_API_KEY`.
-
----
-
-## Example API Flow
-All routes live under `/api`. Authenticated requests expect `Authorization: Bearer $TOKEN`.
-
-> `jq` is optional. When it's unavailable, replace `| jq -r '.field'` with `| python3 -c 'import json,sys; print(json.load(sys.stdin)[\"field\"])'` (swap `field` for `id`, `slug`, etc.).
-
-### Register & Login
-```bash
+# Register
 curl -X POST http://localhost:8000/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123","display_name":"Demo"}'
-
+# Login
 curl -X POST http://localhost:8000/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123"}'
 ```
-
-### Ingest media items
+Ingest media (deduped by `(source_name, external_id)`):
 ```bash
-# Google Books (volume ID or URL)
 curl -X POST http://localhost:8000/api/ingest/google_books \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"external_id":"zyTCAlFPjgYC"}'
-
-# TMDB (movie or tv). Prefix the ID with the resource type when possible
 curl -X POST http://localhost:8000/api/ingest/tmdb \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"external_id":"movie:603"}'
-
-# IGDB (numeric game ID)
-curl -X POST http://localhost:8000/api/ingest/igdb \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"external_id":"7346"}'
-
-# Last.fm (MBID or artist::track string)
-curl -X POST http://localhost:8000/api/ingest/lastfm \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"external_id":"Daft Punk::Harder Better Faster Stronger"}'
 ```
-
-### Build and share a menu
+Build and share a menu:
 ```bash
-# Create a menu with the desired slug generated automatically
 MENU_ID=$(curl -s -X POST http://localhost:8000/api/menus \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Neo-Noir Night","description":"Books → Movies → Music","is_public":true}' \
+  -d '{"title":"Neo-Noir Night","description":"Books + Movies + Music","is_public":true}' \
   | jq -r '.id')
 
-# Add a course
 COURSE_ID=$(curl -s -X POST http://localhost:8000/api/menus/$MENU_ID/courses \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"title":"Appetizer","description":"Set the tone","position":1}' \
   | jq -r '.id')
 
-# Add a course item (MEDIA_ID is returned from ingestion)
 curl -X POST http://localhost:8000/api/menus/$MENU_ID/courses/$COURSE_ID/items \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"media_item_id":"$MEDIA_ID","position":1,"notes":"Read first."}'
+  -d "{\"media_item_id\":\"$MEDIA_ID\",\"position\":1,\"notes\":\"Read first.\"}"
 
-# Fetch the public slug (share this URL)
 curl http://localhost:8000/api/public/menus/$(curl -s http://localhost:8000/api/menus/$MENU_ID \
   -H "Authorization: Bearer $TOKEN" | jq -r '.slug')
 ```
-
-### Tag media items
+Tags:
 ```bash
 TAG_ID=$(curl -s -X POST http://localhost:8000/api/tags \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Neo-Noir"}' | jq -r '.id')
-
 curl -X POST http://localhost:8000/api/tags/$TAG_ID/media \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"media_item_id\":\"$MEDIA_ID\"}"
-
-curl http://localhost:8000/api/tags/media/$MEDIA_ID -H "Authorization: Bearer $TOKEN"
+```
+Search with optional external fan-out (ingests results before returning them):
+```bash
+curl "http://localhost:8000/api/search?q=blade%20runner&include_external=true" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-Need more endpoints? See `docs/api.md` for the full surface area plus additional examples (search, states, tagging, etc.).
-
----
-
-## Postman Collection
-- Import `docs/tastebuds.postman_collection.json` into Postman (File → Import) to get runnable requests for auth, ingestion, menus, tags, and health checks.
-- Update the collection variables (`origin`, `api_prefix`, credentials, external IDs) to match your environment. Default values assume `http://localhost:8000` plus the sample IDs used throughout this README.
-- Run **Auth → Register** or **Auth → Login** first. The built-in test scripts store `access_token`, `menu_id`, `course_id`, etc., as collection variables so subsequent menu/tag requests can reference them automatically.
-- Each ingestion request stores the latest `media_item_id`, making it easy to attach that record to menus or tags without copying IDs manually.
-
----
-
-## Database Migrations & Seeding
-- **Helper shortcuts**: `./scripts/dev.sh migrate` / `./scripts/dev.sh seed`
-- **Upgrade (raw command)**: `docker compose exec api alembic upgrade head`
-- **Downgrade**: `docker compose exec api alembic downgrade -1`
-- **Create a revision**: `docker compose exec api alembic revision --autogenerate -m "add music fields"`
-- **Seed demo data**: `docker compose exec api python -m app.scripts.seed`
-
-The seed script now bootstraps a cross-medium menu (book/movie/game/music) with realistic ingestion payloads pulled from `app/samples/ingestion/`. Those JSON fixtures double as regression data for mapping tests and keep `media_sources.raw_payload` representative even when running offline. When changing schema, always update `docs/schema.md` and re-run the ingestion tests touched by the new columns.
-
----
-
-## Flatpak VS Code Notes
-- **Recommended workflow:** run Docker or Podman commands from a regular host terminal (outside VS Code). The API code can still be edited inside Flatpak VS Code while `docker compose` runs elsewhere.
-- **Inside Flatpak terminal (optional):** if the host has Docker installed, prefix commands with `flatpak-spawn --host`:
-  ```sh
-  flatpak-spawn --host docker compose up -d
-  flatpak-spawn --host docker compose exec api alembic upgrade head
-  flatpak-spawn --host docker compose logs -f api
-  ```
-- Sudo/apt/apk/yum are unavailable inside the Flatpak sandbox; install dependencies on the host OS instead.
-
----
+## Testing
+```bash
+./scripts/dev.sh test
+# or locally
+cd api && TEST_DATABASE_URL=... pytest app/tests
+```
+Pytest uses async fixtures and the ingestion samples under `app/samples/ingestion/`.
 
 ## Troubleshooting
-- **Database not ready**: `docker compose ps` should show the `db` service as healthy. If API boot loops, restart with `docker compose restart api` after Postgres passes its health check.
-- **Missing env vars**: the API logs will state which credential is missing. Cross-check `.env` with `.env.example` and make sure compose picked up your changes (`docker compose up -d --build api`).
-- **Invalid external API keys**: 401/403 responses during ingestion contain the connector name. Reissue the key and update `.env`.
-- **IGDB auth failures**: verify `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET`. The service auto-fetches tokens from Twitch; clear the API container to drop cached tokens if credentials change.
-- **Rate limits**: connectors retry idempotently, but persistent 429s mean you should slow ingestion, reduce search fan-out, or schedule replays later. Because every `raw_payload` is stored, failed mappings can be reprocessed without re-hitting the provider once the rate limit resets.
-- **Compose networking quirks**: ensure nothing else is bound to `5432`/`8000` on the host or adjust the published ports inside `docker-compose.yml`.
+- Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.
+- Missing env vars or API keys: the API logs list the missing key; ensure `.env` is loaded and rebuild the `api` container.
+- TMDB/IGDB/Last.fm/Google Books failures: check credentials and rate limits; every ingestion stores `raw_payload` so you can replay without refetching.
+- Compose port conflicts: adjust `docker-compose.yml` published ports if 5432/8000/3000 are busy.
 
----
-
-## Further Reading
-- `docs/schema.md` – detailed ERD + migration notes.
-- `docs/attribute-mapping.md` – provider field coverage and fallback strategy.
-- `docs/api.md` – endpoint-by-endpoint reference.
-- `docs/qa-checklist.md` – release readiness + regression checklist for Compose builds.
-- `docs/tastebuds.postman_collection.json` – importable Postman collection covering auth → ingestion → sharing flows.
+## Reference docs
+- `docs/api.md`: endpoint reference and example payloads.
+- `docs/schema.md`: tables, relationships, and constraints.
+- `docs/attribute-mapping.md`: provider field coverage.
+- `docs/qa-checklist.md`: release smoke checklist.
+- `docs/tastebuds.postman_collection.json`: importable Postman collection.

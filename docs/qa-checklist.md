@@ -1,43 +1,38 @@
-# Release QA Checklist
+﻿# Release QA Checklist
 
-Tastebuds ships Docker-first. Each release candidate should walk through this checklist to ensure the Compose stack, migrations, ingestion layer, and public surfaces stay healthy.
+Tastebuds ships Docker-first. Use this checklist for release candidates to confirm the Compose stack, migrations, ingestion layer, and public surfaces stay healthy.
 
-## 1. Environment & Containers
-- [ ] Copy `.env.example` to `.env` and confirm all secrets/API keys are populated.
-- [ ] `./scripts/dev.sh up` builds fresh images and all services report `healthy` via `docker compose ps`.
-- [ ] `./scripts/dev.sh migrate` succeeds and prints the latest Alembic revision.
-- [ ] `./scripts/dev.sh seed` loads demo data without errors (verifies fixtures + ingestion samples).
-- [ ] `./scripts/dev.sh logs api` shows FastAPI booting with the expected environment banner (`ENVIRONMENT=production` for release).
+## 1) Environment & Containers
+- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
+- [ ] `./scripts/dev.sh up` builds/starts services; `docker compose ps` shows `db` as healthy.
+- [ ] `./scripts/dev.sh migrate` succeeds and reports the latest Alembic revision.
+- [ ] (Optional) `./scripts/dev.sh seed` loads demo data without errors.
+- [ ] `./scripts/dev.sh logs api` shows FastAPI booted with the expected environment.
 
-## 2. Database Integrity
-- [ ] `docker compose exec api alembic check` reports heads in sync (no pending migrations).
-- [ ] Unique constraints: attempt to create duplicate menu slugs/courses/items and ensure the API returns 400/409.
-- [ ] Spot-check ordering by querying `menus`, `courses`, and `course_items` to confirm `position` columns line up with the seed data.
+## 2) Database Integrity
+- [ ] `docker compose exec api alembic history --verbose | tail -n 1` shows the head revision.
+- [ ] Creating duplicate menu slugs/courses/items returns 400/409 (ordering constraints hold).
+- [ ] Spot-check ordering: `GET /api/menus/{id}` returns courses/items sorted by `position`.
 
-## 3. Automated Tests & Linters
-- [ ] `./scripts/dev.sh test` (pytest) passes using the Compose-provided `tastebuds_test` database.
-- [ ] `docker compose exec api mypy app` passes (type coverage for services/schemas).
-- [ ] `docker compose exec api ruff check app` passes (style + import hygiene).
+## 3) Automated Tests
+- [ ] `./scripts/dev.sh test` (pytest) passes against the Compose-provided `tastebuds_test` database.
+- [ ] If running locally, `TEST_DATABASE_URL=postgresql+asyncpg://... pytest app/tests` passes.
 
-## 4. API Smoke Tests
-- [ ] Register + login via the curl examples in `README.md` and confirm tokens decode with the correct claims.
-- [ ] `GET /api/docs` renders OpenAPI without exceptions and lists all routers.
-- [ ] `POST /api/ingest/{source}` for each connector (Google Books, TMDB, IGDB, Last.fm) ingests one fixture item and returns metadata + extension rows.
-- [ ] `POST /api/menus` with nested courses/items succeeds and the response slug matches DB state.
-- [ ] `GET /api/public/menus/{slug}` for the menu above works when `is_public=true` and returns 404 when toggled off.
-- [ ] `GET /api/tags` shows global + user tags; attach/detach tags from a newly ingested media item and verify lookups.
+## 4) API Smoke Tests
+- [ ] Register + login via `README.md` examples; decode `access_token` to confirm subject and type.
+- [ ] `GET /api/docs` renders OpenAPI successfully.
+- [ ] `POST /api/ingest/{source}` succeeds for each configured connector (requires valid API keys).
+- [ ] `POST /api/menus` with nested courses/items works; slug matches DB state.
+- [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
+- [ ] `GET /api/search?q=demo&include_external=true` returns metadata counts and ingests external hits.
+- [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
+- [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
 
-## 5. Observability & Health
-- [ ] `GET /health` returns `{"status":"ok"}`.
-- [ ] API logs show ingestion retries (tenacity) when simulating upstream 429/500 responses (temporarily tweak credentials or throttle).
-- [ ] Confirm structured logging fields (`request_id`, `path`, `status_code`) appear in `api` logs.
+## 5) Frontend Stub
+- [ ] `./scripts/dev.sh web` builds/serves the Next.js placeholder on `:3000`.
+- [ ] The API status card reports healthy when `NEXT_PUBLIC_API_BASE` and `CORS_ORIGINS` are set correctly.
 
-## 6. Docs & Distribution
-- [ ] `README.md` instructions match the release artifacts (commands, env vars, helper scripts).
-- [ ] `docs/api.md` examples reflect the current OpenAPI schema (paths, payloads, query params).
-- [ ] `docs/attribute-mapping.md` entries mirror connector behavior (especially new metadata/extension fields).
-- [ ] Export/refresh the Postman collection used for demos and attach it to the release notes.
-
-## 7. Final Sign-off
-- [ ] Tag the commit, push images, and attach SHA/compose instructions to the release notes.
-- [ ] Capture any deviations or flaky steps in `docs/qa-checklist.md` for the next iteration.
+## 6) Docs & Artifacts
+- [ ] `README.md` and `docs/*.md` match the shipped commands/endpoints.
+- [ ] Postman collection (`docs/tastebuds.postman_collection.json`) is importable and points at the correct origin.
+- [ ] Note any deviations or flaky steps in `docs/qa-checklist.md` for the next iteration.

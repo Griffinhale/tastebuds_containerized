@@ -1,61 +1,27 @@
 # Attribute Mapping
 
-Tastebuds ingests upstream payloads with an \"always keep the source\" policy: every response is saved in `media_sources.raw_payload` while high-signal attributes hydrate normalized columns. When official docs aren't reachable at runtime we fall back to **mapping files + raw_payload capture + iterative expansion**—meaning we document the field, store the entire payload, and expose it once demand warrants a new column.
+Tastebuds ingests upstream payloads with an "always keep the source" policy: every response is stored in `media_sources.raw_payload` while high-signal attributes hydrate normalized columns. When live provider docs are unreachable, rely on mapping files plus captured payloads so new fields can be promoted safely.
 
-Each connector lists the primary normalized fields and the attributes that currently stay inside `raw_payload`. The same information is stored in structured YAML manifests under `mappings/google_books.yaml`, `mappings/tmdb.yaml`, `mappings/igdb.yaml`, and `mappings/lastfm.yaml` to keep the source of truth alongside the code. Captured sample payloads live in `app/samples/ingestion/*.json` so tests and the seed script can replay realistic responses without calling upstream services.
+Structured manifests live under `mappings/{google_books,tmdb,igdb,lastfm}.yaml`, and captured samples live in `api/app/samples/ingestion/*.json`. The seed script and pytest fixtures reuse those samples.
 
 ## Google Books
-- **Fields captured**
-  - `volumeInfo.title`, `subtitle` → `media_items.title` / `media_items.subtitle`.
-  - `authors` → `book_items.authors` (JSON array).
-  - `description` → `media_items.description`.
-  - `publishedDate` → `media_items.release_date` (parsed to `DATE`).
-  - `imageLinks.thumbnail` → `media_items.cover_image_url`.
-  - `infoLink` → `media_items.canonical_url`.
-  - `industryIdentifiers.ISBN_10/ISBN_13` → `book_items.isbn_10` / `isbn_13`.
-  - `pageCount`, `language`, `publisher` → corresponding columns in `book_items`.
-  - `categories`, `maturityRating` → stored inside `media_items.metadata`.
-- **Raw-only fields**: `searchInfo`, `panelizationSummary`, `accessInfo` (persisted verbatim inside `media_sources.raw_payload`).
+- **Mapped:** `title`, `description`, `publishedDate` -> `release_date`, `imageLinks.thumbnail` -> `cover_image_url`, `infoLink` -> `canonical_url`. Metadata stores `categories`, `language`, `pageCount`. Extension `book_items` stores `authors`, `page_count`, `publisher`, `language`, `isbn_10`, `isbn_13`.
+- **Raw-only:** `searchInfo`, `panelizationSummary`, `accessInfo`, and other untouched keys stay in `raw_payload`.
 
 ## TMDB (Movies & TV)
-- **Fields captured**
-  - `title` / `name` → `media_items.title` (media_type detects movie/tv).
-  - `overview` → `media_items.description`.
-  - `poster_path` → `media_items.cover_image_url` (prefixed with `image.tmdb.org`).
-  - `release_date` / `first_air_date` → `media_items.release_date`.
-  - `genres`, `spoken_languages`, `status` → `media_items.metadata`.
-  - `runtime` or `episode_run_time` → `movie_items.runtime_minutes`.
-  - `credits.crew` filtered by job → `movie_items.directors`, `movie_items.producers`.
-  - `created_by` → stored as directors for TV to surface showrunners.
-  - Resource URL → `media_items.canonical_url` & `media_sources.canonical_url`.
-- **Raw-only fields**: `production_companies`, `production_countries`, `videos`, `watch/providers` etc.
+- **Mapped:** `title`/`name` -> `title`; `overview` -> `description`; `poster_path` -> `cover_image_url` (prefixed with `https://image.tmdb.org/t/p/original`); `release_date`/`first_air_date` -> `release_date`; metadata includes `genres`, `spoken_languages`, `status`. Extension `movie_items` stores `runtime_minutes`, `directors` (crew job `Director` or showrunners for TV), `producers` (crew job `Producer`), and `tmdb_type` (`movie` or `tv`).
+- **Raw-only:** `production_companies`, `production_countries`, `videos`, `watch/providers`, and other nested blobs remain in `raw_payload`.
 
 ## IGDB (Games)
-- **Fields captured**
-  - `name` → `media_items.title`.
-  - `summary` → `media_items.description`.
-  - `first_release_date` (UNIX) → `media_items.release_date`.
-  - `cover.url` → `media_items.cover_image_url`.
-  - `genres`, `platforms` → stored both in `media_items.metadata` and `game_items.genres/platforms` for queryable arrays.
-  - `involved_companies` split by flags → `game_items.developers` / `publishers`.
-- **Raw-only fields**: `age_ratings`, `multiplayer_modes`, `screenshots`, `dlcs`, etc. Entire payload persisted for reprocessing.
+- **Mapped:** `name` -> `title`; `summary` -> `description`; `first_release_date` (UNIX) -> `release_date`; `cover.url` -> `cover_image_url`; metadata includes `genres` and `platforms`. Extension `game_items` stores `platforms`, `developers`, `publishers`, and `genres`.
+- **Raw-only:** `age_ratings`, `screenshots`, `multiplayer_modes`, DLC/expansions, and other nested fields remain raw.
 
 ## Last.fm (Music)
-- **Fields captured**
-  - `track.name` → `media_items.title`.
-  - `artist.name`, `album.title`, `album.@attr.position` → `music_items.artist_name`, `album_name`, `track_number`.
-  - `wiki.summary` → `media_items.description`.
-  - `album.image[..]` highest size → `media_items.cover_image_url`.
-  - `track.url` → `media_items.canonical_url`.
-  - `track.duration` → `music_items.duration_ms` (integer).
-  - Listener counts, playcounts, top tags → `media_items.metadata`.
-- **Raw-only fields**: `streamable`, `userplaycount`, `comments`, plus any nested album artist info beyond the commonly used keys.
+- **Mapped:** `track.name` -> `title`; `artist.name`, `album.title`, `album.@attr.position` -> `music_items.artist_name`, `album_name`, `track_number`; `wiki.summary` -> `description`; `album.image[..]` (largest) -> `cover_image_url`; `track.url` -> `canonical_url`; `track.duration` -> `music_items.duration_ms`. Metadata captures listeners, playcount, and top tags.
+- **Raw-only:** `streamable`, `userplaycount`, comments, and unused album/artist fields stay in `raw_payload`.
 
-## Raw Payload Policy
-Every ingestion stores the unmodified upstream response in `media_sources.raw_payload` (JSONB). This guarantees forward-compatible migrations when APIs add attributes. Mapping adjustments live in `app/ingestion/*` modules; new fields can be surfaced by updating `ConnectorResult.extensions` and/or `MediaItem.metadata` alongside Alembic migrations if new columns are required.
-
-## How to add a new attribute
-1. Update the relevant `mappings/<provider>.yaml` file to describe whether the field belongs in canonical columns, `metadata`, or `raw_payload` only.
-2. If the field requires a new column, create an Alembic migration and extend the appropriate SQLAlchemy model/`ConnectorResult.extensions` entry. Otherwise, route it into the shared metadata JSON.
-3. Update the connector parser under `api/app/ingestion/` to populate the new field and add/refresh tests in `api/app/tests`.
-4. Document the change here (and in `README.md` if it affects ingestion behavior) so API consumers know it is queryable.
+## Adding a new attribute
+1. Update `mappings/<provider>.yaml` to document whether the field should be canonical, metadata, or raw-only.
+2. Add or adjust columns (Alembic migration) or metadata keys, plus `ConnectorResult.extensions` entries if an extension table owns the field.
+3. Update the connector under `api/app/ingestion/` to populate it and extend tests in `api/app/tests`.
+4. Refresh this file and `README.md` so API consumers know which fields are queryable.

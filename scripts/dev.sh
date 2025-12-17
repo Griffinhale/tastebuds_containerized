@@ -41,6 +41,7 @@ Commands:
   migrate    Run Alembic migrations inside the api container
   seed       Execute the demo seed script
   test       Run pytest inside the api image (installs dev deps automatically)
+  web        Run the web frontend (Next.js) via docker compose
 USAGE
 }
 
@@ -71,6 +72,9 @@ case "$cmd" in
   test)
     TEST_DB="${TEST_DATABASE_URL:-$DEFAULT_TEST_DB}"
     run_compose run --rm api sh -c "pip install -r requirements-dev.txt && TEST_DATABASE_URL=$TEST_DB pytest app/tests"
+    ;;
+  web)
+    run_compose up --build -d web
     ;;
   *)
     usage

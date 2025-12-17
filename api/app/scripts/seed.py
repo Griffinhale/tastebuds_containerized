@@ -165,7 +165,7 @@ async def _seed_session(session: AsyncSession) -> None:
     await _ensure_tags(session, user.id, media_items)
     await _ensure_user_states(session, user.id, media_items)
 
-    print(f"Seed complete – menu slug: {menu.slug}")
+    print(f"Seed complete - menu slug: {menu.slug}")
 
 
 async def _ensure_media_items(session: AsyncSession) -> dict[str, MediaItem]:

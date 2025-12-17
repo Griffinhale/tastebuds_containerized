@@ -36,7 +36,11 @@ class MediaItem(Base):
     __tablename__ = "media_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, name="media_type"), nullable=False)
+    # Persist the enum values (lowercase) instead of names (uppercase) so they match the DB enum
+    media_type: Mapped[MediaType] = mapped_column(
+        Enum(MediaType, name="media_type", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     subtitle: Mapped[str | None] = mapped_column(String(500))
     description: Mapped[str | None]
@@ -152,7 +156,8 @@ class UserItemState(Base):
         UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE")
     )
     status: Mapped[UserItemStatus] = mapped_column(
-        Enum(UserItemStatus, name="user_item_status"), nullable=False
+        Enum(UserItemStatus, name="user_item_status", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
     )
     rating: Mapped[int | None]
     favorite: Mapped[bool] = mapped_column(default=False)
