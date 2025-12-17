@@ -2,16 +2,16 @@
 
 ## Current Snapshot
 - Compose stands up `api` (FastAPI), `db` (Postgres with test DB bootstrap), optional `web` (Next.js app), and optional `pgadmin`.
-- Backend delivers auth (register/login/refresh/logout with JWT), search with optional external ingestion, connectors for Google Books/TMDB/IGDB/Last.fm, menus with slugs and ordered courses/items, tags, and user item states.
+- Backend delivers auth (register/login/refresh/logout with JWT), paginated search with `types`/`sources` filters plus optional external ingestion, connectors for Google Books/TMDB/IGDB/Last.fm, menus with slugs and ordered courses/items, tags, and user item states.
 - Alembic migration `20240602_000001` installs the full schema; seed + pytest reuse ingestion samples for regression coverage.
-- Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, and a `/menus` dashboard that lists menus, supports inline course/item editors, and provides catalog search + ingestion.
+- Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, a `/menus` dashboard with inline course/item editors plus drag-to-reorder, catalog search + ingestion with paging/source counts, and shareable public menu pages at `/menus/[slug]`.
 
 ## Near-Term Priorities
-1. **Frontend flows:** keep polishing the `/menus` search/ingest drawer and ship read-only public menu pages. _Search + ingestion is live (catalog browsing with external fan-out), so the next milestone is slug-based public views and richer course editors._
-2. **Auth polish:** extend session management with device-level listings and admin revocation UI. _Refresh-token rotation + revocation (with session-expiry messaging in the web app) is now live; next focus is surfacing per-device sessions and richer audit logging._
-3. **Search/ingestion hardening:** paginate `/api/search`, add source filters, promote more metadata fields, and add regressions for TV + multi-result connectors. _Connectors are stable but coverage for TV seasons/multi-source merges is still light._
-4. **Quality & ops:** add formatting/linting for API + web code, tighten ingestion failure logging, and ensure the QA checklist reflects the live frontend flows. _Docs now describe login/register/menus; testing/linting automation is still TODO._
-5. **Deployment polish:** introduce a reverse proxy/TLS overlay and document homelab/public hosting once search/public pages are feature-complete.
+1. **Connector reliability & credentials:** align TMDB on the v4 bearer token (and add fallback or clear errors), tighten logging for missing keys, and add ingestion/search tests that assert per-source counts. _External fan-out works but will silently skip when env vars are wrong; TMDB still references API keys in old docs._
+2. **Search correctness & coverage:** add API-level tests for pagination, `sources`/`types` filters, and mixed internal/external merges, plus guardrails against duplicate IDs when connectors return overlapping results. _Metadata now includes paging and source counts but lacks regression coverage._
+3. **Quality & automation:** introduce lint/format + test pipelines (Ruff/pytest for API, ESLint/Prettier/TypeScript checks for web) and wire CI to `./scripts/dev.sh test` so regressions surface automatically. _Currently all checks are manual._
+4. **Auth/session transparency:** surface per-device session listings with revoke controls and basic audit trails in both API and web. _Refresh rotation/revocation works, but there is no visibility into active sessions._
+5. **Deployment polish:** add a reverse proxy/TLS overlay and document homelab/public hosting paths once connector/auth hardening lands.
 
 ## Stack at a Glance
 - **Backend:** FastAPI, SQLAlchemy 2, Alembic, async sessions everywhere.

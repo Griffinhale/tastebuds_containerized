@@ -3,7 +3,7 @@
 Tastebuds ships Docker-first. Use this checklist for release candidates to confirm the Compose stack, migrations, ingestion layer, and public surfaces stay healthy.
 
 ## 1) Environment & Containers
-- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
+- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB bearer via `TMDB_API_AUTH_HEADER`, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
 - [ ] `./scripts/dev.sh up` builds/starts services; `docker compose ps` shows `db` as healthy.
 - [ ] `./scripts/dev.sh migrate` succeeds and reports the latest Alembic revision.
 - [ ] (Optional) `./scripts/dev.sh seed` loads demo data without errors.
@@ -24,7 +24,8 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `POST /api/ingest/{source}` succeeds for each configured connector (requires valid API keys).
 - [ ] `POST /api/menus` with nested courses/items works; slug matches DB state.
 - [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
-- [ ] `GET /api/search?q=demo&include_external=true` returns metadata counts and ingests external hits.
+- [ ] `GET /api/search?q=demo&include_external=true` returns paging/source metadata and ingests external hits.
+- [ ] `GET /api/search?q=demo&types=book&sources=internal&sources=google_books&page=2&per_page=5&external_per_source=2` paginates internal results and only fans out to the requested connectors.
 - [ ] `/api/auth/refresh` rotates the refresh cookie and rejects the previous cookie (expect 401 if you reuse it); `/api/auth/logout` revokes the most recent refresh token.
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.

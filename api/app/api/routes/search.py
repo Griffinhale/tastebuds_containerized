@@ -52,19 +52,35 @@ async def search(
 ) -> SearchResult:
     include_internal = True
     connector_sources: list[str] = []
+    allowed_media_types: set[MediaType] | None = set(types) if types else None
+
+    def _filter_connectors_by_type(candidates: list[str]) -> list[str]:
+        if not allowed_media_types:
+            return candidates
+        connector_types: dict[str, set[MediaType]] = {
+            SearchSource.GOOGLE_BOOKS.value: {MediaType.BOOK},
+            SearchSource.TMDB.value: {MediaType.MOVIE, MediaType.TV},
+            SearchSource.IGDB.value: {MediaType.GAME},
+            SearchSource.LASTFM.value: {MediaType.MUSIC},
+        }
+        return [
+            candidate
+            for candidate in candidates
+            if not allowed_media_types.isdisjoint(connector_types.get(candidate, set()))
+        ]
     if sources:
         include_internal = SearchSource.INTERNAL in sources
         if SearchSource.EXTERNAL in sources:
-            connector_sources = list(media_service.DEFAULT_EXTERNAL_SOURCES)
+            connector_sources = _filter_connectors_by_type(list(media_service.DEFAULT_EXTERNAL_SOURCES))
         else:
-            connector_sources = [
-                source.value for source in sources if source in SEARCH_CONNECTOR_SOURCES
-            ]
+            connector_sources = _filter_connectors_by_type(
+                [source.value for source in sources if source in SEARCH_CONNECTOR_SOURCES]
+            )
         if not include_internal and not connector_sources:
             include_internal = True
     else:
         if include_external:
-            connector_sources = list(media_service.DEFAULT_EXTERNAL_SOURCES)
+            connector_sources = _filter_connectors_by_type(list(media_service.DEFAULT_EXTERNAL_SOURCES))
 
     offset = (page - 1) * per_page
     internal_items: list[MediaItemBase] = []
@@ -91,7 +107,7 @@ async def search(
     external_counts: dict[str, int] = {}
     if connector_sources:
         external_items, external_counts = await media_service.search_external_sources(
-            session, q, per_source=external_per_source, sources=connector_sources
+            session, q, per_source=external_per_source, sources=connector_sources, allowed_media_types=allowed_media_types
         )
         for item in external_items:
             items_by_id[str(item.id)] = MediaItemBase.model_validate(item)

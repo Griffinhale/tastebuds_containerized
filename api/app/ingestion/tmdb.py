@@ -111,6 +111,7 @@ class TMDBConnector(BaseConnector):
         except ExternalAPIError:
             return []
         identifiers: list[str] = []
+        seen: set[str] = set()
         for search_kind in ("movie", "tv"):
             payload = await fetch_json(
                 f"https://api.themoviedb.org/3/search/{search_kind}",
@@ -125,8 +126,14 @@ class TMDBConnector(BaseConnector):
             )
             for result in payload.get("results", []):
                 tmdb_id = result.get("id")
-                if tmdb_id is not None:
-                    identifiers.append(f"{search_kind}:{tmdb_id}")
+                title = (result.get("title") or result.get("name") or "").strip()
+                if tmdb_id is None or not title:
+                    continue
+                token = f"{search_kind}:{tmdb_id}"
+                if token in seen:
+                    continue
+                seen.add(token)
+                identifiers.append(token)
                 if len(identifiers) >= limit:
                     break
             if len(identifiers) >= limit:

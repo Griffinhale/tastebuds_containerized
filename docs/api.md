@@ -52,14 +52,16 @@ Clears auth cookies. Returns `204 No Content`.
 
 ## Search
 `GET /api/search?q=...&types=book&types=movie&include_external=true`
-- Always searches Postgres first.
-- When `include_external=true`, the service fans out to Google Books, TMDB, IGDB, and Last.fm (subject to API keys), ingests any new hits, and merges them into the response.
-- Response shape: `{ source: "internal" | "internal+external", metadata: {internal_results, external_ingested}, results: [...] }`.
+- Always searches Postgres first. Accepts `types` to filter media types and `page`/`per_page` for internal pagination.
+- External fan-out is opt-in via `include_external=true` or explicitly enumerating `sources` (e.g., `sources=igdb&sources=tmdb`). `external_per_source` limits per-connector ingestion; defaults to 1 (max 5).
+- Allowed `sources`: `internal`, `external`, `google_books`, `tmdb`, `igdb`, `lastfm`. Supplying `sources` without `internal` disables internal search unless no external sources qualify for the requested `types`.
+- Response: `{ source: "internal"|"external"|"internal+external", metadata: { paging: {page, per_page, offset, total_internal}, counts: { internal, external_ingested? }, source_counts: { internal, external?, google_books?, tmdb?, igdb?, lastfm? } }, results: [...] }`.
 
 ## Ingestion
 `POST /api/ingest/{source}` - Supported sources: `google_books`, `tmdb`, `igdb`, `lastfm`.
 - Body: `{ "external_id": "...", "url": "...", "force_refresh": false }` (either `external_id` or `url` is required).
 - Identifier hints: Google Books volume ID or URL; TMDB accepts `movie:603`/`tv:123` or a TMDB URL; IGDB expects a numeric ID; Last.fm accepts `Artist::Track`, MBID, or a track URL.
+- TMDB requires a v4 bearer token supplied via `TMDB_API_AUTH_HEADER` (full `Authorization` header value).
 - Dedupe: unique `(source_name, external_id)` in `media_sources`; `force_refresh=true` replays the connector and overwrites stored payloads.
 - Response: `{ media_item: { ...sources[] }, source_name }`.
 
@@ -73,6 +75,7 @@ Clears auth cookies. Returns `204 No Content`.
 - `DELETE /api/menus/{id}/courses/{course_id}` - remove a course.
 - `POST /api/menus/{id}/courses/{course_id}/items` - add a course item pointing to an existing media item.
 - `DELETE /api/menus/{id}/course-items/{item_id}` - remove a course item.
+- `POST /api/menus/{id}/courses/{course_id}/reorder-items` - persist a new item order via an array of course item IDs.
 
 Ordering is enforced via unique `(menu_id, position)` for courses and `(course_id, position)` for items, so responses always reflect the intended chronology.
 

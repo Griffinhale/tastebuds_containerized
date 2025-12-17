@@ -64,6 +64,7 @@ async def search_external_sources(
     query: str,
     per_source: int = 1,
     sources: Iterable[str] | None = None,
+    allowed_media_types: set[MediaType] | None = None,
 ) -> tuple[list[MediaItem], dict[str, int]]:
     normalized_sources: list[str] = []
     seen: set[str] = set()
@@ -89,11 +90,17 @@ async def search_external_sources(
             identifiers = await connector.search(query, limit=per_source)
         except Exception:
             continue
+        seen_ids: set[str] = set()
         fetched = 0
         for identifier in identifiers[:per_source]:
+            if not identifier or identifier in seen_ids:
+                continue
+            seen_ids.add(identifier)
             try:
                 result = await connector.fetch(identifier)
             except Exception:
+                continue
+            if allowed_media_types and result.media_type not in allowed_media_types:
                 continue
             media = await upsert_media(session, result)
             aggregated.append(media)
