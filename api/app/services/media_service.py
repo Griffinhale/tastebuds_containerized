@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from typing import Iterable
+from dataclasses import dataclass, field
+from datetime import date
+from time import monotonic
+from typing import Iterable, TypeAlias
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, select
@@ -22,6 +25,64 @@ from app.models.media import (
 )
 
 DEFAULT_EXTERNAL_SOURCES = ("google_books", "tmdb", "igdb", "lastfm")
+DedupeKey: TypeAlias = tuple[str, ...]
+
+
+def normalize_title(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def build_dedupe_key(
+    *,
+    media_type: MediaType,
+    title: str,
+    canonical_url: str | None,
+    release_date: date | None,
+) -> DedupeKey:
+    if canonical_url:
+        return ("url", canonical_url.rstrip("/").casefold())
+    normalized = normalize_title(title)
+    if release_date:
+        return ("type-title-date", media_type.value, normalized, release_date.isoformat())
+    return ("type-title", media_type.value, normalized)
+
+
+def build_dedupe_key_from_item(media_item: MediaItem) -> DedupeKey:
+    return build_dedupe_key(
+        media_type=media_item.media_type,
+        title=media_item.title,
+        canonical_url=media_item.canonical_url,
+        release_date=media_item.release_date,
+    )
+
+
+def build_dedupe_key_from_result(result: ConnectorResult) -> DedupeKey:
+    return build_dedupe_key(
+        media_type=result.media_type,
+        title=result.title,
+        canonical_url=result.canonical_url,
+        release_date=result.release_date,
+    )
+
+
+@dataclass(slots=True)
+class ExternalSourceTiming:
+    search_ms: float | None = None
+    fetch_ms: float = 0.0
+
+
+@dataclass(slots=True)
+class ExternalSearchHit:
+    source: str
+    item: MediaItem
+
+
+@dataclass(slots=True)
+class ExternalSearchOutcome:
+    hits: list[ExternalSearchHit] = field(default_factory=list)
+    counts: dict[str, int] = field(default_factory=dict)
+    deduped_counts: dict[str, int] = field(default_factory=dict)
+    timings_ms: dict[str, ExternalSourceTiming] = field(default_factory=dict)
 
 
 async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
@@ -60,7 +121,8 @@ async def search_external_sources(
     per_source: int = 1,
     sources: Iterable[str] | None = None,
     allowed_media_types: set[MediaType] | None = None,
-) -> tuple[list[MediaItem], dict[str, int]]:
+    existing_keys: set[DedupeKey] | None = None,
+) -> ExternalSearchOutcome:
     normalized_sources: list[str] = []
     seen: set[str] = set()
     source_candidates = sources or DEFAULT_EXTERNAL_SOURCES
@@ -72,10 +134,14 @@ async def search_external_sources(
         if normalized in DEFAULT_EXTERNAL_SOURCES:
             normalized_sources.append(normalized)
 
-    aggregated: list[MediaItem] = []
-    counts: dict[str, int] = {}
+    dedupe_keys: set[DedupeKey] = set(existing_keys or [])
+    aggregated: list[ExternalSearchHit] = []
+    counts: dict[str, int] = {source: 0 for source in normalized_sources}
+    deduped_counts: dict[str, int] = {source: 0 for source in normalized_sources}
+    timings: dict[str, ExternalSourceTiming] = {
+        source: ExternalSourceTiming() for source in normalized_sources
+    }
     for source in normalized_sources:
-        counts[source] = 0
         try:
             connector = get_connector(source)
         except ValueError:
@@ -83,6 +149,7 @@ async def search_external_sources(
         if not ingestion_monitor.allow_call(source):
             await ingestion_monitor.record_skip(source, "search", reason="circuit_open", context={"query": query})
             continue
+        search_start = monotonic()
         try:
             identifiers = await ingestion_monitor.track(
                 source,
@@ -94,8 +161,8 @@ async def search_external_sources(
             continue
         except Exception:
             continue
+        timings[source].search_ms = (monotonic() - search_start) * 1000
         seen_ids: set[str] = set()
-        fetched = 0
         for identifier in identifiers[:per_source]:
             if not identifier or identifier in seen_ids:
                 continue
@@ -109,6 +176,7 @@ async def search_external_sources(
                 )
                 continue
             try:
+                fetch_start = monotonic()
                 result = await ingestion_monitor.track(
                     source,
                     "fetch",
@@ -119,13 +187,23 @@ async def search_external_sources(
                 continue
             except Exception:
                 continue
+            timings[source].fetch_ms += (monotonic() - fetch_start) * 1000
             if allowed_media_types and result.media_type not in allowed_media_types:
                 continue
+            dedupe_key = build_dedupe_key_from_result(result)
+            if dedupe_key in dedupe_keys:
+                deduped_counts[source] += 1
+                continue
+            dedupe_keys.add(dedupe_key)
             media = await upsert_media(session, result)
-            aggregated.append(media)
-            fetched += 1
-        counts[source] = fetched
-    return aggregated, counts
+            aggregated.append(ExternalSearchHit(source=source, item=media))
+            counts[source] += 1
+    return ExternalSearchOutcome(
+        hits=aggregated,
+        counts=counts,
+        deduped_counts=deduped_counts,
+        timings_ms=timings,
+    )
 
 
 async def ingest_from_source(

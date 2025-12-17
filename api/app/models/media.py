@@ -5,11 +5,14 @@ import typing
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+
+
+JSON_COMPATIBLE = JSON().with_variant(JSONB, "postgresql")
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from app.models.menu import CourseItem
@@ -48,7 +51,7 @@ class MediaItem(Base):
     release_date: Mapped[date | None] = mapped_column(Date)
     cover_image_url: Mapped[str | None] = mapped_column(String(1024))
     canonical_url: Mapped[str | None] = mapped_column(String(1024))
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON_COMPATIBLE, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -70,7 +73,7 @@ class BookItem(Base):
     media_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE"), primary_key=True
     )
-    authors: Mapped[list[str] | None] = mapped_column(JSONB)
+    authors: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
     page_count: Mapped[int | None]
     publisher: Mapped[str | None]
     language: Mapped[str | None]
@@ -87,8 +90,8 @@ class MovieItem(Base):
         UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE"), primary_key=True
     )
     runtime_minutes: Mapped[int | None]
-    directors: Mapped[list[str] | None] = mapped_column(JSONB)
-    producers: Mapped[list[str] | None] = mapped_column(JSONB)
+    directors: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
+    producers: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
     tmdb_type: Mapped[str | None]
 
     media_item: Mapped[MediaItem] = relationship(back_populates="movie")
@@ -100,10 +103,10 @@ class GameItem(Base):
     media_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE"), primary_key=True
     )
-    platforms: Mapped[list[str] | None] = mapped_column(JSONB)
-    developers: Mapped[list[str] | None] = mapped_column(JSONB)
-    publishers: Mapped[list[str] | None] = mapped_column(JSONB)
-    genres: Mapped[list[str] | None] = mapped_column(JSONB)
+    platforms: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
+    developers: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
+    publishers: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
+    genres: Mapped[list[str] | None] = mapped_column(JSON_COMPATIBLE)
 
     media_item: Mapped[MediaItem] = relationship(back_populates="game")
 
@@ -133,7 +136,7 @@ class MediaSource(Base):
     source_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     canonical_url: Mapped[str | None] = mapped_column(String(1024))
-    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    raw_payload: Mapped[dict] = mapped_column(JSON_COMPATIBLE, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     media_item: Mapped[MediaItem] = relationship(back_populates="sources")

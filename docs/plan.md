@@ -7,7 +7,7 @@
 - Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, a `/menus` dashboard with inline course/item editors plus drag-to-reorder, catalog search + ingestion with paging/source counts, and shareable public menu pages at `/menus/[slug]`.
 
 ## Near-Term Priorities
-1. **Search relevance & dedupe:** enforce deterministic ordering for merged internal+external results, add cross-connector dedupe (e.g., TMDB vs internal duplicates), and expose source-level timing/counts for debugging queries.
+1. **Search relevance & dedupe (landed):** deterministic merge ordering, cross-connector dedupe, and per-source timing/count metrics now ship with `/api/search`; next step is tuning ranking and surfacing the metrics in the UI.
 2. **Auth/session transparency:** surface per-device session listings with revoke controls and basic audit trails in both API and web. _Refresh rotation/revocation works, but there is no visibility into active sessions._
 3. **Deployment polish:** add a reverse proxy/TLS overlay and document homelab/public hosting paths once connector/auth hardening lands.
 4. **Frontend UX fit-and-finish:** add loading/empty/error states to the ingest drawer, tighten accessibility (focus order/ARIA), and add smoke tests for the critical flows (login, menu CRUD, search/ingest).

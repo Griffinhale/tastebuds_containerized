@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import enum
+from dataclasses import dataclass
+from datetime import date
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, Query
@@ -37,6 +39,14 @@ MAX_EXTERNAL_PER_SOURCE = 5
 router = APIRouter()
 
 
+@dataclass(slots=True)
+class AggregatedSearchHit:
+    item: MediaItemBase
+    origin: str
+    source: str
+    source_rank: int
+
+
 @router.get("", response_model=SearchResult)
 async def search(
     q: str = Query(..., min_length=2),
@@ -68,7 +78,7 @@ async def search(
         ]
 
     if sources:
-        include_internal = SearchSource.INTERNAL in sources
+        include_internal = SearchSource.INTERNAL in sources or include_external
         if SearchSource.EXTERNAL in sources:
             connector_sources = _filter_connectors_by_type(list(media_service.DEFAULT_EXTERNAL_SOURCES))
         else:
@@ -84,40 +94,52 @@ async def search(
     offset = (page - 1) * per_page
     internal_items: list[MediaItemBase] = []
     total_internal = 0
+    dedupe_keys: set[media_service.DedupeKey] = set()
+    merged_hits: list[AggregatedSearchHit] = []
     if include_internal:
         internal_results, total_internal = await media_service.search_media(
             session, query=q, media_types=types, offset=offset, limit=per_page
         )
         internal_items = [MediaItemBase.model_validate(item) for item in internal_results]
+        dedupe_keys = {
+            media_service.build_dedupe_key(
+                media_type=item.media_type,
+                title=item.title,
+                canonical_url=item.canonical_url,
+                release_date=item.release_date,
+            )
+            for item in internal_items
+        }
+        merged_hits.extend(
+            AggregatedSearchHit(item=item, origin="internal", source="internal", source_rank=0)
+            for item in internal_items
+        )
 
-    items_by_id: dict[str, MediaItemBase] = {str(item.id): item for item in internal_items}
-    metadata: dict[str, Any] = {
-        "paging": {
-            "page": page,
-            "per_page": per_page,
-            "offset": offset,
-            "total_internal": total_internal,
-        },
-        "counts": {"internal": len(internal_items)},
-        "source_counts": {"internal": len(internal_items)},
-    }
-    external_counts: dict[str, int] = {}
+    source_order = {name: index for index, name in enumerate(connector_sources)}
+    external_source_counts: dict[str, int] = {}
+    external_deduped_total = 0
+    external_outcome: media_service.ExternalSearchOutcome | None = None
     if connector_sources:
-        external_items, external_counts = await media_service.search_external_sources(
+        external_outcome = await media_service.search_external_sources(
             session,
             q,
             per_source=external_per_source,
             sources=connector_sources,
             allowed_media_types=allowed_media_types,
+            existing_keys=dedupe_keys,
         )
-        for item in external_items:
-            items_by_id[str(item.id)] = MediaItemBase.model_validate(item)
-        external_total = sum(external_counts.values())
-        metadata["counts"]["external_ingested"] = external_total
-        source_counts = metadata["source_counts"]
-        source_counts["external"] = external_total
-        for source_name, count in external_counts.items():
-            source_counts[source_name] = count
+        for hit in external_outcome.hits:
+            item_model = MediaItemBase.model_validate(hit.item)
+            merged_hits.append(
+                AggregatedSearchHit(
+                    item=item_model,
+                    origin="external",
+                    source=hit.source,
+                    source_rank=source_order.get(hit.source, len(source_order)),
+                )
+            )
+            external_source_counts[hit.source] = external_source_counts.get(hit.source, 0) + 1
+        external_deduped_total = sum(external_outcome.deduped_counts.values())
 
     source_parts: list[str] = []
     if include_internal:
@@ -126,4 +148,47 @@ async def search(
         source_parts.append("external")
     source_label = "+".join(source_parts) if source_parts else "none"
 
-    return SearchResult(results=list(items_by_id.values()), source=source_label, metadata=metadata)
+    def _sort_key(hit: AggregatedSearchHit) -> tuple[Any, ...]:
+        release_key: date | None = hit.item.release_date if isinstance(hit.item.release_date, date) else None
+        return (
+            0 if hit.origin == "internal" else 1,
+            hit.source_rank,
+            media_service.normalize_title(hit.item.title),
+            release_key or date.max,
+            str(hit.item.id),
+        )
+
+    ordered_hits = sorted(merged_hits, key=_sort_key)
+    results = [hit.item for hit in ordered_hits]
+    internal_count = len(internal_items)
+    metadata: dict[str, Any] = {
+        "paging": {
+            "page": page,
+            "per_page": per_page,
+            "offset": offset,
+            "total_internal": total_internal,
+        },
+        "counts": {"internal": internal_count},
+        "source_counts": {"internal": internal_count},
+        "source_metrics": {"internal": {"returned": internal_count}},
+    }
+    if connector_sources and external_outcome:
+        ingested_total = sum(external_outcome.counts.values())
+        returned_total = sum(external_source_counts.values())
+        metadata["counts"]["external_ingested"] = ingested_total
+        metadata["counts"]["external_returned"] = returned_total
+        metadata["counts"]["external_deduped"] = external_deduped_total
+        source_counts = metadata["source_counts"]
+        source_counts["external"] = returned_total
+        for source_name in connector_sources:
+            source_counts[source_name] = external_source_counts.get(source_name, 0)
+            timing = external_outcome.timings_ms.get(source_name)
+            metadata["source_metrics"][source_name] = {
+                "returned": external_source_counts.get(source_name, 0),
+                "ingested": external_outcome.counts.get(source_name, 0),
+                "deduped": external_outcome.deduped_counts.get(source_name, 0),
+                "search_ms": timing.search_ms if timing else None,
+                "fetch_ms": timing.fetch_ms if timing else 0.0,
+            }
+
+    return SearchResult(results=results, source=source_label, metadata=metadata)

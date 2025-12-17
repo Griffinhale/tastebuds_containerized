@@ -314,3 +314,151 @@ async def test_search_external_per_source_limits_counts(client, monkeypatch, ses
     assert payload["metadata"]["source_counts"]["tmdb"] == 1
     assert payload["metadata"]["source_counts"]["google_books"] == 1
     assert len(payload["results"]) >= 3
+
+
+@pytest.mark.asyncio
+async def test_search_external_dedupes_against_internal_and_tracks_metrics(client, monkeypatch, session):
+    existing = MediaItem(
+        media_type=MediaType.MOVIE,
+        title="Shared Hit",
+        canonical_url="https://www.themoviedb.org/movie/42",
+    )
+    session.add(existing)
+    await session.commit()
+
+    tmdb_results = [
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title="Shared Hit",
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url="https://www.themoviedb.org/movie/42",
+            metadata={},
+            source_name="tmdb",
+            source_id="movie:42",
+            raw_payload={},
+        ),
+        ConnectorResult(
+            media_type=MediaType.MOVIE,
+            title="Different Hit",
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url="https://www.themoviedb.org/movie/99",
+            metadata={},
+            source_name="tmdb",
+            source_id="movie:99",
+            raw_payload={},
+        ),
+    ]
+    google_results = [
+        ConnectorResult(
+            media_type=MediaType.BOOK,
+            title="Book Match",
+            description=None,
+            release_date=None,
+            cover_image_url=None,
+            canonical_url="https://books.google.com/book?id=abc",
+            metadata={},
+            source_name="google_books",
+            source_id="book:abc",
+            raw_payload={},
+        )
+    ]
+    connectors = {
+        "tmdb": StubConnector("tmdb", tmdb_results),
+        "google_books": StubConnector("google_books", google_results),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr("app.services.media_service.get_connector", _fake_get_connector)
+
+    response = await client.get(
+        "/api/search",
+        params=[
+            ("q", "Shared"),
+            ("include_external", "true"),
+            ("external_per_source", "2"),
+            ("sources", "tmdb"),
+            ("sources", "google_books"),
+        ],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "internal+external"
+    assert payload["results"][0]["id"] == str(existing.id)
+    assert payload["metadata"]["counts"]["internal"] == 1
+    assert payload["metadata"]["counts"]["external_ingested"] == 2
+    assert payload["metadata"]["counts"]["external_deduped"] == 1
+    assert payload["metadata"]["source_counts"]["tmdb"] == 1
+    assert payload["metadata"]["source_counts"]["google_books"] == 1
+    tmdb_metrics = payload["metadata"]["source_metrics"]["tmdb"]
+    assert tmdb_metrics["deduped"] == 1
+    assert isinstance(tmdb_metrics["search_ms"], (int, float))
+    assert isinstance(tmdb_metrics["fetch_ms"], (int, float))
+    assert len(payload["results"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_search_merge_order_follows_source_order(client, monkeypatch, session):
+    connectors = {
+        "tmdb": StubConnector(
+            "tmdb",
+            [
+                ConnectorResult(
+                    media_type=MediaType.MOVIE,
+                    title="Zeta Movie",
+                    description=None,
+                    release_date=None,
+                    cover_image_url=None,
+                    canonical_url="https://www.themoviedb.org/movie/zeta",
+                    metadata={},
+                    source_name="tmdb",
+                    source_id="movie:zeta",
+                    raw_payload={},
+                )
+            ],
+        ),
+        "google_books": StubConnector(
+            "google_books",
+            [
+                ConnectorResult(
+                    media_type=MediaType.BOOK,
+                    title="Alpha Book",
+                    description=None,
+                    release_date=None,
+                    cover_image_url=None,
+                    canonical_url="https://books.google.com/book?id=alpha",
+                    metadata={},
+                    source_name="google_books",
+                    source_id="book:alpha",
+                    raw_payload={},
+                )
+            ],
+        ),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr("app.services.media_service.get_connector", _fake_get_connector)
+
+    response = await client.get(
+        "/api/search",
+        params=[
+            ("q", "Order"),
+            ("sources", "tmdb"),
+            ("sources", "google_books"),
+            ("external_per_source", "1"),
+        ],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    titles = [item["title"] for item in payload["results"]]
+    assert titles[:2] == ["Zeta Movie", "Alpha Book"]
+    assert payload["metadata"]["source_counts"]["tmdb"] == 1
+    assert payload["metadata"]["source_counts"]["google_books"] == 1
+    assert payload["metadata"]["source_metrics"]["tmdb"]["returned"] == 1

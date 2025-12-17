@@ -7,9 +7,9 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 ## Current Status (Dec 2025)
 - Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), the optional Next.js app (`web`), and optional PgAdmin.
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
-- Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`.
+- Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`. Merged results are deterministic (internal first, then external by requested order, then title/release), with cross-connector dedupe keyed off canonical URLs or normalized title + release date.
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
-- Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; dedupe happens via `media_sources (source_name, external_id)`.
+- Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
 
@@ -144,6 +144,7 @@ curl "http://localhost:8000/api/search?q=blade%20runner&include_external=true" \
 # Paginate/filter and request specific connectors (include_external is implicit when sources are supplied):
 curl "http://localhost:8000/api/search?q=zelda&types=game&sources=internal&sources=igdb&page=2&per_page=10&external_per_source=3" \
   -H "Authorization: Bearer $TOKEN"
+# Response metadata includes paging, per-source counts, cross-source dedupe tallies, and timing per connector under `source_metrics`.
 ```
 
 ## Testing

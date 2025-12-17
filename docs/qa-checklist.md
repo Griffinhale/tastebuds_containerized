@@ -26,6 +26,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
 - [ ] `GET /api/search?q=demo&include_external=true` returns paging/source metadata and ingests external hits.
 - [ ] `GET /api/search?q=demo&types=book&sources=internal&sources=google_books&page=2&per_page=5&external_per_source=2` paginates internal results and only fans out to the requested connectors.
+- [ ] Cross-connector dedupe: ingest a movie internally, run `/api/search` with `sources=tmdb&sources=google_books&include_external=true`, and confirm the internal hit is first, external duplicates are counted in `metadata.counts.external_deduped`, and per-source timings appear under `metadata.source_metrics`.
 - [ ] `/api/auth/refresh` rotates the refresh cookie and rejects the previous cookie (expect 401 if you reuse it); `/api/auth/logout` revokes the most recent refresh token.
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
