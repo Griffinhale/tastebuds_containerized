@@ -9,7 +9,7 @@ _Historical snapshot captured after the first compose deployment._
 - Docker Compose stack (`api`, `db`, optional `pgadmin`) builds/runs cleanly; `api` container now exports `PYTHONPATH=/app` so CLI tooling (Alembic, pytest) works both inside and outside Docker.
 - Initial Alembic migration `20240602_000001` succeeds end-to-end (enums are created idempotently) and is part of `docker compose exec api alembic upgrade head`.
 - Core routes (auth, menus/courses/items, tags, ingestion scaffolding, `/public/menus/{slug}`, `/health`, `/docs`) are live—recent smoke tests hit `/health` and `/docs` successfully.
-- Next focus areas: rounding out the docs deliverables (`docs/schema.md` diagram, Postman collection) plus a QA checklist for releases.
+- Docs deliverables now include the schema diagram (`docs/schema.md`), Postman collection (`docs/tastebuds.postman_collection.json`), and release QA checklist.
 
 ## Concept: Menus, Courses & the Media Diet
 - **Menus** are curated journeys owned by a user. Each menu implies an order of consumption and exposes a stable public slug that can be shared without authentication.
@@ -61,6 +61,12 @@ See `docs/schema.md` for diagrams, entity notes, and index/constraint commentary
   2. Model the new attribute (JSON key in `metadata` or Alembic migration for a new column/extension field).
   3. Update the connector under `api/app/ingestion/` to populate it and capture tests in `api/app/tests`.
   4. Refresh `docs/attribute-mapping.md` so downstream consumers know what to expect.
+
+### `/api/ingest/{source}` endpoint
+- Accepts a source name (`google_books`, `tmdb`, `igdb`, `lastfm`) plus either an `external_id`, a provider URL, or the connector-specific identifier format.
+- Each request normalizes the upstream payload, upserts the canonical `media_items` row, inserts/updates medium extension records, and captures the verbatim `raw_payload` in `media_sources`.
+- Deduplication is enforced per `(source_name, external_id)`; subsequent calls return the existing media row unless `force_refresh=true`, which re-fetches the provider data and replays the mapping.
+- The response mirrors the stored media object (with extension + metadata fields) so clients can immediately reference the resulting IDs in menus, tags, or user states.
 
 ---
 
@@ -245,6 +251,14 @@ Need more endpoints? See `docs/api.md` for the full surface area plus additional
 
 ---
 
+## Postman Collection
+- Import `docs/tastebuds.postman_collection.json` into Postman (File → Import) to get runnable requests for auth, ingestion, menus, tags, and health checks.
+- Update the collection variables (`origin`, `api_prefix`, credentials, external IDs) to match your environment. Default values assume `http://localhost:8000` plus the sample IDs used throughout this README.
+- Run **Auth → Register** or **Auth → Login** first. The built-in test scripts store `access_token`, `menu_id`, `course_id`, etc., as collection variables so subsequent menu/tag requests can reference them automatically.
+- Each ingestion request stores the latest `media_item_id`, making it easy to attach that record to menus or tags without copying IDs manually.
+
+---
+
 ## Database Migrations & Seeding
 - **Helper shortcuts**: `./scripts/dev.sh migrate` / `./scripts/dev.sh seed`
 - **Upgrade (raw command)**: `docker compose exec api alembic upgrade head`
@@ -282,3 +296,5 @@ The seed script now bootstraps a cross-medium menu (book/movie/game/music) with 
 - `docs/schema.md` – detailed ERD + migration notes.
 - `docs/attribute-mapping.md` – provider field coverage and fallback strategy.
 - `docs/api.md` – endpoint-by-endpoint reference.
+- `docs/qa-checklist.md` – release readiness + regression checklist for Compose builds.
+- `docs/tastebuds.postman_collection.json` – importable Postman collection covering auth → ingestion → sharing flows.

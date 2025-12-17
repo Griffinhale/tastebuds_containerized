@@ -55,14 +55,17 @@ Response:
 ## Ingestion
 ### POST /api/ingest/{source}
 Supported sources: `google_books`, `tmdb`, `igdb`, `lastfm`.
-Body: `{ "external_id": "..." }` or `{ "url": "..." }` plus optional `force_refresh`.
+Body: `{ "external_id": "..." }`, `{ "url": "..." }`, or a connector-specific token (e.g., `artist::track` for Last.fm). Pass `force_refresh=true` to bust the deduplication cache and replay the connector even when a matching `media_sources` row already exists.
 ```bash
 curl -X POST http://localhost:8000/api/ingest/google_books \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"external_id":"zyTCAlFPjgYC"}'
 ```
-Returns the normalized media payload with its sources array.
+Pipeline:
+- Connector fetches the upstream payload and emits a `ConnectorResult` containing canonical fields, metadata JSON, medium-specific extensions, and the raw payload blob.
+- `media_service.upsert_media` stores the canonical media row, inserts/updates the extension table (`book_items`, `movie_items`, `game_items`, `music_items`), and persists `media_sources.raw_payload`.
+- The response contains the fully hydrated media item (metadata + extension + `sources` array), ready to be referenced when creating menus, tags, or user states.
 
 ## Menus
 ### GET /api/menus

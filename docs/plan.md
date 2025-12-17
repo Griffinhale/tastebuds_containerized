@@ -3,9 +3,10 @@
 ## 1. Architecture & Stack Choices
 - **Backend:** FastAPI with Pydantic v2, SQLAlchemy 2.0 ORM, Alembic for migrations. Provides typed services, dependency-injected repositories, and background ingestion tasks handled synchronously (no Redis jobs initially).
 - **Database:** PostgreSQL 15. UUID PKs generated at API layer. JSONB columns where required, B-tree/GiST indexes for search and slugs.
-- **Containerization:** Docker Compose orchestrates `api`, `db`, and `pgadmin` (optional helper). API image built from multi-stage Dockerfile using `pip` + `requirements.txt`.
-- **Auth:** Email/password with JWT (access + refresh). Password hashing via `passlib[bcrypt]`.
-- **Search Strategy:** DB-first search (ILIKE + trigram). Optional `include_external=true` query parameter triggers on-demand ingestion from external APIs.
+- **Frontend:** React/Next.js single-page app under `web/` (TypeScript + Tailwind) compiled to a static bundle and shipped via its own Node-based container. The UI consumes the `/api` surface, handles auth flows, builds menu/course editors, and exposes public menu pages for anonymous visitors.
+- **Containerization:** Docker Compose orchestrates `api`, `web`, `db`, and `pgadmin` (optional helper). API image built from multi-stage Dockerfile using `pip` + `requirements.txt`. The `web` service runs `next build && next start` behind an internal nginx/Traefik reverse proxy that works for local homelab deployments or public hosting.
+- **Auth:** Email/password with JWT (access + refresh). Password hashing via `passlib[bcrypt]`. The web client stores tokens in httpOnly cookies and refreshes sessions through a `POST /auth/refresh` endpoint.
+- **Search Strategy:** DB-first search (ILIKE + trigram) combined with a search orchestrator that can fan out to connectors (Google Books, TMDB, IGDB, Last.fm) asynchronously. Optional `include_external=true` query parameter triggers on-demand ingestion plus mixed search results from upstream APIs.
 - **External Sources:** Google Books, TMDB, IGDB, Last.fm. Each connector: shared `BaseConnector` handles retries/backoff, HTTP session, error handling, logging.
 
 ## 2. Data Model Overview
@@ -26,6 +27,7 @@
    - Bootstrap `api/` as a Python package with `requirements.txt`.
    - Create `docker-compose.yml`, API `Dockerfile`, `.env.example`.
    - Bootstrap FastAPI structure: `app/main.py`, routers package, config loader, logging utilities.
+   - Introduce `web/` directory with Next.js boilerplate (`app/`, `components/`, `lib/api.ts`) plus a multi-stage `web/Dockerfile` that builds static assets before copying into a slimmer runtime image.
 2. **Database & Migrations**
    - Configure SQLAlchemy models per schema above.
    - Alembic env setup with autogenerate helper but manually reviewed migration.
@@ -35,28 +37,38 @@
    - Media search service hitting DB, optionally connectors when `include_external`.
    - CRUD routers for menus/courses/course-items with slug creation and the `/api/public/menus/{slug}` endpoint (slug stability even after title edits, 404 guard when `is_public=false`, ordering enforced by position columns).
    - Tag management endpoints so users can create/list/delete tags and attach them to media items.
-4. **Ingestion Layer**
-   - Shared HTTP client with exponential backoff (tenacity).
-   - Individual connector classes for Google Books, TMDB, IGDB, Last.fm.
-   - `/ingest/{source}` endpoint orchestrating fetch, parse, upsert.
-   - Store normalized fields + `raw_payload`.
-5. **Documentation & Tooling**
+4. **Search Orchestrator & External Query Hooks**
+   - Build a search orchestrator service class that fans out to DB + connectors concurrently, normalizes each result into a shared DTO, and annotates whether data is persisted vs. external-only.
+   - Extend each connector with keyword-search helpers (not just ID ingestion) and enforce provider throttling/backoff windows.
+   - Cache upstream search hits for a short TTL (Postgres JSONB cache table now, Redis later) so UI autocomplete does not hammer providers.
+   - Expand `/api/search` to accept `sources[]`, `media_type`, pagination tokens for each connector, and a `scope` flag controlling DB vs. external results.
+5. **Web UI Delivery**
+   - Build shared layout, auth screens, and menu/course editors with optimistic updates mapped to the FastAPI schema (RTK Query/SWR for data fetching).
+   - Implement unified search/autocomplete that calls `/api/search` with `include_external` during menu editing and surfaces “import this” actions that trigger `/api/ingest/{source}` under the hood.
+   - Add public menu pages and share cards that fetch `/api/public/menus/{slug}` anonymously.
+   - Wire JWT refresh/token storage, guard protected routes, and surface account/profile settings.
+6. **Container Orchestration & Deployment**
+   - Update `docker-compose.yml` with `web` service, reverse proxy (Traefik or nginx), TLS-ready labels/env for homelab + public deployments, volume mounts for static assets/logs, and healthchecks for both services.
+   - Provide `docker-compose.homelab.yml` overlay with watchtower/cron-based image pulls, secrets mounts, CDN/cache headers, and optional Tailscale/WireGuard network for private access.
+   - Add `scripts/dev.sh web` helper for running the frontend locally (`next dev`) while still relying on containerized API/DB.
+7. **Documentation & Tooling**
    - `docs/schema.md` describing tables/relationships.
    - `docs/attribute-mapping.md` capturing field mappings (best-effort lists, expandable).
    - `docs/api.md` enumerating endpoints, auth usage, sample curl flows.
+   - `docs/ui.md` capturing frontend architecture, shared components, routing/auth flow diagrams, and deployment notes.
    - README with setup/run instructions and workflows.
-6. **Testing**
+8. **Testing**
    - Pytest executed via `pip` virtualenv (see `requirements-dev.txt`).
    - Unit tests: ingestion mapping function ensures normalized structure, menu slug retrieval ensures correct ordering/exposure, tag lifecycle/access control ensures user-owned tagging behaves as expected.
+   - Web tests: React Testing Library for components, Cypress/Playwright smoke test covering auth → search → menu publish.
 
 ## 4. Ordering & Milestones
-1. Finish scaffolding + configs.
-2. Implement models + migrations.
-3. Seed script + sample data verification.
-4. Implement auth & base routers (users, search).
-5. Implement ingestion connectors + endpoint.
-6. Implement menu/courses CRUD + public slug endpoint.
-7. Final docs/tests polish.
+1. Finish backend + frontend scaffolding (`api/`, `web/`, compose services, shared env files).
+2. Implement models, migrations, and seed scripts so demo data flows end-to-end.
+3. Deliver auth/menu/tag/search routers with ingestion connectors wired for ID lookups.
+4. Build the search orchestrator + connector keyword search hooks, extending `/api/search` for multi-source support.
+5. Stand up the web UI (auth, menus, unified search/import flows, public menu pages) and containerize it alongside the API behind a reverse proxy.
+6. Harden homelab/public deployment story (TLS, proxy config, watchtower) and round out docs/tests (backend + frontend suites).
 
 ## 5. Risks & Mitigations
 - **External API schema drift:** capture complete `raw_payload`, isolate mapping functions, document mapping for easy extension.
@@ -71,4 +83,4 @@ _Historical snapshot kept for reference._
 - ✅ **Routers in place** – Auth, menus (incl. nested course/item CRUD), tags, ingest scaffolding, public slug route, and `/health` are wired up and responding (smoke test on `/docs` and `/health` confirmed).
 - ✅ **Seed/test coverage** – Seed script now consumes fixture payloads from `app/samples/ingestion/` and pytest reuses the same data for ingestion regression tests.
 - ✅ **Ingestion connectors** – Connector classes live under `app/ingestion/`, with automated mapping tests guarding book/movie/game/music coverage per source.
-- 🔜 **Polish** – Need to add schema diagrams (`docs/schema.md`), sample Postman collection, and QA checklist once ingestion layer is finalized.
+- ✅ **Docs polish** – ASCII schema diagram (`docs/schema.md`), importable Postman collection (`docs/tastebuds.postman_collection.json`), and release QA checklist (`docs/qa-checklist.md`) captured for the notes bundle.

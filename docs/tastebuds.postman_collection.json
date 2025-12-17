@@ -1,0 +1,688 @@
+{
+  "info": {
+    "name": "Tastebuds API",
+    "description": "Core Tastebuds flows: auth, ingestion, menus, tags, and health. Import this collection alongside environment variables for credentials/API keys.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Utilities",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{origin}}/health",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Docs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{origin}}/docs",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "docs"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.access_token) {",
+                  "  pm.collectionVariables.set('access_token', json.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', json.refresh_token);",
+                  "}",
+                  "if (json?.user?.id) {",
+                  "  pm.collectionVariables.set('user_id', json.user.id);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demo_email}}\",\n  \"password\": \"{{demo_password}}\",\n  \"display_name\": \"Demo User\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/auth/register",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.access_token) {",
+                  "  pm.collectionVariables.set('access_token', json.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', json.refresh_token);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demo_email}}\",\n  \"password\": \"{{demo_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/auth/login",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/me",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ingestion",
+      "item": [
+        {
+          "name": "Ingest Google Books",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.media_item?.id) {",
+                  "  pm.collectionVariables.set('media_item_id', json.media_item.id);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"external_id\": \"{{google_books_volume}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/ingest/google_books",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "ingest",
+                "google_books"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ingest TMDB",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.media_item?.id) {",
+                  "  pm.collectionVariables.set('media_item_id', json.media_item.id);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"external_id\": \"{{tmdb_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/ingest/tmdb",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "ingest",
+                "tmdb"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ingest IGDB",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.media_item?.id) {",
+                  "  pm.collectionVariables.set('media_item_id', json.media_item.id);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"external_id\": \"{{igdb_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/ingest/igdb",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "ingest",
+                "igdb"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ingest Last.fm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.media_item?.id) {",
+                  "  pm.collectionVariables.set('media_item_id', json.media_item.id);",
+                  "}",
+                  "pm.test('status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"external_id\": \"{{lastfm_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/ingest/lastfm",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "ingest",
+                "lastfm"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menus",
+      "item": [
+        {
+          "name": "Create Menu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.id) {",
+                  "  pm.collectionVariables.set('menu_id', json.id);",
+                  "}",
+                  "if (json?.slug) {",
+                  "  pm.collectionVariables.set('public_slug', json.slug);",
+                  "}",
+                  "pm.test('status 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Neo-Noir Night\",\n  \"description\": \"Books → Movies → Games\",\n  \"is_public\": true\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/menus",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "menus"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Course",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.id) {",
+                  "  pm.collectionVariables.set('course_id', json.id);",
+                  "}",
+                  "pm.test('status 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Appetizer\",\n  \"description\": \"Set the tone\",\n  \"position\": 1\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/menus/{{menu_id}}/courses",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "menus",
+                "{{menu_id}}",
+                "courses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Course Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"media_item_id\": \"{{media_item_id}}\",\n  \"position\": 1,\n  \"notes\": \"Kick things off here.\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/menus/{{menu_id}}/courses/{{course_id}}/items",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "menus",
+                "{{menu_id}}",
+                "courses",
+                "{{course_id}}",
+                "items"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Public Menu",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/public/menus/{{public_slug}}",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "menus",
+                "{{public_slug}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "item": [
+        {
+          "name": "List Tags",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/tags",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "tags"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Tag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.id) {",
+                  "  pm.collectionVariables.set('tag_id', json.id);",
+                  "}",
+                  "pm.test('status 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Neo-Noir\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/tags",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "tags"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tag Media Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"media_item_id\": \"{{media_item_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{origin}}{{api_prefix}}/tags/{{tag_id}}/media",
+              "host": [
+                "{{origin}}"
+              ],
+              "path": [
+                "api",
+                "tags",
+                "{{tag_id}}",
+                "media"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "origin",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "api_prefix",
+      "value": "/api"
+    },
+    {
+      "key": "demo_email",
+      "value": "demo@example.com"
+    },
+    {
+      "key": "demo_password",
+      "value": "changeme123"
+    },
+    {
+      "key": "google_books_volume",
+      "value": "zyTCAlFPjgYC"
+    },
+    {
+      "key": "tmdb_id",
+      "value": "movie:603"
+    },
+    {
+      "key": "igdb_id",
+      "value": "7346"
+    },
+    {
+      "key": "lastfm_id",
+      "value": "Daft Punk::Harder Better Faster Stronger"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "menu_id",
+      "value": ""
+    },
+    {
+      "key": "course_id",
+      "value": ""
+    },
+    {
+      "key": "media_item_id",
+      "value": ""
+    },
+    {
+      "key": "public_slug",
+      "value": ""
+    },
+    {
+      "key": "tag_id",
+      "value": ""
+    }
+  ]
+}
