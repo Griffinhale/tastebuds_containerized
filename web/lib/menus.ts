@@ -1,5 +1,3 @@
-"use client";
-
 import { apiFetch } from './api';
 
 export type MediaItemPreview = {
@@ -7,6 +5,10 @@ export type MediaItemPreview = {
   title: string;
   subtitle?: string | null;
   description?: string | null;
+  release_date?: string | null;
+  cover_image_url?: string | null;
+  canonical_url?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type CourseItem = {
@@ -114,4 +116,20 @@ export async function createCourseItem(menuId: string, courseId: string, input: 
 
 export async function deleteCourseItem(menuId: string, itemId: string) {
   await apiFetch(`/menus/${menuId}/course-items/${itemId}`, { method: 'DELETE' }, { isServer: false });
+}
+
+export async function reorderCourseItems(menuId: string, courseId: string, itemIds: string[]) {
+  return apiFetch<Course>(
+    `/menus/${menuId}/courses/${courseId}/reorder-items`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ item_ids: itemIds })
+    },
+    { isServer: false }
+  );
+}
+
+export async function getPublicMenuBySlug(slug: string) {
+  const encoded = encodeURIComponent(slug.trim());
+  return apiFetch<Menu>(`/public/menus/${encoded}`, undefined, { isServer: true, withCredentials: false });
 }

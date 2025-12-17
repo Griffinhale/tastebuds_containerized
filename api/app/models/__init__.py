@@ -1,3 +1,4 @@
+from app.models.auth import RefreshToken
 from app.models.media import (
     BookItem,
     GameItem,
@@ -25,6 +26,7 @@ __all__ = [
     "Menu",
     "MovieItem",
     "MusicItem",
+    "RefreshToken",
     "Tag",
     "User",
     "UserItemState",

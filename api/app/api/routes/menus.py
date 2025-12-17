@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schema.menu import (
     CourseCreate,
     CourseItemCreate,
+    CourseItemReorder,
     CourseItemRead,
     CourseRead,
     MenuCreate,
@@ -139,3 +140,21 @@ async def delete_course_item_endpoint(
     if course_item.course.menu_id != menu.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found in menu")
     await menu_service.delete_course_item(session, course_item)
+
+
+@router.post(
+    "/{menu_id}/courses/{course_id}/reorder-items",
+    response_model=CourseRead,
+)
+async def reorder_course_items_endpoint(
+    menu_id: uuid.UUID,
+    course_id: uuid.UUID,
+    payload: CourseItemReorder,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Course:
+    menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
+    course = await menu_service.get_course(session, course_id, current_user.id)
+    if course.menu_id != menu.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found in menu")
+    return await menu_service.reorder_course_items(session, course, payload.item_ids)

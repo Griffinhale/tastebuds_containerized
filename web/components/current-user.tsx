@@ -1,13 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
-import { User, logout, refreshTokens } from '../lib/auth';
+import { SESSION_EVENT, SESSION_FLAG_KEY, User, logout, refreshTokens } from '../lib/auth';
+
+function readSessionFlag() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SESSION_FLAG_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export function CurrentUser() {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hadSession, setHadSession] = useState<boolean>(() => readSessionFlag());
+  const hadSessionRef = useRef(hadSession);
+
+  useEffect(() => {
+    hadSessionRef.current = hadSession;
+  }, [hadSession]);
+
+  useEffect(() => {
+    function syncFromStorage(event: StorageEvent) {
+      if (event.key !== SESSION_FLAG_KEY) return;
+      setHadSession(event.newValue === '1');
+    }
+
+    function handleSessionEvent(event: Event) {
+      const custom = event as CustomEvent<{ hasSession: boolean }>;
+      setHadSession(Boolean(custom.detail?.hasSession));
+    }
+
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener(SESSION_EVENT, handleSessionEvent as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener(SESSION_EVENT, handleSessionEvent as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -22,7 +56,11 @@ export function CurrentUser() {
         const message = err instanceof Error ? err.message : 'Failed to fetch profile.';
         const normalized = message.toLowerCase();
         if (normalized.includes('token') || normalized.includes('unauthorized')) {
-          setError(null);
+          if (hadSessionRef.current) {
+            setError('Session expired. Please log in again.');
+          } else {
+            setError(null);
+          }
         } else {
           setError(message);
         }

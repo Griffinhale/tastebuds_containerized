@@ -25,11 +25,6 @@ def create_access_token(subject: str) -> str:
     return create_token(subject, delta, "access")
 
 
-def create_refresh_token(subject: str) -> str:
-    delta = timedelta(minutes=settings.refresh_token_expires_minutes)
-    return create_token(subject, delta, "refresh")
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 

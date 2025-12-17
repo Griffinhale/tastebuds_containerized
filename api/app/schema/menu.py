@@ -15,6 +15,10 @@ class CourseItemCreate(BaseModel):
     position: int
 
 
+class CourseItemReorder(BaseModel):
+    item_ids: list[UUID]
+
+
 class CourseItemRead(ORMModel):
     id: UUID
     media_item_id: UUID

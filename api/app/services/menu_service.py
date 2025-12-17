@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -149,6 +149,52 @@ async def get_course_item(session: AsyncSession, item_id: uuid.UUID, owner_id: u
 async def delete_course_item(session: AsyncSession, course_item: CourseItem) -> None:
     await session.delete(course_item)
     await session.commit()
+
+
+async def reorder_course_items(
+    session: AsyncSession,
+    course: Course,
+    item_ids: list[uuid.UUID],
+) -> Course:
+    db_course = await _load_course_with_items(session, course.id)
+    existing_ids = [item.id for item in db_course.items]
+    if sorted(existing_ids) != sorted(item_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Item IDs must match the existing course items.",
+        )
+    if len(item_ids) != len(existing_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Include all existing course item IDs in the reorder payload.",
+        )
+
+    if not item_ids:
+        return db_course
+
+    whens = [
+        (CourseItem.id == item_id, position)
+        for position, item_id in enumerate(item_ids, start=1)
+    ]
+    num_items = len(item_ids)
+    await session.execute(
+        update(CourseItem)
+        .where(
+            CourseItem.course_id == course.id,
+            CourseItem.id.in_(item_ids),
+        )
+        .values(position=CourseItem.position + num_items)
+    )
+    await session.execute(
+        update(CourseItem)
+        .where(
+            CourseItem.course_id == course.id,
+            CourseItem.id.in_(item_ids),
+        )
+        .values(position=case(*whens, else_=CourseItem.position))
+    )
+    await session.commit()
+    return await _load_course_with_items(session, course.id)
 
 
 async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -> Course:

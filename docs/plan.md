@@ -8,7 +8,7 @@
 
 ## Near-Term Priorities
 1. **Frontend flows:** keep polishing the `/menus` search/ingest drawer and ship read-only public menu pages. _Search + ingestion is live (catalog browsing with external fan-out), so the next milestone is slug-based public views and richer course editors._
-2. **Auth polish:** add refresh-token rotation/revocation tracking and surface session-expiry UX in the web app. _Refresh + cookies shipped; continue monitoring expiry handling and add revocation storage before exposing sessions broadly._
+2. **Auth polish:** extend session management with device-level listings and admin revocation UI. _Refresh-token rotation + revocation (with session-expiry messaging in the web app) is now live; next focus is surfacing per-device sessions and richer audit logging._
 3. **Search/ingestion hardening:** paginate `/api/search`, add source filters, promote more metadata fields, and add regressions for TV + multi-result connectors. _Connectors are stable but coverage for TV seasons/multi-source merges is still light._
 4. **Quality & ops:** add formatting/linting for API + web code, tighten ingestion failure logging, and ensure the QA checklist reflects the live frontend flows. _Docs now describe login/register/menus; testing/linting automation is still TODO._
 5. **Deployment polish:** introduce a reverse proxy/TLS overlay and document homelab/public hosting once search/public pages are feature-complete.

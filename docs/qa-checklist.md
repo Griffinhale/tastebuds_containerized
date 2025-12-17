@@ -25,6 +25,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `POST /api/menus` with nested courses/items works; slug matches DB state.
 - [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
 - [ ] `GET /api/search?q=demo&include_external=true` returns metadata counts and ingests external hits.
+- [ ] `/api/auth/refresh` rotates the refresh cookie and rejects the previous cookie (expect 401 if you reuse it); `/api/auth/logout` revokes the most recent refresh token.
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
 
@@ -32,8 +33,10 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `:3000` and reads `.env`.
 - [ ] Home page cards show API status plus the signed-in widget; refresh/log out buttons work (cookies survive reloads).
 - [ ] `/login` and `/register` submit successfully against the FastAPI auth endpoints and set httpOnly cookies.
-- [ ] `/menus` lists existing menus and allows creating/deleting courses/items. Search drawer adds catalog hits directly into a course.
+- [ ] `/menus` lists existing menus, supports drag-to-reorder course items with optimistic updates, and still allows creating/deleting courses/items. The search/ingest drawer should surface empty/error states gracefully and add catalog hits directly into a course.
 - [ ] Course search fan-out: toggle `Include external sources`, run a query, and confirm the results are ingested (metadata counts increment) and selectable.
+- [ ] Publish a menu and load `http://localhost:3000/menus/{slug}` to confirm the share-ready preview renders, skeleton states display on reload, and the copy/share controls produce a usable link with the new SEO metadata.
+- [ ] Let a session expire and hit the `Refresh` button on the Signed-in widget; the UI should show "Session expired. Please log in again." once rotation fails.
 
 ## 6) Docs & Artifacts
 - [ ] `README.md` and `docs/*.md` match the shipped commands/endpoints.

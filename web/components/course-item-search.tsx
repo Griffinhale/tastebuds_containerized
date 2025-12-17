@@ -1,13 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Course, createCourseItem } from '../lib/menus';
+import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
 
 type CourseItemSearchProps = {
   menuId: string;
   course: Course;
-  onAdded: () => Promise<void>;
+  onAdded: (item: CourseItem) => void;
 };
 
 const mediaTypeOptions: { label: string; value: MediaType }[] = [
@@ -107,12 +107,12 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     setError(null);
     setStatusMessage(null);
     try {
-      await createCourseItem(menuId, course.id, {
+      const created = await createCourseItem(menuId, course.id, {
         media_item_id: item.id,
         position,
         notes: notes || undefined
       });
-      await onAdded();
+      onAdded(created);
       setStatusMessage(`Added "${item.title}" to ${course.title}.`);
       setNotes('');
       setPosition((prev) => prev + 1);
@@ -216,6 +216,18 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Results</p>
         <p className="text-xs text-slate-400">{resultSummary}</p>
+        {!hasSearched && !searching && (
+          <DrawerStateCard
+            title="Nothing queued yet"
+            description="Enter a query to browse your catalog. Toggle on external sources to fan out to Google Books, TMDB, IGDB, and Last.fm."
+          />
+        )}
+        {hasSearched && !searching && results.length === 0 && !error && (
+          <DrawerStateCard
+            title="No matches yet"
+            description="Try expanding your filters, tweak the query, or include external sources to ingest new media."
+          />
+        )}
         {metadataEntries.length > 0 && (
           <dl className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 sm:grid-cols-2">
             {metadataEntries.map(([key, value]) => (
@@ -226,7 +238,19 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             ))}
           </dl>
         )}
-        {error && <p className="text-xs text-red-300">{error}</p>}
+        {error && (
+          <DrawerStateCard
+            tone="error"
+            title="Search failed"
+            description={error}
+            actionLabel="Try again"
+            onAction={() => {
+              setError(null);
+              setResults([]);
+              setHasSearched(false);
+            }}
+          />
+        )}
         {statusMessage && <p className="text-xs text-emerald-300">{statusMessage}</p>}
       </div>
 
@@ -288,5 +312,39 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         </ul>
       )}
     </section>
+  );
+}
+
+function DrawerStateCard({
+  title,
+  description,
+  tone = 'default',
+  actionLabel,
+  onAction
+}: {
+  title: string;
+  description: string;
+  tone?: 'default' | 'error';
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const toneClasses =
+    tone === 'error'
+      ? 'border-red-500/40 bg-red-500/5 text-red-200'
+      : 'border-slate-800 bg-slate-950/60 text-slate-200';
+  return (
+    <div className={`rounded-lg border p-4 text-xs ${toneClasses}`}>
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-[11px] text-white/70">{description}</p>
+      {actionLabel && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-2 rounded-full border border-white/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/80"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
   );
 }

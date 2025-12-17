@@ -6,10 +6,11 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 
 ## Current Status (Dec 2025)
 - Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), the optional Next.js app (`web`), and optional PgAdmin.
+- Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; dedupe happens via `media_sources (source_name, external_id)`.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
-- Next.js frontend now includes login/register, session status, and a menus dashboard with inline course/item editors plus a search/ingest drawer.
+- Next.js frontend now includes login/register, session status, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -76,9 +77,11 @@ npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 - Auth pages live at `http://localhost:3000/login` and `/register`, hitting the FastAPI auth endpoints using `NEXT_PUBLIC_API_BASE`. Tokens are issued as httpOnly cookies; no `localStorage` usage.
 - After logging in, the home page shows your signed-in status via `/api/me`, and `/menus` lists/creates menus, lets you add/delete courses/items, and includes a search drawer that can ingest external matches. Use the refresh/log out buttons on the home page as needed.
+- Mark a menu public and share `http://localhost:3000/menus/{slug}` for the read-only view backed by `/api/public/menus/{slug}`.
 
 ## API quickstart
 Authenticated routes accept `Authorization: Bearer <access_token>` and the browser also gets httpOnly cookies (`access_token`, `refresh_token`) from register/login/refresh. Register/login returns both access and refresh tokens; refresh is available at `/api/auth/refresh`.
+Refresh tokens rotate on every call and are revoked server-side when they expire or when you log out—reusing an old refresh cookie will yield `401`.
 ```bash
 # Register
 curl -X POST http://localhost:8000/api/auth/register \

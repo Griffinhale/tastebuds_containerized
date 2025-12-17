@@ -49,8 +49,8 @@ export default function Home() {
         />
         <Card
           title="Public pages"
-          description="Server-render /menus/[slug] against /api/public/menus/{slug}."
-          href="https://nextjs.org/docs/app/building-your-application/rendering/server-components"
+          description="Mark a menu public and share it at /menus/[slug]."
+          href="/menus"
         />
       </section>
     </main>
