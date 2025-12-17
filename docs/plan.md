@@ -8,7 +8,7 @@
 
 ## Near-Term Priorities
 1. **Frontend flows:** build login/register, session storage, menu/course editors, search/ingest drawer, and public menu pages on Next.js using the existing API.
-2. **Auth polish:** add a refresh endpoint that uses the issued `refresh_token`, align token lifetimes, and wire browser-safe storage (httpOnly cookies).
+2. **Auth polish:** add a refresh endpoint that uses the issued `refresh_token`, align token lifetimes, and wire browser-safe storage (httpOnly cookies). _Refresh + cookies shipped; monitor expiry handling and add any needed rotation/revocation later._
 3. **Search/ingestion hardening:** pagination and source filters for `/api/search`, richer metadata coverage in connectors, and additional tests for TV/multi-result cases.
 4. **Quality & ops:** add linting/type checks, tighten logging around ingestion failures, and expand the QA checklist to cover the web UI once it exists.
 5. **Deployment polish:** introduce a reverse proxy/TLS overlay and document homelab/public hosting once the UI is feature-complete.

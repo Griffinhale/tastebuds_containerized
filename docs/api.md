@@ -7,6 +7,8 @@ Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authori
 - OpenAPI/Swagger UI: `/docs` (served from the API service).
 
 ## Auth
+Browser clients receive httpOnly cookies (`access_token`, `refresh_token`) on login/register/refresh; tokens are also returned in the JSON response for non-browser callers.
+
 ### POST /api/auth/register
 Create a user and return tokens.
 ```bash
@@ -23,7 +25,19 @@ curl -X POST http://localhost:8000/api/auth/login \
   -d '{"email":"demo@example.com","password":"changeme123"}'
 ```
 
-Response for both: `{ access_token, refresh_token, token_type, user }`.
+Response for both: `{ access_token, refresh_token, token_type, user }` and sets cookies.
+
+### POST /api/auth/refresh
+Issue a new token pair from a refresh token. Supply the refresh token either in the request body or rely on the `refresh_token` cookie.
+```bash
+curl -X POST http://localhost:8000/api/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refresh_token":"<refresh>"}'
+```
+Response matches login/register and sets fresh cookies.
+
+### POST /api/auth/logout
+Clears auth cookies. Returns `204 No Content`.
 
 ## Users & States
 - `GET /api/me` - current profile.

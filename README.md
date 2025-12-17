@@ -74,9 +74,11 @@ cd web
 npm install
 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
+- Auth pages live at `http://localhost:3000/login` and `/register`, hitting the FastAPI auth endpoints using `NEXT_PUBLIC_API_BASE`. Tokens are issued as httpOnly cookies; no `localStorage` usage.
+- After logging in, the home page shows your signed-in status via `/api/me`; use the refresh/log out buttons there as needed.
 
 ## API quickstart
-Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login returns both access and refresh tokens; a refresh endpoint is not implemented yet.
+Authenticated routes accept `Authorization: Bearer <access_token>` and the browser also gets httpOnly cookies (`access_token`, `refresh_token`) from register/login/refresh. Register/login returns both access and refresh tokens; refresh is available at `/api/auth/refresh`.
 ```bash
 # Register
 curl -X POST http://localhost:8000/api/auth/register \
