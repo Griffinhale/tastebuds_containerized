@@ -18,6 +18,13 @@ const mediaTypeOptions: { label: string; value: MediaType }[] = [
   { label: 'Music', value: 'music' },
 ];
 
+const promptSuggestions = [
+  { label: 'Cozy sci-fi', value: 'cozy science fiction' },
+  { label: 'Award winners', value: 'award winning novels 2023' },
+  { label: 'Movie night', value: 'animated adventure family' },
+  { label: 'New music', value: 'indie folk 2024' },
+];
+
 const RESULTS_PER_PAGE = 10;
 const EXTERNAL_RESULTS_PER_SOURCE = 2;
 
@@ -80,6 +87,11 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     setSelectedTypes((prev) =>
       prev.includes(value) ? prev.filter((type) => type !== value) : [...prev, value]
     );
+  };
+
+  const applyPrompt = (value: string) => {
+    setQuery(value);
+    setHasSearched(false);
   };
 
   async function performSearch(pageToLoad: number, append = false) {
@@ -197,7 +209,10 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         </p>
       </header>
 
-      <form onSubmit={handleSearch} className="space-y-3">
+      <form
+        onSubmit={handleSearch}
+        className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+      >
         <div className="flex flex-col gap-2 md:flex-row">
           <input
             type="text"
@@ -235,17 +250,29 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
               </button>
             );
           })}
+          <label className="ml-auto flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+            <input
+              type="checkbox"
+              checked={includeExternal}
+              onChange={(event) => setIncludeExternal(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+            />
+            Include external
+          </label>
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-slate-400">
-          <input
-            type="checkbox"
-            checked={includeExternal}
-            onChange={(event) => setIncludeExternal(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
-          />
-          Include external sources (ingests matching results)
-        </label>
+        <div className="flex flex-wrap gap-2">
+          {promptSuggestions.map((prompt) => (
+            <button
+              key={prompt.value}
+              type="button"
+              onClick={() => applyPrompt(prompt.value)}
+              className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-emerald-400/60 hover:text-emerald-100"
+            >
+              {prompt.label}
+            </button>
+          ))}
+        </div>
       </form>
 
       <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3">

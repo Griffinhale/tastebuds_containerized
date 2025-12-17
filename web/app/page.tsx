@@ -2,39 +2,47 @@ import Link from 'next/link';
 
 import { ApiStatus } from '../components/api-status';
 import { CurrentUser } from '../components/current-user';
+import { MediaSearchExplorer } from '../components/media-search-explorer';
 
 export default function Home() {
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-12">
-      <header className="space-y-2">
-        <p className="text-sm uppercase tracking-wide text-emerald-300">Tastebuds Frontend</p>
+    <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
+      <header className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/10">
+        <p className="text-sm uppercase tracking-wide text-emerald-300">Tastebuds</p>
         <h1 className="text-3xl font-semibold text-white">
-          Next.js is wired up - connect to the FastAPI backend and start building menus.
+          Build menus and search media without leaving home.
         </h1>
-        <p className="text-base text-slate-200">
-          This placeholder checks the API base URL and gives you a jumping-off point for auth,
-          search, and menu flows.
+        <p className="text-base leading-relaxed text-slate-200">
+          The FastAPI backend is wired up—use search to explore books, movies, games, music, and TV,
+          then ingest results directly into your menus.
         </p>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/menus"
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+          >
+            Open menus
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
+          >
+            Log in
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
+          >
+            Create account
+          </Link>
+        </div>
       </header>
 
       <ApiStatus />
 
       <CurrentUser />
 
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/login"
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-        >
-          Log in
-        </Link>
-        <Link
-          href="/register"
-          className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
-        >
-          Create account
-        </Link>
-      </div>
+      <MediaSearchExplorer />
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Card

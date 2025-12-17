@@ -4,7 +4,7 @@
 - Compose stands up `api` (FastAPI), `db` (Postgres with test DB bootstrap), optional `web` (Next.js app), and optional `pgadmin`.
 - Backend delivers auth (register/login/refresh/logout with JWT), paginated search with `types`/`sources` filters plus optional external ingestion, connectors for Google Books/TMDB/IGDB/Last.fm, menus with slugs and ordered courses/items, tags, and user item states.
 - Alembic migration `20240602_000001` installs the full schema; seed + pytest reuse ingestion samples for regression coverage.
-- Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, a `/menus` dashboard with inline course/item editors plus drag-to-reorder, catalog search + ingestion with paging/source counts, and shareable public menu pages at `/menus/[slug]`.
+- Next.js frontend now includes login/register, a signed-in status widget with refresh/logout, a home search workspace, a `/menus` dashboard with inline course/item editors plus drag-to-reorder, catalog search + ingestion with paging/source counts, and shareable public menu pages at `/menus/[slug]`.
 
 ## Near-Term Priorities
 1. **Search relevance & dedupe (landed):** deterministic merge ordering, cross-connector dedupe, and per-source timing/count metrics now ship with `/api/search`; next step is tuning ranking and surfacing the metrics in the UI.

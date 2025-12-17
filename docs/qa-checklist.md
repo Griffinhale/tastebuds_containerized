@@ -34,6 +34,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 ## 5) Frontend App
 - [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `:3000` and reads `.env`.
 - [ ] Home page cards show API status plus the signed-in widget; refresh/log out buttons work (cookies survive reloads).
+- [ ] The home search workspace accepts queries/prompts, respects media-type filters and the include-external toggle, and renders result cards with source context.
 - [ ] `/login` and `/register` submit successfully against the FastAPI auth endpoints and set httpOnly cookies.
 - [ ] `/menus` lists existing menus, supports drag-to-reorder course items with optimistic updates, and still allows creating/deleting courses/items. The search/ingest drawer should surface empty/error states gracefully and add catalog hits directly into a course.
 - [ ] Course search fan-out: toggle `Include external sources`, run a query, and confirm the results are ingested (metadata counts increment) and selectable.

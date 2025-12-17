@@ -93,7 +93,7 @@ case "$cmd" in
     run_node_task "npm ci && npm run prettier:check"
     ;;
   fmt)
-    run_compose run --rm api sh -c "pip install -r requirements-dev.txt && python -m ruff format app"
+    run_compose run --rm api sh -c "pip install -r requirements-dev.txt && python -m ruff check --fix app"
     run_node_task "npm ci && npx prettier --write \"**/*.{js,jsx,ts,tsx,md,mdx,json,css,scss}\""
     ;;
   *)

@@ -11,7 +11,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
-- Next.js frontend now includes login/register, session status, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
+- Next.js frontend now includes login/register, session status, a home search workspace, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -77,7 +77,7 @@ npm install
 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 - Auth pages live at `http://localhost:3000/login` and `/register`, hitting the FastAPI auth endpoints using `NEXT_PUBLIC_API_BASE`. Tokens are issued as httpOnly cookies; no `localStorage` usage.
-- After logging in, the home page shows your signed-in status via `/api/me`, and `/menus` lists/creates menus, lets you add/delete courses/items, and includes a search drawer that can ingest external matches. Use the refresh/log out buttons on the home page as needed.
+- After logging in, the home page shows your signed-in status via `/api/me` and now includes a search workspace with prompts/filters that can fan out to external sources. `/menus` lists/creates menus, lets you add/delete courses/items, and includes a per-course search drawer that ingests external matches directly into that course. Use the refresh/log out buttons on the home page as needed.
 - Mark a menu public and share `http://localhost:3000/menus/{slug}` for the read-only view backed by `/api/public/menus/{slug}`.
 
 ## API quickstart

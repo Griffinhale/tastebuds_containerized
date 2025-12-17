@@ -5,12 +5,11 @@ import typing
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, Date, DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
-
 
 JSON_COMPATIBLE = JSON().with_variant(JSONB, "postgresql")
 
