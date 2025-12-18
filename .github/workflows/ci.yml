@@ -68,7 +68,7 @@ jobs:
         run: npm run lint
 
       - name: Prettier
-        run: npm run prettier:check --write
+        run: npm run prettier:checkwrite
 
       - name: TypeScript
         run: npm run typecheck

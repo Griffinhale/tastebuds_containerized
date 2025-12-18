@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "prettier:check": "prettier --check \"**/*.{js,jsx,ts,tsx,md,mdx,json,css,scss}\"",
+    "prettier:checkwrite": "prettier --check --write \"**/*.{js,jsx,ts,tsx,md,mdx,json,css,scss}\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
