@@ -9,7 +9,9 @@ from sqlalchemy.orm import selectinload
 
 from app.models.media import MediaItem
 from app.models.menu import Course, CourseItem, Menu
+from app.models.search_preview import ExternalSearchPreview
 from app.schema.menu import CourseCreate, CourseItemCreate, MenuCreate, MenuUpdate
+from app.services import media_service
 from app.utils.slugify import menu_slug
 
 
@@ -208,6 +210,14 @@ async def _get_media(session: AsyncSession, media_item_id: uuid.UUID) -> MediaIt
     result = await session.execute(select(MediaItem).where(MediaItem.id == media_item_id))
     media = result.scalar_one_or_none()
     if not media:
+        preview = await session.get(ExternalSearchPreview, media_item_id)
+        if preview:
+            media = await media_service.ingest_from_source(
+                session, source=preview.source_name, identifier=preview.external_id
+            )
+            await session.delete(preview)
+            await session.commit()
+            return media
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found")
     return media
 

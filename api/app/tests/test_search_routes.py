@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Iterable
+
+import uuid
 
 import pytest
 
+from app.core.config import settings
 from app.ingestion.base import BaseConnector, ConnectorResult
 from app.models.media import MediaItem, MediaType
+from app.models.search_preview import ExternalSearchPreview
+from app.services import search_preview_service
+from sqlalchemy import select
 
 
 class StubConnector(BaseConnector):
@@ -32,6 +39,24 @@ class FailingConnector(BaseConnector):
         raise AssertionError(f"{self.source_name} connector should not have been called")
 
 
+async def _authenticate_for_external(client):
+    suffix = uuid.uuid4().hex[:8]
+    creds = {
+        "email": f"search_{suffix}@example.com",
+        "password": "search-pass123",
+        "display_name": f"Search Tester {suffix}",
+    }
+    register_res = await client.post("/api/auth/register", json=creds)
+    assert register_res.status_code == 200
+    register_body = register_res.json()
+    login_res = await client.post(
+        "/api/auth/login",
+        json={"email": creds["email"], "password": creds["password"]},
+    )
+    assert login_res.status_code == 200
+    return register_body["user"]["id"]
+
+
 @pytest.mark.asyncio
 async def test_search_pagination_produces_metadata(client, session):
     media_titles = [f"Test Series {i}" for i in range(1, 7)]
@@ -51,6 +76,7 @@ async def test_search_pagination_produces_metadata(client, session):
 
 @pytest.mark.asyncio
 async def test_search_external_ingests_multi_source(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     session.add(MediaItem(media_type=MediaType.BOOK, title="Fan Query"))
     await session.commit()
 
@@ -126,6 +152,7 @@ async def test_search_external_ingests_multi_source(client, monkeypatch, session
 
 @pytest.mark.asyncio
 async def test_search_sources_filter_limits_external_only(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     tmdb_results = [
         ConnectorResult(
             media_type=MediaType.MOVIE,
@@ -179,6 +206,7 @@ async def test_search_sources_filter_limits_external_only(client, monkeypatch, s
 
 @pytest.mark.asyncio
 async def test_search_types_filter_drops_incompatible_sources(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     session.add(MediaItem(media_type=MediaType.BOOK, title="Fan Query"))
     session.add(MediaItem(media_type=MediaType.MOVIE, title="Fan Query 2"))
     await session.commit()
@@ -231,6 +259,7 @@ async def test_search_types_filter_drops_incompatible_sources(client, monkeypatc
 
 @pytest.mark.asyncio
 async def test_search_external_per_source_limits_counts(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     session.add(MediaItem(media_type=MediaType.BOOK, title="Fan Query"))
     await session.commit()
 
@@ -318,6 +347,7 @@ async def test_search_external_per_source_limits_counts(client, monkeypatch, ses
 
 @pytest.mark.asyncio
 async def test_search_external_dedupes_against_internal_and_tracks_metrics(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     existing = MediaItem(
         media_type=MediaType.MOVIE,
         title="Shared Hit",
@@ -404,6 +434,7 @@ async def test_search_external_dedupes_against_internal_and_tracks_metrics(clien
 
 @pytest.mark.asyncio
 async def test_search_merge_order_follows_source_order(client, monkeypatch, session):
+    await _authenticate_for_external(client)
     connectors = {
         "tmdb": StubConnector(
             "tmdb",
@@ -462,3 +493,115 @@ async def test_search_merge_order_follows_source_order(client, monkeypatch, sess
     assert payload["metadata"]["source_counts"]["tmdb"] == 1
     assert payload["metadata"]["source_counts"]["google_books"] == 1
     assert payload["metadata"]["source_metrics"]["tmdb"]["returned"] == 1
+
+
+@pytest.mark.asyncio
+async def test_search_external_previews_cached(session, client, monkeypatch):
+    user_id = uuid.UUID(await _authenticate_for_external(client))
+    connectors = {
+        "tmdb": StubConnector(
+            "tmdb",
+            [
+                ConnectorResult(
+                    media_type=MediaType.MOVIE,
+                    title="Preview Cache",
+                    description=None,
+                    release_date=None,
+                    cover_image_url=None,
+                    canonical_url="https://www.themoviedb.org/movie/cache",
+                    metadata={},
+                    source_name="tmdb",
+                    source_id="movie:cache",
+                    raw_payload={},
+                )
+            ],
+        ),
+        "google_books": StubConnector("google_books", []),
+        "igdb": StubConnector("igdb", []),
+        "lastfm": StubConnector("lastfm", []),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr("app.services.media_service.get_connector", _fake_get_connector)
+
+    response = await client.get(
+        "/api/search",
+        params=[
+            ("q", "Cache"),
+            ("include_external", "true"),
+            ("external_per_source", "1"),
+        ],
+    )
+    assert response.status_code == 200
+
+    statement = select(ExternalSearchPreview).where(
+        ExternalSearchPreview.user_id == user_id,
+        ExternalSearchPreview.source_name == "tmdb",
+        ExternalSearchPreview.external_id == "movie:cache",
+    )
+    stored = await session.execute(statement)
+    preview = stored.scalar_one_or_none()
+    assert preview is not None
+    assert preview.expires_at > datetime.now(timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_search_external_quota_enforced(client, monkeypatch):
+    await _authenticate_for_external(client)
+    monkeypatch.setattr(settings, "external_search_quota_max_requests", 2)
+
+    class FixedDatetime:
+        @classmethod
+        def utcnow(cls):
+            return datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+        @classmethod
+        def utcfromtimestamp(cls, _: float):
+            return datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(search_preview_service, "datetime", FixedDatetime)
+
+    connectors = {
+        "tmdb": StubConnector(
+            "tmdb",
+            [
+                ConnectorResult(
+                    media_type=MediaType.MOVIE,
+                    title="Quota Movie",
+                    description=None,
+                    release_date=None,
+                    cover_image_url=None,
+                    canonical_url="https://www.themoviedb.org/movie/quota",
+                    metadata={},
+                    source_name="tmdb",
+                    source_id="movie:quota",
+                    raw_payload={},
+                )
+            ],
+        ),
+        "google_books": StubConnector("google_books", []),
+        "igdb": StubConnector("igdb", []),
+        "lastfm": StubConnector("lastfm", []),
+    }
+
+    def _fake_get_connector(source: str) -> BaseConnector:
+        return connectors[source]
+
+    monkeypatch.setattr("app.services.media_service.get_connector", _fake_get_connector)
+
+    for _ in range(2):
+        response = await client.get(
+            "/api/search",
+            params=[("q", "Quota"), ("include_external", "true"), ("external_per_source", "1")],
+        )
+        assert response.status_code == 200
+
+    rate_limited = await client.get(
+        "/api/search",
+        params=[("q", "Quota"), ("include_external", "true"), ("external_per_source", "1")],
+    )
+    assert rate_limited.status_code == 429
+    detail = rate_limited.json().get("detail", "")
+    assert "quota" in detail.lower()

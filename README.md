@@ -12,6 +12,8 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a home search workspace, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
+- Known security gaps: external search fan-out is unauthenticated and writes results/raw payloads; public menu DTO exposes `owner_id`; `/health` includes connector telemetry. See `docs/security.md` before exposing the stack to the internet.
+- Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -56,7 +58,7 @@ docker compose exec api alembic upgrade head
 docker compose exec api python -m app.scripts.seed
 docker compose up --build -d web
 ```
-API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health`)  
+API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health` with ingestion telemetry snapshots)  
 Web app: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
 
 ## Development without Docker
@@ -161,6 +163,12 @@ GitHub Actions run on push/PR:
 - Compose parity check: `./scripts/dev.sh test`.
 - Frontend: `npm ci` then `npm run lint`, `npm run prettier:check`, `npm run typecheck`.
 
+## Security status
+- External search fan-out must be auth-only with per-user quotas; anonymous callers get internal results only. Persist external hits only after user interaction; keep previews in a short-TTL cache with payload caps.
+- `/api/public/menus/{slug}` returns `owner_id`; switch to a public-only DTO.
+- `/health` and `/api/health` expose connector names/errors without auth; restrict or protect with auth/IP allowlists.
+- Full list of risks and fixes: `docs/security.md`.
+
 ## Troubleshooting
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.
 - Missing env vars or API keys: the API logs list the missing key; ensure `.env` is loaded and rebuild the `api` container.
@@ -168,6 +176,7 @@ GitHub Actions run on push/PR:
 - Compose port conflicts: adjust `docker-compose.yml` published ports if 5432/8000/3000 are busy.
 
 ## Reference docs
+- `docs/architecture.md`: current services, data flows, and delivery dependencies.
 - `docs/api.md`: endpoint reference and example payloads.
 - `docs/schema.md`: tables, relationships, and constraints.
 - `docs/attribute-mapping.md`: provider field coverage.

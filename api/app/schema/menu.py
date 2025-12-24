@@ -67,5 +67,12 @@ class MenuRead(ORMModel):
     courses: list[CourseRead] = Field(default_factory=list)
 
 
-class PublicMenuRead(BaseModel):
-    menu: MenuRead
+class PublicMenuRead(ORMModel):
+    id: UUID
+    title: str
+    description: str | None = None
+    slug: str
+    is_public: bool
+    created_at: datetime
+    updated_at: datetime
+    courses: list[CourseRead] = Field(default_factory=list)

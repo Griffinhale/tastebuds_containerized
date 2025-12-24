@@ -69,3 +69,20 @@ async def test_public_menu_respects_ordering(session):
     found = await menu_service.get_menu_by_slug(session, menu.slug)
     assert [course.position for course in found.courses] == [1, 2]
     assert [item.position for item in found.courses[1].items] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_public_menu_route_hides_owner_id(client, session):
+    user = User(email="route@test", hashed_password="x")
+    session.add(user)
+    await session.flush()
+
+    payload = MenuCreate(title="Public Route", is_public=True)
+    menu = await menu_service.create_menu(session, user.id, payload)
+
+    response = await client.get(f"/api/public/menus/{menu.slug}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["slug"] == menu.slug
+    assert payload["is_public"] is True
+    assert "owner_id" not in payload

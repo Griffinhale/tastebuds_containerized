@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, useId, useRef, ForwardedRef, forwardRef } from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
 
@@ -45,10 +45,22 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [position, setPosition] = useState(course.items.length + 1);
   const [notes, setNotes] = useState('');
   const [addingId, setAddingId] = useState<string | null>(null);
+  const queryHelpId = useId();
+  const resultsHeadingId = useId();
+  const statusRegionId = useId();
+  const resultsListId = useId();
+  const metadataRegionId = useId();
+  const errorCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setPosition(course.items.length + 1);
   }, [course.items.length]);
+
+  useEffect(() => {
+    if (error && errorCardRef.current) {
+      errorCardRef.current.focus();
+    }
+  }, [error]);
 
   const metadataEntries = useMemo(() => {
     if (!metadata) return [];
@@ -203,7 +215,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     <section className="space-y-4 rounded-lg border border-dashed border-slate-800 bg-slate-950/30 p-4">
       <header className="space-y-1">
         <p className="text-sm font-semibold text-slate-200">Search catalog & ingest</p>
-        <p className="text-xs text-slate-400">
+        <p id={queryHelpId} className="text-xs text-slate-400">
           Look up existing media and optionally fan out to Google Books, TMDB, IGDB, and Last.fm.
           New external matches are ingested automatically.
         </p>
@@ -221,11 +233,13 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search title, artist, or keyword"
+            aria-describedby={queryHelpId}
             className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
           />
           <button
             type="submit"
             disabled={searching}
+            aria-controls={resultsListId}
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {searching ? 'Searching…' : 'Search'}
@@ -305,23 +319,51 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         </p>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Results</p>
-        <p className="text-xs text-slate-400">{resultSummary}</p>
+      <div
+        className="space-y-2"
+        role="region"
+        aria-labelledby={`${resultsHeadingId} ${statusRegionId}`}
+        aria-busy={searching || loadingMore}
+      >
+        <p id={resultsHeadingId} className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Results
+        </p>
+        <p id={statusRegionId} className="text-xs text-slate-400" role="status" aria-live="polite">
+          {resultSummary}
+        </p>
+        {searching && !loadingMore && (
+          <DrawerStateCard
+            tone="info"
+            title="Searching catalog & connectors…"
+            description="Pulling internal matches, then fanning out to Google Books, TMDB, IGDB, and Last.fm."
+            role="status"
+            ariaLive="polite"
+            showSpinner
+          />
+        )}
         {!hasSearched && !searching && (
           <DrawerStateCard
+            role="status"
+            ariaLive="polite"
             title="Nothing queued yet"
             description="Enter a query to browse your catalog. Toggle on external sources to fan out to Google Books, TMDB, IGDB, and Last.fm."
           />
         )}
         {hasSearched && !searching && results.length === 0 && !error && (
           <DrawerStateCard
+            role="status"
+            ariaLive="polite"
             title="No matches yet"
             description="Try expanding your filters, tweak the query, or include external sources to ingest new media."
           />
         )}
         {metadataEntries.length > 0 && (
-          <dl className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 sm:grid-cols-2">
+          <dl
+            id={metadataRegionId}
+            className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 sm:grid-cols-2"
+            aria-live="polite"
+            aria-label="Search metrics"
+          >
             {metadataEntries.map(([key, value]) => (
               <div key={key}>
                 <dt className="uppercase tracking-wide text-slate-500">{key}</dt>
@@ -340,14 +382,24 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
               setError(null);
               setResults([]);
               setHasSearched(false);
+              setMetadata(null);
+              setSource(null);
+              setHasMoreInternal(false);
             }}
+            role="alert"
+            ariaLive="assertive"
+            ref={errorCardRef}
           />
         )}
-        {statusMessage && <p className="text-xs text-emerald-300">{statusMessage}</p>}
+        {statusMessage && (
+          <p className="text-xs text-emerald-300" role="status" aria-live="polite">
+            {statusMessage}
+          </p>
+        )}
       </div>
 
       {results.length > 0 && (
-        <ul className="space-y-3">
+        <ul className="space-y-3" id={resultsListId} aria-live="polite" aria-label="Search results">
           {results.map((item) => (
             <li key={item.id} className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -413,6 +465,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             type="button"
             onClick={handleLoadMore}
             disabled={loadingMore || searching}
+            aria-controls={resultsListId}
             className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loadingMore ? 'Loading…' : 'Load more results'}
@@ -423,26 +476,44 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   );
 }
 
-function DrawerStateCard({
-  title,
-  description,
-  tone = 'default',
-  actionLabel,
-  onAction,
-}: {
+type DrawerStateCardProps = {
   title: string;
   description: string;
-  tone?: 'default' | 'error';
+  tone?: 'default' | 'error' | 'info';
   actionLabel?: string;
   onAction?: () => void;
-}) {
-  const toneClasses =
-    tone === 'error'
-      ? 'border-red-500/40 bg-red-500/5 text-red-200'
-      : 'border-slate-800 bg-slate-950/60 text-slate-200';
+  role?: 'status' | 'alert';
+  ariaLive?: 'polite' | 'assertive';
+  showSpinner?: boolean;
+};
+
+const DrawerStateCard = forwardRef<HTMLDivElement, DrawerStateCardProps>(function DrawerStateCard(
+  { title, description, tone = 'default', actionLabel, onAction, role, ariaLive, showSpinner },
+  ref: ForwardedRef<HTMLDivElement>
+) {
+  const toneClasses: Record<string, string> = {
+    default: 'border-slate-800 bg-slate-950/60 text-slate-200',
+    error: 'border-red-500/40 bg-red-500/5 text-red-200',
+    info: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100',
+  };
+  const resolvedClass = toneClasses[tone] ?? toneClasses.default;
   return (
-    <div className={`rounded-lg border p-4 text-xs ${toneClasses}`}>
-      <p className="font-semibold">{title}</p>
+    <div
+      ref={ref}
+      className={`rounded-lg border p-4 text-xs ${resolvedClass}`}
+      role={role}
+      aria-live={ariaLive}
+      tabIndex={role === 'alert' ? -1 : undefined}
+    >
+      <p className="flex items-center gap-2 font-semibold">
+        {showSpinner && (
+          <span
+            aria-hidden="true"
+            className="inline-flex h-3 w-3 animate-spin rounded-full border border-white/40 border-t-transparent"
+          />
+        )}
+        {title}
+      </p>
       <p className="mt-1 text-[11px] text-white/70">{description}</p>
       {actionLabel && (
         <button
@@ -455,4 +526,4 @@ function DrawerStateCard({
       )}
     </div>
   );
-}
+});

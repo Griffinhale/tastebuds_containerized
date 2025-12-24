@@ -11,6 +11,7 @@ from app.models.media import (
     UserItemStatus,
 )
 from app.models.menu import Course, CourseItem, Menu
+from app.models.search_preview import ExternalSearchPreview, UserExternalSearchQuota
 from app.models.tagging import MediaItemTag, Tag
 from app.models.user import User
 
@@ -31,4 +32,6 @@ __all__ = [
     "User",
     "UserItemState",
     "UserItemStatus",
+    "ExternalSearchPreview",
+    "UserExternalSearchQuota",
 ]

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -14,7 +16,14 @@ class SearchQuery(BaseModel):
     include_external: bool = False
 
 
+class SearchResultItem(MediaItemBase):
+    preview_id: UUID | None = None
+    source_name: str | None = None
+    source_id: str | None = None
+    preview_expires_at: datetime | None = None
+
+
 class SearchResult(BaseModel):
-    results: list[MediaItemBase]
+    results: list[SearchResultItem]
     source: str
     metadata: dict[str, Any] | None = None

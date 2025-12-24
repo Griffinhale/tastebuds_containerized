@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     cors_origins: list[str] | str = Field(default_factory=lambda: DEFAULT_CORS_ORIGINS.copy())
+    external_search_quota_max_requests: int = 10
+    external_search_quota_window_seconds: int = 60
+    external_search_preview_ttl_seconds: int = 300
 
     @field_validator("cors_origins", mode="before")
     @classmethod

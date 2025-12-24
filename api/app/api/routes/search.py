@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_optional_current_user
 from app.models.media import MediaType
-from app.schema.media import MediaItemBase
-from app.schema.search import SearchResult
-from app.services import media_service
+from app.models.user import User
+from app.schema.search import SearchResult, SearchResultItem
+from app.services import media_service, search_preview_service
 
 
 class SearchSource(str, enum.Enum):
@@ -41,7 +41,7 @@ router = APIRouter()
 
 @dataclass(slots=True)
 class AggregatedSearchHit:
-    item: MediaItemBase
+    item: SearchResultItem
     origin: str
     source: str
     source_rank: int
@@ -56,11 +56,23 @@ async def search(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=DEFAULT_PER_PAGE, ge=1, le=MAX_PER_PAGE),
     external_per_source: int = Query(default=DEFAULT_EXTERNAL_PER_SOURCE, ge=1, le=MAX_EXTERNAL_PER_SOURCE),
+    current_user: User | None = Depends(get_optional_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> SearchResult:
     include_internal = True
     connector_sources: list[str] = []
     allowed_media_types: set[MediaType] | None = set(types) if types else None
+
+    external_requested = include_external
+    if sources:
+        external_requested = external_requested or any(
+            source == SearchSource.EXTERNAL or source in SEARCH_CONNECTOR_SOURCES for source in sources
+        )
+    if external_requested and not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for external search",
+        )
 
     def _filter_connectors_by_type(candidates: list[str]) -> list[str]:
         if not allowed_media_types:
@@ -92,7 +104,7 @@ async def search(
             connector_sources = _filter_connectors_by_type(list(media_service.DEFAULT_EXTERNAL_SOURCES))
 
     offset = (page - 1) * per_page
-    internal_items: list[MediaItemBase] = []
+    internal_items: list[SearchResultItem] = []
     total_internal = 0
     dedupe_keys: set[media_service.DedupeKey] = set()
     merged_hits: list[AggregatedSearchHit] = []
@@ -100,7 +112,7 @@ async def search(
         internal_results, total_internal = await media_service.search_media(
             session, query=q, media_types=types, offset=offset, limit=per_page
         )
-        internal_items = [MediaItemBase.model_validate(item) for item in internal_results]
+        internal_items = [SearchResultItem.model_validate(item) for item in internal_results]
         dedupe_keys = {
             media_service.build_dedupe_key(
                 media_type=item.media_type,
@@ -119,20 +131,21 @@ async def search(
     external_source_counts: dict[str, int] = {}
     external_deduped_total = 0
     external_outcome: media_service.ExternalSearchOutcome | None = None
-    if connector_sources:
+    if connector_sources and current_user:
+        await search_preview_service.enforce_search_quota(session, current_user.id)
         external_outcome = await media_service.search_external_sources(
             session,
             q,
+            current_user.id,
             per_source=external_per_source,
             sources=connector_sources,
             allowed_media_types=allowed_media_types,
             existing_keys=dedupe_keys,
         )
         for hit in external_outcome.hits:
-            item_model = MediaItemBase.model_validate(hit.item)
             merged_hits.append(
                 AggregatedSearchHit(
-                    item=item_model,
+                    item=hit.item,
                     origin="external",
                     source=hit.source,
                     source_rank=source_order.get(hit.source, len(source_order)),

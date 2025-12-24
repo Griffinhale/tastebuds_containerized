@@ -25,7 +25,11 @@ async def get_current_user(
     if not candidate:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    payload = decode_token(candidate)
+    return await _resolve_user_from_token(session, candidate)
+
+
+async def _resolve_user_from_token(session: AsyncSession, token: str) -> User:
+    payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     user_id = payload.get("sub")
@@ -33,3 +37,14 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def get_optional_current_user(
+    session: AsyncSession = Depends(get_db),
+    token: str | None = Depends(oauth2_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias="access_token"),
+) -> User | None:
+    candidate = token or access_token_cookie
+    if not candidate:
+        return None
+    return await _resolve_user_from_token(session, candidate)

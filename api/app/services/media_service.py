@@ -23,6 +23,8 @@ from app.models.media import (
     MovieItem,
     MusicItem,
 )
+from app.schema.search import SearchResultItem
+from app.services import search_preview_service
 
 DEFAULT_EXTERNAL_SOURCES = ("google_books", "tmdb", "igdb", "lastfm")
 DedupeKey: TypeAlias = tuple[str, ...]
@@ -74,7 +76,7 @@ class ExternalSourceTiming:
 @dataclass(slots=True)
 class ExternalSearchHit:
     source: str
-    item: MediaItem
+    item: SearchResultItem
 
 
 @dataclass(slots=True)
@@ -118,6 +120,7 @@ async def search_media(
 async def search_external_sources(
     session: AsyncSession,
     query: str,
+    user_id: uuid.UUID,
     per_source: int = 1,
     sources: Iterable[str] | None = None,
     allowed_media_types: set[MediaType] | None = None,
@@ -133,6 +136,8 @@ async def search_external_sources(
         seen.add(normalized)
         if normalized in DEFAULT_EXTERNAL_SOURCES:
             normalized_sources.append(normalized)
+
+    await search_preview_service.prune_expired_previews(session)
 
     dedupe_keys: set[DedupeKey] = set(existing_keys or [])
     aggregated: list[ExternalSearchHit] = []
@@ -195,8 +200,24 @@ async def search_external_sources(
                 deduped_counts[source] += 1
                 continue
             dedupe_keys.add(dedupe_key)
-            media = await upsert_media(session, result)
-            aggregated.append(ExternalSearchHit(source=source, item=media))
+            preview = await search_preview_service.cache_connector_result(session, user_id, result)
+            item_model = SearchResultItem.model_validate(
+                {
+                    "id": preview.id,
+                    "media_type": result.media_type,
+                    "title": result.title,
+                    "description": result.description,
+                    "release_date": result.release_date,
+                    "cover_image_url": result.cover_image_url,
+                    "canonical_url": result.canonical_url,
+                    "metadata": result.metadata or None,
+                    "source_name": result.source_name,
+                    "source_id": result.source_id,
+                    "preview_id": preview.id,
+                    "preview_expires_at": preview.expires_at,
+                }
+            )
+            aggregated.append(ExternalSearchHit(source=source, item=item_model))
             counts[source] += 1
     return ExternalSearchOutcome(
         hits=aggregated,

@@ -16,6 +16,10 @@ export type MediaSearchItem = {
   cover_image_url?: string | null;
   canonical_url?: string | null;
   metadata?: Record<string, unknown> | null;
+  source_name?: SearchSource | null;
+  source_id?: string | null;
+  preview_id?: string | null;
+  preview_expires_at?: string | null;
 };
 
 export type MediaSearchResponse = {
