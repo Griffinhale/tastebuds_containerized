@@ -16,3 +16,4 @@ email-validator==2.1.1
 python-dotenv==1.0.1
 redis>=4.5,<5
 rq==1.2.0
+rq-scheduler==0.13.1

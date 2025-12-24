@@ -8,6 +8,7 @@ from app.api.deps import get_optional_current_user
 from app.api.router import api_router
 from app.core.config import settings
 from app.ingestion.observability import ingestion_monitor
+from app.jobs.schedule_registry import ensure_schedules
 from app.models.user import User
 
 app = FastAPI(title=settings.app_name)
@@ -20,6 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api_router, prefix=settings.api_prefix)
+
+
+@app.on_event("startup")
+async def _register_schedules() -> None:
+    ensure_schedules()
 
 
 def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:

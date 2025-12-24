@@ -9,10 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_optional_current_user
+from app.jobs.search import deserialize_external_outcome, fanout_external_search_job, serialize_external_outcome
 from app.models.media import MediaType
 from app.models.user import User
 from app.schema.search import SearchResult, SearchResultItem
 from app.services import media_service, search_preview_service
+from app.services.task_queue import task_queue
 
 
 class SearchSource(str, enum.Enum):
@@ -133,15 +135,34 @@ async def search(
     external_outcome: media_service.ExternalSearchOutcome | None = None
     if connector_sources and current_user:
         await search_preview_service.enforce_search_quota(session, current_user.id)
-        external_outcome = await media_service.search_external_sources(
-            session,
-            q,
-            current_user.id,
+        async def _inline_external() -> dict:
+            outcome = await media_service.search_external_sources(
+                session,
+                q,
+                current_user.id,
+                per_source=external_per_source,
+                sources=connector_sources,
+                allowed_media_types=allowed_media_types,
+                existing_keys=dedupe_keys,
+            )
+            return serialize_external_outcome(outcome)
+
+        serialized_outcome = await task_queue.enqueue_or_run(
+            fanout_external_search_job,
+            fallback=_inline_external,
+            queue_name="ingestion",
+            timeout_seconds=45,
+            description=f"search:{q}",
+            query=q,
+            user_id=str(current_user.id),
             per_source=external_per_source,
             sources=connector_sources,
-            allowed_media_types=allowed_media_types,
-            existing_keys=dedupe_keys,
+            allowed_media_types=[media_type.value for media_type in allowed_media_types]
+            if allowed_media_types
+            else None,
+            existing_keys=[list(key) for key in dedupe_keys],
         )
+        external_outcome = deserialize_external_outcome(serialized_outcome)
         for hit in external_outcome.hits:
             merged_hits.append(
                 AggregatedSearchHit(

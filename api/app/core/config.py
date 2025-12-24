@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     external_search_preview_max_payload_bytes: int = 50_000
     external_search_preview_max_metadata_bytes: int = 20_000
     redis_url: str = "redis://redis:6379/0"
-    worker_queue_names: list[str] = Field(default_factory=lambda: ["default"])
+    worker_queue_names: list[str] | str = Field(default_factory=lambda: ["default", "ingestion", "maintenance"])
     health_allowlist: list[str] | str = Field(default_factory=list)
 
     @field_validator("cors_origins", mode="before")

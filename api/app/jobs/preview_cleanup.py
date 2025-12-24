@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
-from app.db.session import async_session
-from app.services import media_service
+from app.jobs.maintenance import prune_external_search_previews_job
 
 logger = logging.getLogger("app.jobs.preview_cleanup")
 
 
 def prune_external_search_previews() -> int:
-    async def _run() -> int:
-        async with async_session() as session:
-            deleted = await media_service.prune_external_previews(session)
-            return deleted
-
-    deleted_count = asyncio.run(_run())
+    result = prune_external_search_previews_job()
+    deleted_count = int(result.get("deleted", 0))
     logger.info("Pruned %d expired external search previews", deleted_count)
     return deleted_count

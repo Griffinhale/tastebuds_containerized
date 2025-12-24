@@ -47,7 +47,9 @@ _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/br
 ### 7.1 Security & Foundation (in progress)
 - External search is auth+quota gated; anonymous callers only search internal. External hits live in short-TTL previews with payload/metadata caps and GC; full ingest follows user interaction.
 - Public surfaces: public menu DTO omits `owner_id`; `/health` returns telemetry only for authenticated/allowlisted callers; session inventory/revoke lives at `/api/auth/sessions` (UI pending).
-- Delivery plumbing: still need reverse proxy profile (TLS + rate-limit defaults) and to wire the queue/broker for retries/webhooks/scheduled syncs.
+- Delivery plumbing: the local proxy now runs TLS with rate-limit defaults; ingestion/search fan-out flows enqueue through Redis-backed RQ queues, and rq-scheduler keeps preview-cache cleanup running. Add webhook/sync jobs next.
+- Connector observability: expose source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
+- Ops: `/api/ops/queues` surfaces Redis/RQ health for authenticated users; keep tightening guardrails around who can see it.
 - Connector observability: expose source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
 
 ### 7.2 Experience Fit & Finish (after 7.1)

@@ -34,6 +34,7 @@ services:
       dockerfile: Dockerfile
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
+      - example.env
       - .env
     volumes:
       - ./api:/app
@@ -49,12 +50,25 @@ services:
       dockerfile: Dockerfile
     command: python -m app.worker
     env_file:
+      - example.env
       - .env
     volumes:
       - ./api:/app
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    command: rqscheduler --url ${REDIS_URL:-redis://redis:6379/0}
+    env_file:
+      - example.env
+      - .env
+    depends_on:
       redis:
         condition: service_started
 
@@ -75,6 +89,7 @@ services:
     image: nginx:stable-alpine
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       api:
         condition: service_started
@@ -82,6 +97,7 @@ services:
         condition: service_started
     volumes:
       - ./docker/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/proxy/certs:/etc/nginx/certs:ro
 
   pgadmin:
     image: dpage/pgadmin4:8.5

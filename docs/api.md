@@ -4,6 +4,7 @@ Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authori
 
 ## Health & Docs
 - `GET /health` and `GET /api/health` return `{"status":"ok","ingestion":{"sources":{},"issues":[]}}`. When a connector circuit is open or a connector's last call failed, `status` flips to `degraded` and `ingestion.issues` lists the affected sources/operations along with the last error or remaining cooldown.
+- `GET /api/ops/queues` (auth required) reports Redis/RQ health: queue sizes, worker presence, scheduler counts, and Redis server info. Useful for spotting stalled jobs or empty workers.
 - OpenAPI/Swagger UI: `/docs` (served from the API service).
 
 ## Auth
