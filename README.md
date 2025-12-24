@@ -7,13 +7,15 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 ## Current Status (Dec 2025)
 - Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), Redis plus an RQ worker (`redis`/`worker`), the optional Next.js app (`web`), optional PgAdmin, and a local Nginx proxy that fronts the API and UI on port 80.
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
+- Session inventory: `/api/auth/sessions` lists active/expired refresh tokens for the current user and supports revocation per session; cookies continue to mirror new tokens on rotate/login.
 - Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`. Merged results are deterministic (internal first, then external by requested order, then title/release), with cross-connector dedupe keyed off canonical URLs or normalized title + release date.
+- External search is auth-only; per-user quotas guard external traffic. External hits stay in short-TTL previews with payload/metadata byte caps and GC, and full ingest happens only after user interaction or explicit ingest.
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a home search workspace, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
-- Known security gaps: external search fan-out is unauthenticated and writes results/raw payloads; public menu DTO exposes `owner_id`; `/health` includes connector telemetry. See `docs/security.md` before exposing the stack to the internet.
-- Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
+- Known security gaps: review `docs/security.md` for remaining risks (retention policy, rate-limit polish). Public menu DTO is now owner-safe, external search is auth+quota gated with preview caching, and `/health` hides telemetry unless the caller is authenticated or allowlisted.
+- Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache with payload caps until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -63,7 +65,7 @@ docker compose exec api alembic upgrade head
 docker compose exec api python -m app.scripts.seed
 docker compose up --build -d web
 ```
-API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health` with ingestion telemetry snapshots)  
+API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health`; telemetry is included only for authenticated or allowlisted callers)  
 Web app: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
 
 ## Development without Docker
@@ -169,10 +171,10 @@ GitHub Actions run on push/PR:
 - Frontend: `npm ci` then `npm run lint`, `npm run prettier:check`, `npm run typecheck`.
 
 ## Security status
-- External search fan-out must be auth-only with per-user quotas; anonymous callers get internal results only. Persist external hits only after user interaction; keep previews in a short-TTL cache with payload caps.
-- `/api/public/menus/{slug}` returns `owner_id`; switch to a public-only DTO.
-- `/health` and `/api/health` expose connector names/errors without auth; restrict or protect with auth/IP allowlists.
-- Full list of risks and fixes: `docs/security.md`.
+- External search fan-out is auth-only with per-user quotas and preview-only persistence; cached payload/metadata are size-capped and GC’d. Full ingest requires user interaction.
+- Public menus use a safe DTO with no `owner_id`.
+- `/health` and `/api/health` return only `{status}` for anonymous callers; telemetry is returned to authenticated or allowlisted hosts defined via `HEALTH_ALLOWLIST`.
+- Full list of remaining risks and fixes: `docs/security.md`.
 
 ## Troubleshooting
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.

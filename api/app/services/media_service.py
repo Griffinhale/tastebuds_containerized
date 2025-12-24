@@ -87,6 +87,11 @@ class ExternalSearchOutcome:
     timings_ms: dict[str, ExternalSourceTiming] = field(default_factory=dict)
 
 
+async def prune_external_previews(session: AsyncSession) -> int:
+    """Cleanup helper suitable for cron/worker jobs."""
+    return await search_preview_service.prune_expired_previews(session)
+
+
 async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
     result = await session.execute(select(MediaItem).where(MediaItem.id == media_id))
     return result.scalar_one_or_none()

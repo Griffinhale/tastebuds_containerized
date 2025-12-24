@@ -27,7 +27,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **The Enthusiast (friends swapping recs):** Needs lightweight search + ingest, delightful share cards, Spotify/Jellyfin hand-offs, and safety around private drafts.
 
 ## 5. Product Surface Map
-- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`. Forthcoming: `/api/sessions`, `/api/automations`, `/api/integrations/*`.
+- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`. Forthcoming: `/api/automations`, `/api/integrations/*`.
 - **Connectors (shipping):** Google Books, TMDB, IGDB, Last.fm.
 - **Connectors (planned):** Spotify (playlist + track metadata), Discogs, MusicBrainz, StoryGraph export/import, Arr suite webhooks, Jellyfin/Plex library sync, Notion two-way sync, RSS/ActivityPub feeds.
 - **Interfaces:** Next.js workspace (auth, search, menu editor, share view), CLI/automation scripts, optional mobile-friendly PWA.
@@ -45,10 +45,10 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/broker, rate limits, and a credential vault._
 
 ### 7.1 Security & Foundation (in progress)
-- Lock down `/api/search` external fan-out with auth + quotas; keep anonymous internal search only. Keep external results in a short-TTL preview cache and fully ingest only when a signed-in user interacts (opens details, saves to menu/library). Add size caps/truncation on payloads and GC for unreferenced previews.
-- Public surfaces: split public menu DTO to drop `owner_id`; shrink `/health` telemetry for unauthenticated callers or require auth; add session inventory API + UI with revoke + audit logs.
-- Delivery plumbing: reverse proxy profile (Traefik/Caddy) with TLS + rate-limit defaults, plus a queue/broker (RQ or Celery + Redis) and worker containers for retries/webhooks.
-- Connector observability: surface per-source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
+- External search is auth+quota gated; anonymous callers only search internal. External hits live in short-TTL previews with payload/metadata caps and GC; full ingest follows user interaction.
+- Public surfaces: public menu DTO omits `owner_id`; `/health` returns telemetry only for authenticated/allowlisted callers; session inventory/revoke lives at `/api/auth/sessions` (UI pending).
+- Delivery plumbing: still need reverse proxy profile (TLS + rate-limit defaults) and to wire the queue/broker for retries/webhooks/scheduled syncs.
+- Connector observability: expose source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
 
 ### 7.2 Experience Fit & Finish (after 7.1)
 - Menu editor improvements: inline note formatting, drag handles that reveal keyboard shortcuts, autosave with conflict detection.

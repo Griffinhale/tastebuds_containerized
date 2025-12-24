@@ -4,6 +4,8 @@ import uuid
 
 import pytest
 
+from app.core.config import settings
+
 
 async def _authenticate_health_user(client):
     suffix = uuid.uuid4().hex[:8]
@@ -23,7 +25,11 @@ async def _authenticate_health_user(client):
 
 @pytest.mark.asyncio
 async def test_health_reports_ok_without_auth(client, monkeypatch):
+    called = False
+
     async def _snapshot_stub() -> dict[str, object]:
+        nonlocal called
+        called = True
         return {}
 
     monkeypatch.setattr("app.main.ingestion_monitor.snapshot", _snapshot_stub)
@@ -33,6 +39,7 @@ async def test_health_reports_ok_without_auth(client, monkeypatch):
     payload = response.json()
     assert payload["status"] == "ok"
     assert "ingestion" not in payload
+    assert called is False
 
 
 @pytest.mark.asyncio
@@ -87,3 +94,18 @@ async def test_health_degrades_for_authenticated_users(client, monkeypatch):
     assert telemetry["sources"]["tmdb"]["operations"]["fetch"]["last_error"] == "quota exceeded"
     assert telemetry["issues"][0]["source"] == "tmdb"
     assert telemetry["issues"][0]["reason"] in {"circuit_open", "last_error"}
+
+
+@pytest.mark.asyncio
+async def test_health_allows_allowlisted_clients_without_auth(client, monkeypatch):
+    async def _snapshot_stub() -> dict[str, object]:
+        return {}
+
+    monkeypatch.setattr("app.main.ingestion_monitor.snapshot", _snapshot_stub)
+    monkeypatch.setattr(settings, "health_allowlist", ["testserver"])
+
+    response = await client.get("/health")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["ingestion"]["issues"] == []

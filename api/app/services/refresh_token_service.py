@@ -66,6 +66,23 @@ async def issue_refresh_token(session: AsyncSession, user_id: uuid.UUID) -> str:
     return token_value
 
 
+async def list_user_tokens(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    include_expired: bool = False,
+    include_revoked: bool = False,
+) -> list[RefreshToken]:
+    stmt = select(RefreshToken).where(RefreshToken.user_id == user_id)
+    if not include_revoked:
+        stmt = stmt.where(RefreshToken.revoked_at.is_(None))
+    if not include_expired:
+        stmt = stmt.where(RefreshToken.expires_at > _current_time())
+    stmt = stmt.order_by(RefreshToken.created_at.desc())
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
 async def rotate_refresh_token(session: AsyncSession, token_value: str) -> tuple[str, uuid.UUID] | None:
     token = await _get_token_by_value(session, token_value)
     if not token:
@@ -105,3 +122,21 @@ async def revoke_refresh_token(session: AsyncSession, token_value: str, *, reaso
     token.revoked_at = _current_time()
     token.revoked_reason = reason
     await session.commit()
+
+
+async def revoke_refresh_token_by_id(
+    session: AsyncSession, user_id: uuid.UUID, token_id: uuid.UUID, *, reason: str = "revoked"
+) -> bool:
+    token = await session.get(RefreshToken, token_id)
+    if not token or token.user_id != user_id or token.revoked_at:
+        return False
+    token.revoked_at = _current_time()
+    token.revoked_reason = reason
+    if token.replaced_by_token_id:
+        await _revoke_descendant_tokens(session, token.replaced_by_token_id, reason=reason)
+    await session.commit()
+    return True
+
+
+async def get_token_by_value(session: AsyncSession, token_value: str) -> RefreshToken | None:
+    return await _get_token_by_value(session, token_value)

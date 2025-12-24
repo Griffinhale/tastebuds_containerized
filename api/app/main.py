@@ -1,6 +1,7 @@
+import ipaddress
 from typing import Any
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.deps import get_optional_current_user
@@ -49,13 +50,43 @@ def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
     return {"sources": snapshot, "issues": issues}
 
 
+def _entry_matches(entry: str, candidate: str) -> bool:
+    try:
+        network = ipaddress.ip_network(entry, strict=False)
+        return ipaddress.ip_address(candidate) in network
+    except ValueError:
+        return entry.casefold() == candidate.casefold()
+
+
+def _ip_or_host_allowlisted(request: Request) -> bool:
+    if not settings.health_allowlist:
+        return False
+    client_candidates: list[str] = []
+    if request.client and request.client.host:
+        client_candidates.append(request.client.host)
+    host_header = request.headers.get("host")
+    if host_header:
+        client_candidates.append(host_header.split(":")[0])
+    for candidate in client_candidates:
+        for entry in settings.health_allowlist:
+            if entry and _entry_matches(entry, candidate):
+                return True
+    return False
+
+
+def _can_view_health_detail(request: Request, current_user: User | None) -> bool:
+    if current_user:
+        return True
+    return _ip_or_host_allowlisted(request)
+
+
 @app.get("/health", tags=["internal"])
 @app.get(f"{settings.api_prefix}/health", tags=["internal"])
-async def health(current_user: User | None = Depends(get_optional_current_user)) -> dict[str, Any]:
+async def health(request: Request, current_user: User | None = Depends(get_optional_current_user)) -> dict[str, Any]:
+    if not _can_view_health_detail(request, current_user):
+        return {"status": "ok"}
+
     snapshot = await ingestion_monitor.snapshot()
     telemetry = _summarize_ingestion(snapshot)
     status = "ok" if not telemetry["issues"] else "degraded"
-    result = {"status": status}
-    if current_user:
-        result["ingestion"] = telemetry
-    return result
+    return {"status": status, "ingestion": telemetry}

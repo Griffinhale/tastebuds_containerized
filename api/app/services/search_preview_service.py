@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import uuid
 from datetime import datetime, timedelta
@@ -15,10 +16,35 @@ from app.models.search_preview import ExternalSearchPreview, UserExternalSearchQ
 
 
 def _serialize_result(result: ConnectorResult) -> dict[str, Any]:
+    raw_payload = _bounded_payload(result.raw_payload, settings.external_search_preview_max_payload_bytes)
     return {
         "source_url": result.source_url,
-        "raw_payload": result.raw_payload,
+        "raw_payload": raw_payload,
         "extensions": result.extensions,
+    }
+
+
+def _bounded_payload(payload: dict[str, Any], max_bytes: int) -> dict[str, Any]:
+    if not payload:
+        return {}
+    if max_bytes <= 0:
+        return {"truncated": True, "reason": "disabled"}
+    try:
+        encoded = json.dumps(payload, default=str).encode("utf-8")
+        size_bytes = len(encoded)
+    except Exception:
+        return {"truncated": True, "reason": "serialization_error"}
+
+    if size_bytes <= max_bytes:
+        return payload
+
+    preview = encoded[:max_bytes].decode("utf-8", errors="ignore")
+    return {
+        "truncated": True,
+        "reason": "payload_too_large",
+        "size_bytes": size_bytes,
+        "max_bytes": max_bytes,
+        "preview": preview,
     }
 
 
@@ -38,7 +64,7 @@ async def cache_connector_result(
     )
     existing = await session.scalar(stmt)
     serialized_payload = _serialize_result(result)
-    metadata = result.metadata or {}
+    metadata = _bounded_payload(result.metadata or {}, settings.external_search_preview_max_metadata_bytes)
     if existing:
         existing.media_type = result.media_type
         existing.title = result.title

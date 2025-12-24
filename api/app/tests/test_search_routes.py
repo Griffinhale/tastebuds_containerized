@@ -75,6 +75,16 @@ async def test_search_pagination_produces_metadata(client, session):
 
 
 @pytest.mark.asyncio
+async def test_external_search_requires_auth(client):
+    response = await client.get(
+        "/api/search",
+        params=[("q", "anon"), ("include_external", "true")],
+    )
+    assert response.status_code == 401
+    assert "authentication" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
 async def test_search_external_ingests_multi_source(client, monkeypatch, session):
     await _authenticate_for_external(client)
     session.add(MediaItem(media_type=MediaType.BOOK, title="Fan Query"))

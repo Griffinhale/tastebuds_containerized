@@ -35,8 +35,11 @@ class Settings(BaseSettings):
     external_search_quota_max_requests: int = 10
     external_search_quota_window_seconds: int = 60
     external_search_preview_ttl_seconds: int = 300
+    external_search_preview_max_payload_bytes: int = 50_000
+    external_search_preview_max_metadata_bytes: int = 20_000
     redis_url: str = "redis://redis:6379/0"
     worker_queue_names: list[str] = Field(default_factory=lambda: ["default"])
+    health_allowlist: list[str] | str = Field(default_factory=list)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -91,6 +94,26 @@ class Settings(BaseSettings):
             if names:
                 return names
         return ["default"]
+
+    @field_validator("health_allowlist", mode="before")
+    @classmethod
+    def _split_health_allowlist(cls, value: str | list[str] | None) -> list[str]:
+        if isinstance(value, list):
+            cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+            return cleaned
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                cleaned = [str(item).strip() for item in parsed if str(item).strip()]
+                return cleaned
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return []
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
