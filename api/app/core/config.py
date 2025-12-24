@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     external_search_quota_max_requests: int = 10
     external_search_quota_window_seconds: int = 60
     external_search_preview_ttl_seconds: int = 300
+    redis_url: str = "redis://redis:6379/0"
+    worker_queue_names: list[str] = Field(default_factory=lambda: ["default"])
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -65,6 +67,30 @@ class Settings(BaseSettings):
             msg = "TMDB_API_AUTH_HEADER (preferred) or TMDB_API_KEY must be set for TMDB ingestion"
             raise ValueError(msg)
         return self
+
+    @field_validator("worker_queue_names", mode="before")
+    @classmethod
+    def _split_worker_queue_names(cls, value: str | list[str] | None) -> list[str]:
+        if isinstance(value, list):
+            cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+            if cleaned:
+                return cleaned
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return ["default"]
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                cleaned = [str(item).strip() for item in parsed if str(item).strip()]
+                if cleaned:
+                    return cleaned
+            names = [item.strip() for item in stripped.split(",") if item.strip()]
+            if names:
+                return names
+        return ["default"]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
