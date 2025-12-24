@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 
 import httpx
 
@@ -12,51 +13,88 @@ from app.models.media import MediaType
 
 class IGDBConnector(BaseConnector):
     source_name = "igdb"
+    _token_url = "https://id.twitch.tv/oauth2/token"
+    _game_url = "https://api.igdb.com/v4/games"
+    _token_refresh_buffer_seconds = 30
 
     def __init__(self, client_id: str | None = None, client_secret: str | None = None) -> None:
         self.client_id = client_id or settings.igdb_client_id
         self.client_secret = client_secret or settings.igdb_client_secret
         self._access_token: str | None = None
+        self._token_expires_at: datetime | None = None
 
-    async def _ensure_token(self) -> str:
-        if self._access_token:
-            return self._access_token
+    def _reset_token_cache(self) -> None:
+        self._access_token = None
+        self._token_expires_at = None
+
+    def _needs_token_refresh(self) -> bool:
+        if not self._access_token or not self._token_expires_at:
+            return True
+        refresh_buffer = timedelta(seconds=max(self._token_refresh_buffer_seconds, 0))
+        return datetime.utcnow() + refresh_buffer >= self._token_expires_at
+
+    async def _ensure_token(self, force_refresh: bool = False) -> str:
         if not self.client_id or not self.client_secret:
             raise ExternalAPIError("IGDB credentials missing")
+        if not force_refresh and not self._needs_token_refresh():
+            return self._access_token  # type: ignore[return-value]
+
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
-                "https://id.twitch.tv/oauth2/token",
+                self._token_url,
                 params={
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
                     "grant_type": "client_credentials",
                 },
             )
-            response.raise_for_status()
-            data = response.json()
-            self._access_token = data.get("access_token")
-            if not self._access_token:
-                raise ExternalAPIError("Failed to fetch IGDB token")
-            return self._access_token
+        response.raise_for_status()
+        data = response.json()
+        token = data.get("access_token")
+        if not token:
+            raise ExternalAPIError("Failed to fetch IGDB token")
+        expires_value = data.get("expires_in")
+        expires_seconds = 0
+        if expires_value is not None:
+            try:
+                expires_seconds = int(expires_value)
+            except (TypeError, ValueError):
+                expires_seconds = 0
+        if expires_seconds <= 0:
+            expires_seconds = 60
+        self._access_token = token
+        self._token_expires_at = datetime.utcnow() + timedelta(seconds=expires_seconds)
+        return token
+
+    async def _authenticated_post(self, content: str) -> list[dict[str, Any]]:
+        for attempt in range(2):
+            token = await self._ensure_token(force_refresh=(attempt > 0))
+            headers = {
+                "Client-ID": self.client_id or "",
+                "Authorization": f"Bearer {token}",
+            }
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(self._game_url, content=content, headers=headers)
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:  # pragma: no cover - rare race conditions handled upstream
+                if attempt == 0 and exc.response.status_code == 401:
+                    self._reset_token_cache()
+                    continue
+                raise
+            payload = response.json()
+            if isinstance(payload, list):
+                return payload
+            return []
+        raise ExternalAPIError("IGDB request failed after refreshing token")
 
     async def fetch(self, identifier: str) -> ConnectorResult:
-        token = await self._ensure_token()
         query = (
             "fields name,summary,first_release_date,cover.url,genres.name,platforms.name,"
             "involved_companies.company.name,involved_companies.publisher,involved_companies.developer;"
             f" where id = {identifier};"
         )
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(
-                "https://api.igdb.com/v4/games",
-                content=query,
-                headers={
-                    "Client-ID": self.client_id or "",
-                    "Authorization": f"Bearer {token}",
-                },
-            )
-            response.raise_for_status()
-            body = response.json()
+        body = await self._authenticated_post(query)
         if not body:
             raise ExternalAPIError("IGDB resource not found")
         payload = body[0]
@@ -97,17 +135,6 @@ class IGDBConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
-        token = await self._ensure_token()
         igdb_query = f'search "{query}"; fields id; limit {limit};'
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(
-                "https://api.igdb.com/v4/games",
-                content=igdb_query,
-                headers={
-                    "Client-ID": self.client_id or "",
-                    "Authorization": f"Bearer {token}",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        data = await self._authenticated_post(igdb_query)
         return [str(item["id"]) for item in data if item.get("id")]

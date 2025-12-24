@@ -71,10 +71,11 @@ async def cache_connector_result(
     return preview
 
 
-async def prune_expired_previews(session: AsyncSession) -> None:
+async def prune_expired_previews(session: AsyncSession) -> int:
     now = datetime.utcnow()
-    await session.execute(delete(ExternalSearchPreview).where(ExternalSearchPreview.expires_at <= now))
+    result = await session.execute(delete(ExternalSearchPreview).where(ExternalSearchPreview.expires_at <= now))
     await session.commit()
+    return result.rowcount or 0
 
 
 async def enforce_search_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
