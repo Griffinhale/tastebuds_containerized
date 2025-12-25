@@ -114,11 +114,10 @@ async def prune_media_source_payloads(
         update(MediaSource)
         .where(MediaSource.fetched_at <= cutoff)
         .values(raw_payload=scrubbed_payload)
-        .execution_options(synchronize_session=False)
+        .execution_options(synchronize_session="fetch")
     )
     result = await session.execute(stmt)
     await session.commit()
-    session.sync_session.expire_all()
     return result.rowcount or 0
 
 

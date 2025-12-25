@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
 import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
