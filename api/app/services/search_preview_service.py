@@ -20,6 +20,14 @@ def _utcnow() -> datetime:
     return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
 
 
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _serialize_result(result: ConnectorResult) -> dict[str, Any]:
     raw_payload = _bounded_payload(result.raw_payload, settings.external_search_preview_max_payload_bytes)
     return {
@@ -99,6 +107,8 @@ async def cache_connector_result(
         session.add(preview)
     await session.commit()
     await session.refresh(preview)
+    # Normalize to UTC in case the backend returns naive datetimes (e.g., SQLite)
+    preview.expires_at = _ensure_utc(preview.expires_at)  # type: ignore[assignment]
     return preview
 
 
@@ -122,6 +132,8 @@ async def enforce_search_quota(session: AsyncSession, user_id: uuid.UUID) -> Non
         session.add(quota)
         await session.commit()
         return
+    quota_window_start = _ensure_utc(quota.window_start)
+    quota.window_start = quota_window_start or window_start
     if quota.window_start == window_start:
         if quota.count >= settings.external_search_quota_max_requests:
             quota_max_requests = settings.external_search_quota_max_requests

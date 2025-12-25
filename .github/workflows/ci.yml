@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -22,12 +26,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
           cache-dependency-path: api/requirements-dev.txt
 
       - name: Install backend dependencies
-        run: pip install -r requirements-dev.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
 
       - name: Ruff
         run: python -m ruff check app --fix
@@ -41,6 +47,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: api/requirements-dev.txt
+
+      - name: Install backend dev dependencies (for helper scripts)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r api/requirements-dev.txt
 
       - name: Run API tests via dev script
         run: ./scripts/dev.sh test
@@ -67,7 +85,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
