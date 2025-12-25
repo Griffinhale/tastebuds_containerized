@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import uuid
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from time import monotonic
-from typing import Iterable, TypeAlias
+from typing import Any, Iterable, TypeAlias
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.ingestion import get_connector
 from app.ingestion.base import ConnectorResult
 from app.ingestion.observability import CircuitOpenError, ingestion_monitor
@@ -32,6 +34,28 @@ DedupeKey: TypeAlias = tuple[str, ...]
 
 def normalize_title(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _bounded_payload(payload: dict[str, Any], max_bytes: int, *, kind: str) -> dict[str, Any]:
+    if not payload:
+        return {}
+    if max_bytes <= 0:
+        return {"truncated": True, "reason": f"{kind}_storage_disabled"}
+    try:
+        encoded = json.dumps(payload, default=str).encode("utf-8")
+        size_bytes = len(encoded)
+    except Exception:
+        return {"truncated": True, "reason": f"{kind}_serialization_error"}
+    if size_bytes <= max_bytes:
+        return payload
+    preview = encoded[:max_bytes].decode("utf-8", errors="ignore")
+    return {
+        "truncated": True,
+        "reason": f"{kind}_payload_too_large",
+        "size_bytes": size_bytes,
+        "max_bytes": max_bytes,
+        "preview": preview,
+    }
 
 
 def build_dedupe_key(
@@ -96,8 +120,6 @@ async def prune_media_source_payloads(
     session: AsyncSession, *, retention_days: int | None = None
 ) -> int:
     """Scrub stale connector payloads to keep data retention bounded."""
-
-    from app.core.config import settings
 
     ttl_days = retention_days if retention_days is not None else settings.ingestion_payload_retention_days
     if ttl_days <= 0:
@@ -288,6 +310,15 @@ async def ingest_from_source(
 async def upsert_media(
     session: AsyncSession, connector_result: ConnectorResult, force_refresh: bool = False
 ) -> MediaItem:
+    bounded_raw_payload = _bounded_payload(
+        connector_result.raw_payload or {}, settings.ingestion_payload_max_bytes, kind="raw_ingestion"
+    )
+    bounded_metadata = _bounded_payload(
+        connector_result.metadata or {}, settings.ingestion_metadata_max_bytes, kind="metadata"
+    )
+    connector_result.metadata = bounded_metadata
+    connector_result.raw_payload = bounded_raw_payload
+
     existing = await session.execute(
         select(MediaSource).where(
             and_(
@@ -313,6 +344,7 @@ async def upsert_media(
         await _apply_result_to_item(media_item, connector_result)
         media_source.raw_payload = connector_result.raw_payload
         media_source.canonical_url = connector_result.source_url
+        media_source.fetched_at = datetime.utcnow()
     else:
         media_item = MediaItem(
             media_type=connector_result.media_type,
@@ -333,6 +365,7 @@ async def upsert_media(
             external_id=connector_result.source_id,
             canonical_url=connector_result.source_url,
             raw_payload=connector_result.raw_payload,
+            fetched_at=datetime.utcnow(),
         )
         session.add(media_source)
 

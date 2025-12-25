@@ -48,3 +48,13 @@ async def get_optional_current_user(
     if not candidate:
         return None
     return await _resolve_user_from_token(session, candidate)
+
+
+async def require_ops_admin(user: User = Depends(get_current_user)) -> User:
+    allowlist = set(settings.ops_admin_emails or [])
+    if allowlist and (user.email or "").lower() not in allowlist:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required for operations diagnostics",
+        )
+    return user

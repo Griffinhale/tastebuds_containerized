@@ -51,6 +51,7 @@ _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/br
 - Connector observability: `/health` now reports circuits, repeated failures, and last errors; the ingest/search UI surfaces connector badges when degraded.
 - Ops: `/api/ops/queues` surfaces Redis/RQ health for authenticated users and feeds the web dashboard card; keep tightening guardrails around who can see it.
 - Retention: external preview GC stays scheduled, and raw ingestion payloads are scrubbed after `INGESTION_PAYLOAD_RETENTION_DAYS` to keep data bounded.
+- Hardening updates: ingested payloads are now size-capped at write time and redacted on expiry; IGDB tokens refresh ahead of expiry and clear cached secrets on 401s; proxy profiles tightened with admin-only diagnostics; credential vault + integrations queue are online so Spotify/Arr/Jellyfin work can land without backtracking.
 
 ### 7.2 Experience Fit & Finish (after 7.1)
 - Menu editor improvements: inline note formatting, drag handles that reveal keyboard shortcuts, autosave with conflict detection.

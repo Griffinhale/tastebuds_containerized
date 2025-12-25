@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -23,6 +23,10 @@ class IGDBConnector(BaseConnector):
         self._access_token: str | None = None
         self._token_expires_at: datetime | None = None
 
+    def _utcnow(self) -> datetime:
+        now = datetime.utcnow()
+        return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+
     def _reset_token_cache(self) -> None:
         self._access_token = None
         self._token_expires_at = None
@@ -31,7 +35,10 @@ class IGDBConnector(BaseConnector):
         if not self._access_token or not self._token_expires_at:
             return True
         refresh_buffer = timedelta(seconds=max(self._token_refresh_buffer_seconds, 0))
-        return datetime.utcnow() + refresh_buffer >= self._token_expires_at
+        expiry = self._token_expires_at
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        return self._utcnow() + refresh_buffer >= expiry
 
     async def _ensure_token(self, force_refresh: bool = False) -> str:
         if not self.client_id or not self.client_secret:
@@ -63,7 +70,7 @@ class IGDBConnector(BaseConnector):
         if expires_seconds <= 0:
             expires_seconds = 60
         self._access_token = token
-        self._token_expires_at = datetime.utcnow() + timedelta(seconds=expires_seconds)
+        self._token_expires_at = self._utcnow() + timedelta(seconds=expires_seconds)
         return token
 
     async def _authenticated_post(self, content: str) -> list[dict[str, Any]]:
@@ -78,9 +85,10 @@ class IGDBConnector(BaseConnector):
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:  # pragma: no cover - rare race conditions handled upstream
-                if attempt == 0 and exc.response.status_code == 401:
+                if exc.response.status_code == 401:
                     self._reset_token_cache()
-                    continue
+                    if attempt == 0:
+                        continue
                 raise
             payload = response.json()
             if isinstance(payload, list):

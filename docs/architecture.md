@@ -5,7 +5,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 ## Runtime Topology
 - **Services (docker-compose.yml):** `api` (FastAPI + SQLAlchemy/Alembic), `db` (Postgres 15), `redis` (RQ broker), `worker` (`python -m app.worker`), `scheduler` (`rqscheduler`), `web` (Next.js), optional `pgadmin`, and `proxy` (local Nginx front door that routes `/api` to the backend and serves Next.js at the root).
 - **Edge routing:** The `proxy` service now listens on 80/443 with a bundled dev certificate, redirects HTTP to HTTPS, staples OCSP, auto-rotates self-signed certs via `docker/proxy/entrypoint.sh`, applies per-route rate limits (auth, ingest, search, public), funnels `/api` to `api:8000`, and hands the remaining traffic to `web:3000`.
-- **State:** Postgres owns canonical media (`media_items` + extensions), provenance (`media_sources`), menus/courses/items, tags, per-user states, and refresh tokens for session inventory. Redis now holds the queue state for ingestion retries, webhook/sync jobs, and scheduled maintenance while UUIDs remain generated in the API.
+- **State:** Postgres owns canonical media (`media_items` + extensions), provenance (`media_sources`), menus/courses/items, tags, per-user states, refresh tokens for session inventory, and encrypted integration secrets in `user_credentials`. Redis now holds the queue state for ingestion retries, webhook/sync jobs, integrations, and scheduled maintenance while UUIDs remain generated in the API.
 - **Env & secrets:** `.env` is consumed by API, worker, and web; external API keys (Google Books, TMDB v4 bearer, IGDB client/secret, Last.fm) are required for live ingestion.
 - **Not yet present:** ACME/production cert issuance and webhook payload persistence beyond the current stateless handlers.
 
@@ -15,7 +15,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Search:** `GET /api/search` queries Postgres first, optionally fans out to external connectors, and requires auth for any external sources. External results are stored in a short-TTL preview cache (with payload/metadata caps) and fully ingested only when an authenticated user opens details or saves to a menu/library.
 - **Menus & sharing:** Authenticated owners manage menus/courses/items; `GET /api/public/menus/{slug}` serves published menus anonymously using a public DTO that omits `owner_id`.
 - **Health/telemetry:** `/health` and `/api/health` return only `{status}` to anonymous callers; authenticated or allowlisted callers also see connector status, repeated failure alerts, and open circuits for ingestion/search fan-out.
-- **Ops/queues:** `/api/ops/queues` (auth required) surfaces Redis/RQ queue sizes, worker presence, and scheduler health for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
+- **Ops/queues:** `/api/ops/queues` (auth + admin allowlist) surfaces Redis/RQ queue sizes, worker presence, scheduler health, and vault encryption status for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
 
 ## Delivery & Ops Dependencies
 - **Migrations:** `alembic upgrade head` is part of boot; initial revision `20240602_000001` creates the full schema.

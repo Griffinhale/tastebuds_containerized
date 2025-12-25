@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Any, Callable
 
 from datetime import datetime
@@ -17,6 +18,7 @@ from rq.worker import Worker
 from rq_scheduler import Scheduler
 
 from app.core.config import settings
+from app.services.credential_vault import credential_vault
 
 logger = logging.getLogger("app.services.task_queue")
 
@@ -116,6 +118,22 @@ class TaskQueue:
             requested_by=requested_by,
         )
 
+    async def enqueue_credential_rotation(
+        self, *, provider: str, user_id: uuid.UUID, requested_by: str | None = None
+    ) -> Any:
+        """Dedicated pipeline for rotating third-party credentials."""
+        from app.jobs.credentials import rotate_credential_job
+
+        return await self.enqueue_or_run(
+            rotate_credential_job,
+            queue_name="integrations",
+            timeout_seconds=30,
+            description=f"rotate:{provider}:{user_id}",
+            provider=provider,
+            user_id=str(user_id),
+            requested_by=requested_by,
+        )
+
     async def enqueue_or_run(
         self,
         func: Callable[..., Any],
@@ -165,6 +183,7 @@ class TaskQueue:
                 "workers": [],
                 "error": "queue connection not initialized",
                 "redis_url": settings.redis_url,
+                "vault": credential_vault.health(),
             }
 
         queues: list[dict[str, Any]] = []
@@ -224,6 +243,7 @@ class TaskQueue:
             "scheduler": scheduler_summary,
             "warnings": warnings,
             "checked_at": datetime.utcnow().isoformat() + "Z",
+            "vault": credential_vault.health(),
         }
 
 

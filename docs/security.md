@@ -9,8 +9,8 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 
 ## 2. Third-party payload retention
 - **Where:** `app/services/media_service.py`
-- **Status:** External search results are preview-only with TTL/size caps. Explicit ingest still writes full `raw_payload` to `media_sources`, but those payloads are now scrubbed after `INGESTION_PAYLOAD_RETENTION_DAYS` via the maintenance queue job.
-- **Plan:** Validate retention/redaction defaults against licensing terms and add optional encryption/truncation for long-term storage.
+- **Status:** External search results are preview-only with TTL/size caps. Explicit ingest now size-caps payload + metadata at write time and still scrubs `raw_payload` after `INGESTION_PAYLOAD_RETENTION_DAYS` via the maintenance queue job.
+- **Plan:** Validate retention/redaction defaults against licensing terms and add optional encryption for long-term storage.
 
 ## 3. Public menu surface (implemented)
 - **Where:** `api/app/api/routes/public.py`, `app/schema/menu.py`
@@ -22,15 +22,24 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 - **Status:** Anonymous callers receive `{status}` only; authenticated or allowlisted hosts (via `HEALTH_ALLOWLIST`) receive connector telemetry.
 - **Plan:** Add admin-only diagnostics if deeper logs are needed.
 
-## 5. IGDB access token never refreshes
+## 5. IGDB access token never refreshes (resolved)
 - **Where:** `api/app/ingestion/igdb.py`
-- **Problem:** `_ensure_token` caches the Twitch OAuth token indefinitely and never checks `expires_in`. After the token expires, all IGDB searches/fetches fail until the API container restarts.
-- **Impact:** Game ingestion silently dies, connector circuit breakers flap, and users cannot ingest or search for games.
-- **Fix direction:** Persist the token expiry timestamp, refresh before it lapses, and invalidate the cache on 401 responses.
+- **Status:** Token expiry is now cached with a refresh buffer; 401s clear the cache and force a refresh so searches/ingests recover without restarts.
+- **Residual:** Mirror this pattern for other OAuth-backed connectors as they arrive.
+
+## 6. Integration credential handling
+- **Where:** `api/app/services/credential_vault.py`, `app/models/credential.py`
+- **Status:** Per-user integration secrets are encrypted with Fernet at rest (`user_credentials`), include optional expiries, and clear on failures. Vault health surfaces through `/api/ops/queues`.
+- **Residual:** Add provider-specific rotation jobs once connectors (Spotify/Arr/Jellyfin) are wired; consider HSM/KMS when moving beyond dev.
+
+## 7. Ops surface scoping
+- **Where:** `docker/proxy/nginx.conf`, `api/app/api/routes/ops.py`
+- **Status:** Proxy now rate-limits and IP-allows `/api/ops/`, and the API requires an admin email allowlist for diagnostics. Health includes queue + vault status.
+- **Residual:** Move to role-based admin claims once user roles exist; consider mutual TLS for production ops endpoints.
 
 ---
 
 **Next Steps**
-1. Add retention/GC for long-lived ingested payloads (post-ingest, not just previews); consider truncation/encryption options.
-2. Finalize IGDB token refresh logic and add similar expiry handling for other OAuth-based connectors.
-3. Introduce rate-limit profiles at the proxy and admin-grade health diagnostics once TLS is in place.
+1. Validate payload caps/retention defaults against licensing terms; consider migrating sensitive ingestion payloads to encrypted storage.
+2. Mirror IGDB-style token refresh/401 handling for upcoming Spotify/Arr/Jellyfin connectors and move secrets into the vault by default.
+3. Tighten ops exposure with role-based admin claims and, for production, mutual TLS or private-network-only access to `/api/ops/*`.

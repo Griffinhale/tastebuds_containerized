@@ -31,10 +31,12 @@ cp .env.example .env
 Set at minimum:
 - `DATABASE_URL` / `TEST_DATABASE_URL` (Compose defaults target `db`)
 - `REDIS_URL` (defaults to `redis://redis:6379/0`) for the queue broker that backs the worker service
-- `WORKER_QUEUE_NAMES` (defaults to `default,ingestion,maintenance,webhooks,sync`) if you want to tune which queues the worker listens to
+- `WORKER_QUEUE_NAMES` (defaults to `default,ingestion,integrations,maintenance,webhooks,sync`) if you want to tune which queues the worker listens to
 - `JWT_SECRET_KEY` (required for token issuance)
 - `NEXT_PUBLIC_API_BASE` and `API_INTERNAL_BASE` (defaults are fine for Compose); `NEXT_PUBLIC_APP_BASE_URL` powers share links/OG metadata for public menus
 - `CORS_ORIGINS` (comma-separated list of allowed browser origins)
+- `INGESTION_PAYLOAD_MAX_BYTES` / `INGESTION_METADATA_MAX_BYTES` to cap stored upstream payloads and `CREDENTIAL_VAULT_KEY` for encrypting integration secrets at rest (falls back to `JWT_SECRET_KEY` in dev).
+- `OPS_ADMIN_EMAILS` to restrict `/api/ops/*` diagnostics to a specific set of users.
 - External API credentials: `GOOGLE_BOOKS_API_KEY`, `TMDB_API_AUTH_HEADER` (TMDB v4 bearer, preferred) _or_ `TMDB_API_KEY` as a fallback, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `LASTFM_API_KEY`. TMDB credentials are validated at startup.
 The Compose stack also reads `.env` for the web service.
 

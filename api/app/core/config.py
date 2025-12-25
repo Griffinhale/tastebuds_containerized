@@ -38,9 +38,13 @@ class Settings(BaseSettings):
     external_search_preview_max_payload_bytes: int = 50_000
     external_search_preview_max_metadata_bytes: int = 20_000
     ingestion_payload_retention_days: int = 90
+    ingestion_payload_max_bytes: int = 250_000
+    ingestion_metadata_max_bytes: int = 50_000
+    credential_vault_key: Optional[str] = None
+    ops_admin_emails: list[str] | str = Field(default_factory=list)
     redis_url: str = "redis://redis:6379/0"
     worker_queue_names: list[str] | str = Field(
-        default_factory=lambda: ["default", "ingestion", "maintenance", "webhooks", "sync"]
+        default_factory=lambda: ["default", "ingestion", "integrations", "maintenance", "webhooks", "sync"]
     )
     health_allowlist: list[str] | str = Field(default_factory=list)
 
@@ -116,6 +120,24 @@ class Settings(BaseSettings):
                 cleaned = [str(item).strip() for item in parsed if str(item).strip()]
                 return cleaned
             return [item.strip() for item in stripped.split(",") if item.strip()]
+        return []
+
+    @field_validator("ops_admin_emails", mode="before")
+    @classmethod
+    def _split_ops_admin_emails(cls, value: str | list[str] | None) -> list[str]:
+        if isinstance(value, list):
+            return [email.strip().lower() for email in value if isinstance(email, str) and email.strip()]
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(email).strip().lower() for email in parsed if str(email).strip()]
+            return [email.strip().lower() for email in stripped.split(",") if email.strip()]
         return []
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

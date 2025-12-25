@@ -4,7 +4,7 @@ import typing
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, event
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,3 +51,25 @@ class UserExternalSearchQuota(Base):
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     user = relationship("User", backref="external_search_quota")
+
+
+def _ensure_tz_aware(dt: datetime | None) -> datetime | None:
+    """Normalize DB-loaded timestamps to UTC to avoid naive/aware comparisons in SQLite tests."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+@event.listens_for(ExternalSearchPreview, "load")
+@event.listens_for(ExternalSearchPreview, "refresh")
+def _normalize_preview_timestamps(target: ExternalSearchPreview, *_, **__) -> None:
+    target.expires_at = _ensure_tz_aware(target.expires_at)  # type: ignore[assignment]
+    target.created_at = _ensure_tz_aware(target.created_at)  # type: ignore[assignment]
+
+
+@event.listens_for(UserExternalSearchQuota, "load")
+@event.listens_for(UserExternalSearchQuota, "refresh")
+def _normalize_quota_timestamps(target: UserExternalSearchQuota, *_, **__) -> None:
+    target.window_start = _ensure_tz_aware(target.window_start)  # type: ignore[assignment]
