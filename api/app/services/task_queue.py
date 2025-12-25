@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
+from datetime import datetime
 from redis import Redis
 from redis.exceptions import RedisError
 from rq import Queue
@@ -73,6 +74,47 @@ class TaskQueue:
             raise RuntimeError("Queue connection not initialized")
         target = queue_name or (self.queue_names[0] if self.queue_names else "default")
         return Queue(target, connection=self._connection)
+
+    async def enqueue_webhook_event(
+        self, *, provider: str, payload: dict[str, Any], event_type: str | None = None, source_ip: str | None = None
+    ) -> Any:
+        """Dispatch webhook events through the dedicated queue."""
+        from app.jobs.webhooks import handle_webhook_event_job
+
+        return await self.enqueue_or_run(
+            handle_webhook_event_job,
+            queue_name="webhooks",
+            timeout_seconds=30,
+            description=f"webhook:{provider}",
+            provider=provider,
+            payload=payload,
+            event_type=event_type,
+            source_ip=source_ip,
+        )
+
+    async def enqueue_sync_task(
+        self,
+        *,
+        provider: str,
+        external_id: str,
+        action: str = "ingest",
+        force_refresh: bool = False,
+        requested_by: str | None = None,
+    ) -> Any:
+        """Dispatch sync/refresh work through the worker queue."""
+        from app.jobs.sync import run_sync_job
+
+        return await self.enqueue_or_run(
+            run_sync_job,
+            queue_name="sync",
+            timeout_seconds=120,
+            description=f"sync:{provider}:{external_id}",
+            provider=provider,
+            external_id=external_id,
+            action=action,
+            force_refresh=force_refresh,
+            requested_by=requested_by,
+        )
 
     async def enqueue_or_run(
         self,
@@ -163,15 +205,25 @@ class TaskQueue:
         try:
             scheduler = Scheduler(connection=self._connection, queue_name=self.queue_names[0])
             scheduler_summary["scheduled_jobs"] = len(scheduler.get_jobs())
+            scheduler_summary["healthy"] = True
         except Exception:  # pragma: no cover - redis specific
             scheduler_summary["scheduled_jobs"] = None
+            scheduler_summary["healthy"] = False
 
+        warnings: list[str] = []
+        if not workers:
+            warnings.append("no_workers")
+        if scheduler_summary.get("healthy") is False:
+            warnings.append("scheduler_unreachable")
+        status = "online" if not warnings else "degraded"
         return {
-            "status": "online",
+            "status": status,
             "queues": queues,
             "workers": workers,
             "redis": redis_info,
             "scheduler": scheduler_summary,
+            "warnings": warnings,
+            "checked_at": datetime.utcnow().isoformat() + "Z",
         }
 
 

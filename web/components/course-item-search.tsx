@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState, useId, useRef, ForwardedRef, forwardRef } from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
+import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
 
 type CourseItemSearchProps = {
   menuId: string;
@@ -45,6 +46,8 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [position, setPosition] = useState(course.items.length + 1);
   const [notes, setNotes] = useState('');
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [connectorHealth, setConnectorHealth] = useState<ConnectorHealth[]>([]);
+  const [connectorMessage, setConnectorMessage] = useState<string | null>(null);
   const queryHelpId = useId();
   const resultsHeadingId = useId();
   const statusRegionId = useId();
@@ -62,6 +65,31 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     }
   }, [error]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchHealth()
+      .then((payload) => {
+        if (cancelled) return;
+        const connectors = normalizeConnectorHealth(payload);
+        setConnectorHealth(connectors);
+        if (connectors.some((item) => item.state !== 'ok')) {
+          setConnectorMessage('Connectors are cooling down—external searches may pause briefly.');
+        } else if (connectors.length === 0) {
+          setConnectorMessage('Sign in to view connector telemetry.');
+        } else {
+          setConnectorMessage(null);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setConnectorHealth([]);
+        setConnectorMessage(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const metadataEntries = useMemo(() => {
     if (!metadata) return [];
     return Object.entries(metadata).map(([key, value]) => {
@@ -76,6 +104,12 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       return [key, JSON.stringify(value)] as [string, string];
     });
   }, [metadata]);
+
+  const connectorBadgeClass = (state: ConnectorHealth['state']) => {
+    if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+    if (state === 'circuit_open') return 'border-amber-400/40 bg-amber-500/10 text-amber-100';
+    return 'border-red-500/50 bg-red-500/10 text-red-100';
+  };
 
   const resultSummary = useMemo(() => {
     if (searching) {
@@ -273,6 +307,29 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             />
             Include external
           </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {connectorHealth.map((connector) => (
+            <span
+              key={connector.source}
+              className={`rounded-full border px-3 py-1 ${connectorBadgeClass(connector.state)}`}
+              title={
+                connector.last_error
+                  ? `Last error: ${connector.last_error}`
+                  : connector.remaining_cooldown
+                    ? `Cooling down for ${connector.remaining_cooldown.toFixed(1)}s`
+                    : 'Healthy'
+              }
+            >
+              {connector.source}: {connector.state}
+            </span>
+          ))}
+          {connectorMessage && (
+            <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-amber-100">
+              {connectorMessage}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">

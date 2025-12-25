@@ -6,7 +6,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 
 ## Current Status (Dec 2025)
 - Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), Redis plus an RQ worker and scheduler (`redis`/`worker`/`scheduler`), the optional Next.js app (`web`), optional PgAdmin, and a local Nginx proxy that fronts the API and UI on port 80/443.
-- The local proxy terminates TLS with a bundled dev certificate (swap for a real cert in prod), enforces basic rate limits per route family, redirects HTTP to HTTPS, and surfaces queue/redis health via `/api/ops/queues` (auth required).
+- The local proxy terminates TLS with a bundled dev certificate (auto-rotated via `docker/proxy/entrypoint.sh`, swap for a real cert in prod), staples OCSP, enforces route-specific rate limits, redirects HTTP to HTTPS, and surfaces queue/redis health via `/api/ops/queues` (auth required).
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
 - Session inventory: `/api/auth/sessions` lists active/expired refresh tokens for the current user and supports revocation per session; cookies continue to mirror new tokens on rotate/login.
 - Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`. Merged results are deterministic (internal first, then external by requested order, then title/release), with cross-connector dedupe keyed off canonical URLs or normalized title + release date.
@@ -15,7 +15,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a home search workspace, a menus dashboard with inline course/item editors plus a search/ingest drawer, and slug-based public menu pages rendered at `/menus/[slug]`.
-- Known security gaps: review `docs/security.md` for remaining risks (retention policy, rate-limit polish). Public menu DTO is now owner-safe, external search is auth+quota gated with preview caching, and `/health` hides telemetry unless the caller is authenticated or allowlisted.
+- Known security gaps: review `docs/security.md` for remaining risks (production ACME/cert pipeline, connector credential refresh). Public menu DTO is now owner-safe, external search is auth+quota gated with preview caching + payload caps, and `/health` hides telemetry unless the caller is authenticated or allowlisted.
 - Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache with payload caps until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
 
 ## Architecture & Data Model
@@ -31,7 +31,7 @@ cp .env.example .env
 Set at minimum:
 - `DATABASE_URL` / `TEST_DATABASE_URL` (Compose defaults target `db`)
 - `REDIS_URL` (defaults to `redis://redis:6379/0`) for the queue broker that backs the worker service
-- `WORKER_QUEUE_NAMES` (defaults to `default,ingestion,maintenance`) if you want to tune which queues the worker listens to
+- `WORKER_QUEUE_NAMES` (defaults to `default,ingestion,maintenance,webhooks,sync`) if you want to tune which queues the worker listens to
 - `JWT_SECRET_KEY` (required for token issuance)
 - `NEXT_PUBLIC_API_BASE` and `API_INTERNAL_BASE` (defaults are fine for Compose); `NEXT_PUBLIC_APP_BASE_URL` powers share links/OG metadata for public menus
 - `CORS_ORIGINS` (comma-separated list of allowed browser origins)

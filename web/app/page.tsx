@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { ApiStatus } from '../components/api-status';
 import { CurrentUser } from '../components/current-user';
+import { QueueStatus } from '../components/queue-status';
 import { MediaSearchExplorer } from '../components/media-search-explorer';
 
 export default function Home() {
@@ -38,7 +39,10 @@ export default function Home() {
         </div>
       </header>
 
-      <ApiStatus />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ApiStatus />
+        <QueueStatus />
+      </div>
 
       <CurrentUser />
 

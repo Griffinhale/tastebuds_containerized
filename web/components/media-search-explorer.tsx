@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
+import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
 
 const typeOptions: { label: string; value: MediaType }[] = [
   { label: 'Books', value: 'book' },
@@ -30,6 +31,8 @@ export function MediaSearchExplorer() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectorHealth, setConnectorHealth] = useState<ConnectorHealth[]>([]);
+  const [connectorMessage, setConnectorMessage] = useState<string | null>(null);
 
   const resultSummary = useMemo(() => {
     if (searching) return 'Searching...';
@@ -49,6 +52,37 @@ export function MediaSearchExplorer() {
     if (!metadata) return [] as [string, string][];
     return Object.entries(metadata).map(([key, value]) => [key, String(value)]);
   }, [metadata]);
+
+  const connectorBadgeClass = (state: ConnectorHealth['state']) => {
+    if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+    if (state === 'circuit_open') return 'border-amber-400/40 bg-amber-500/10 text-amber-100';
+    return 'border-red-500/50 bg-red-500/10 text-red-100';
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchHealth()
+      .then((payload) => {
+        if (cancelled) return;
+        const connectors = normalizeConnectorHealth(payload);
+        setConnectorHealth(connectors);
+        if (connectors.some((item) => item.state !== 'ok')) {
+          setConnectorMessage('Connector issues detected—expect slower external fan-out.');
+        } else if (connectors.length === 0) {
+          setConnectorMessage('Sign in to view connector telemetry.');
+        } else {
+          setConnectorMessage(null);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setConnectorHealth([]);
+        setConnectorMessage(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggleType(value: MediaType) {
     setSelectedTypes((current) =>
@@ -174,6 +208,30 @@ export function MediaSearchExplorer() {
 
         <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
           <p className="text-xs uppercase tracking-wide text-emerald-200">Search context</p>
+          {connectorHealth.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {connectorHealth.map((connector) => (
+                <span
+                  key={connector.source}
+                  className={`rounded-full border px-3 py-1 ${connectorBadgeClass(connector.state)}`}
+                  title={
+                    connector.last_error
+                      ? `Last error: ${connector.last_error}`
+                      : connector.remaining_cooldown
+                        ? `Cooling down for ${connector.remaining_cooldown.toFixed(1)}s`
+                        : 'Healthy'
+                  }
+                >
+                  {connector.source}: {connector.state}
+                </span>
+              ))}
+            </div>
+          )}
+          {connectorMessage && (
+            <p className="text-[11px] text-amber-200" role="status" aria-live="polite">
+              {connectorMessage}
+            </p>
+          )}
           <ContextLine label="Source" value={source ? source : 'Internal first'} />
           <ContextLine
             label="Types"

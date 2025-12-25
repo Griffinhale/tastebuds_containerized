@@ -47,10 +47,10 @@ _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/br
 ### 7.1 Security & Foundation (in progress)
 - External search is auth+quota gated; anonymous callers only search internal. External hits live in short-TTL previews with payload/metadata caps and GC; full ingest follows user interaction.
 - Public surfaces: public menu DTO omits `owner_id`; `/health` returns telemetry only for authenticated/allowlisted callers; session inventory/revoke lives at `/api/auth/sessions` (UI pending).
-- Delivery plumbing: the local proxy now runs TLS with rate-limit defaults; ingestion/search fan-out flows enqueue through Redis-backed RQ queues, and rq-scheduler keeps preview-cache cleanup running. Add webhook/sync jobs next.
-- Connector observability: expose source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
-- Ops: `/api/ops/queues` surfaces Redis/RQ health for authenticated users; keep tightening guardrails around who can see it.
-- Connector observability: expose source health in UI (ingest drawer + `/health` dashboard widgets) and alert on repeated failures/open circuits.
+- Delivery plumbing: the local proxy now runs TLS with OCSP stapling + auto dev-cert rotation, enforces per-route rate limits, and fronts ingestion/search fan-out enqueued through Redis-backed RQ queues. Webhook + sync jobs have dedicated queues ready.
+- Connector observability: `/health` now reports circuits, repeated failures, and last errors; the ingest/search UI surfaces connector badges when degraded.
+- Ops: `/api/ops/queues` surfaces Redis/RQ health for authenticated users and feeds the web dashboard card; keep tightening guardrails around who can see it.
+- Retention: external preview GC stays scheduled, and raw ingestion payloads are scrubbed after `INGESTION_PAYLOAD_RETENTION_DAYS` to keep data bounded.
 
 ### 7.2 Experience Fit & Finish (after 7.1)
 - Menu editor improvements: inline note formatting, drag handles that reveal keyboard shortcuts, autosave with conflict detection.

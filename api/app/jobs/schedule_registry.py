@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from rq_scheduler import Scheduler
 
 from app.core.config import settings
-from app.jobs.maintenance import prune_external_search_previews_job
+from app.jobs.maintenance import prune_external_search_previews_job, prune_ingestion_payloads_job
 from app.services.task_queue import task_queue
 
 logger = logging.getLogger("app.jobs.schedule_registry")
@@ -15,15 +15,27 @@ logger = logging.getLogger("app.jobs.schedule_registry")
 def _schedule_entries() -> list[dict]:
     preview_interval = max(60, settings.external_search_preview_ttl_seconds // 2)
     queue_name = task_queue.queue_names[0] if task_queue.queue_names else "default"
-    return [
+    entries: list[dict] = [
         {
             "id": "maintenance:prune_external_previews",
             "func": prune_external_search_previews_job,
             "interval": preview_interval,
             "repeat": None,
-            "queue_name": queue_name,
-        }
+            "queue_name": "maintenance" if "maintenance" in task_queue.queue_names else queue_name,
+        },
     ]
+    if settings.ingestion_payload_retention_days > 0:
+        payload_interval = max(3600, settings.ingestion_payload_retention_days * 86400 // 2)
+        entries.append(
+            {
+                "id": "maintenance:prune_ingestion_payloads",
+                "func": prune_ingestion_payloads_job,
+                "interval": payload_interval,
+                "repeat": None,
+                "queue_name": "maintenance" if "maintenance" in task_queue.queue_names else queue_name,
+            }
+        )
+    return entries
 
 
 def ensure_schedules() -> None:

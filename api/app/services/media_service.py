@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from time import monotonic
 from typing import Iterable, TypeAlias
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -90,6 +90,36 @@ class ExternalSearchOutcome:
 async def prune_external_previews(session: AsyncSession) -> int:
     """Cleanup helper suitable for cron/worker jobs."""
     return await search_preview_service.prune_expired_previews(session)
+
+
+async def prune_media_source_payloads(
+    session: AsyncSession, *, retention_days: int | None = None
+) -> int:
+    """Scrub stale connector payloads to keep data retention bounded."""
+
+    from app.core.config import settings
+
+    ttl_days = retention_days if retention_days is not None else settings.ingestion_payload_retention_days
+    if ttl_days <= 0:
+        return 0
+
+    cutoff = datetime.utcnow() - timedelta(days=ttl_days)
+    scrubbed_payload = {
+        "redacted": True,
+        "reason": "retention_expired",
+        "stripped_at": datetime.utcnow().isoformat() + "Z",
+        "retention_days": ttl_days,
+    }
+    stmt = (
+        update(MediaSource)
+        .where(MediaSource.fetched_at <= cutoff)
+        .values(raw_payload=scrubbed_payload)
+        .execution_options(synchronize_session=False)
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+    session.sync_session.expire_all()
+    return result.rowcount or 0
 
 
 async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:

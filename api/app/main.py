@@ -30,9 +30,12 @@ async def _register_schedules() -> None:
 
 def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
+    sources: dict[str, Any] = {}
     for source, payload in snapshot.items():
         circuit = payload.get("circuit", {})
         remaining = float(circuit.get("remaining_cooldown") or 0.0)
+        state = "ok"
+        circuit_open = False
         if remaining > 0:
             issues.append(
                 {
@@ -41,7 +44,12 @@ def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
                     "remaining_cooldown": round(remaining, 2),
                 }
             )
+            state = "degraded"
+            circuit_open = True
         operations = payload.get("operations", {})
+        failure_total = 0
+        repeated_failure: dict[str, Any] | None = None
+        last_error: str | None = None
         for operation, metrics in operations.items():
             last_error = metrics.get("last_error")
             if last_error:
@@ -53,7 +61,32 @@ def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
                         "error": last_error,
                     }
                 )
-    return {"sources": snapshot, "issues": issues}
+            failed_count = int(metrics.get("failed") or 0)
+            failure_total += failed_count
+            if failed_count >= 3:
+                repeated_failure = {"operation": operation, "failed": failed_count}
+        if repeated_failure:
+            issues.append(
+                {
+                    "source": source,
+                    "reason": "repeated_failures",
+                    "operation": repeated_failure["operation"],
+                    "failed": repeated_failure["failed"],
+                }
+            )
+            state = "degraded"
+        elif last_error and state != "circuit_open":
+            state = "degraded"
+        sources[source] = {
+            "state": state,
+            "circuit_open": circuit_open,
+            "circuit": circuit,
+            "operations": operations,
+            "failure_total": failure_total,
+            "last_error": last_error,
+            "repeated_failure": repeated_failure,
+        }
+    return {"sources": sources, "issues": issues}
 
 
 def _entry_matches(entry: str, candidate: str) -> bool:

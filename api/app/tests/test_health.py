@@ -92,6 +92,7 @@ async def test_health_degrades_for_authenticated_users(client, monkeypatch):
     assert payload["status"] == "degraded"
     telemetry = payload["ingestion"]
     assert telemetry["sources"]["tmdb"]["operations"]["fetch"]["last_error"] == "quota exceeded"
+    assert telemetry["sources"]["tmdb"]["state"] == "degraded"
     assert telemetry["issues"][0]["source"] == "tmdb"
     assert telemetry["issues"][0]["reason"] in {"circuit_open", "last_error"}
 
@@ -109,3 +110,40 @@ async def test_health_allows_allowlisted_clients_without_auth(client, monkeypatc
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["ingestion"]["issues"] == []
+
+
+@pytest.mark.asyncio
+async def test_health_flags_repeated_failures(client, monkeypatch):
+    async def _snapshot_stub() -> dict[str, object]:
+        return {
+            "lastfm": {
+                "circuit": {
+                    "failure_streak": 0,
+                    "open_until": 0.0,
+                    "remaining_cooldown": 0.0,
+                    "current_backoff": 30.0,
+                    "opened_count": 0,
+                },
+                "operations": {
+                    "search": {
+                        "started": 3,
+                        "succeeded": 0,
+                        "failed": 3,
+                        "skipped": 0,
+                        "last_latency_ms": 120.0,
+                        "last_error": None,
+                    }
+                },
+            }
+        }
+
+    monkeypatch.setattr("app.main.ingestion_monitor.snapshot", _snapshot_stub)
+    await _authenticate_health_user(client)
+
+    response = await client.get("/api/health")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    issues = payload["ingestion"]["issues"]
+    assert any(issue["reason"] == "repeated_failures" for issue in issues)
+    assert payload["ingestion"]["sources"]["lastfm"]["state"] == "degraded"

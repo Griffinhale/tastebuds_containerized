@@ -9,8 +9,8 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 
 ## 2. Third-party payload retention
 - **Where:** `app/services/media_service.py`
-- **Status:** External search results are preview-only with TTL/size caps. Explicit ingest still writes full `raw_payload` to `media_sources`.
-- **Plan:** Add configurable retention/GC for unused ingested payloads and optional truncation/encryption for long-term storage.
+- **Status:** External search results are preview-only with TTL/size caps. Explicit ingest still writes full `raw_payload` to `media_sources`, but those payloads are now scrubbed after `INGESTION_PAYLOAD_RETENTION_DAYS` via the maintenance queue job.
+- **Plan:** Validate retention/redaction defaults against licensing terms and add optional encryption/truncation for long-term storage.
 
 ## 3. Public menu surface (implemented)
 - **Where:** `api/app/api/routes/public.py`, `app/schema/menu.py`
