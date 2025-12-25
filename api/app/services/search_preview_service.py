@@ -117,9 +117,13 @@ async def enforce_search_quota(session: AsyncSession, user_id: uuid.UUID) -> Non
         return
     if quota.window_start == window_start:
         if quota.count >= settings.external_search_quota_max_requests:
+            quota_max_requests = settings.external_search_quota_max_requests
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"External search quota exceeded ({settings.external_search_quota_max_requests} requests per {window_seconds}s)",
+                detail=(
+                    "External search quota exceeded "
+                    f"({quota_max_requests} requests per {window_seconds}s)"
+                ),
             )
         quota.count += 1
     else:

@@ -12,7 +12,12 @@ logger = logging.getLogger("app.jobs.sync")
 
 
 def run_sync_job(
-    *, provider: str, external_id: str, action: str = "ingest", force_refresh: bool = False, requested_by: str | None = None
+    *,
+    provider: str,
+    external_id: str,
+    action: str = "ingest",
+    force_refresh: bool = False,
+    requested_by: str | None = None,
 ) -> dict[str, Any]:
     """RQ-friendly sync/refresh hook."""
 

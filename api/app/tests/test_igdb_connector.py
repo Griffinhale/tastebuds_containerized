@@ -40,7 +40,9 @@ def _make_async_client(responses: deque[httpx.Response], call_log: list[str]) ->
     return DummyAsyncClient
 
 
-def _configure_connector(monkeypatch: pytest.MonkeyPatch, responses: deque[httpx.Response]) -> tuple[IGDBConnector, list[str]]:
+def _configure_connector(
+    monkeypatch: pytest.MonkeyPatch, responses: deque[httpx.Response]
+) -> tuple[IGDBConnector, list[str]]:
     call_log: list[str] = []
     DummyClient = _make_async_client(responses, call_log)
     monkeypatch.setattr("app.ingestion.igdb.httpx.AsyncClient", DummyClient)
