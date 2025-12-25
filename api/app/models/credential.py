@@ -55,7 +55,9 @@ event.listen(UserCredential, "refresh", _normalize_credential)
 @event.listens_for(UserCredential.rotated_at, "set", retval=True)
 @event.listens_for(UserCredential.created_at, "set", retval=True)
 @event.listens_for(UserCredential.updated_at, "set", retval=True)
-def _coerce_credential_dt(value: datetime | None, *_, **__) -> datetime | None:
+def _coerce_credential_dt(
+    _target: UserCredential, value: datetime | None, *_: object, **__: object
+) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
