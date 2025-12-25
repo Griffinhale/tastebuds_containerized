@@ -49,3 +49,15 @@ def _normalize_credential(target: UserCredential, *_, **__) -> None:
 
 event.listen(UserCredential, "load", _normalize_credential)
 event.listen(UserCredential, "refresh", _normalize_credential)
+
+
+@event.listens_for(UserCredential.expires_at, "set", retval=True)
+@event.listens_for(UserCredential.rotated_at, "set", retval=True)
+@event.listens_for(UserCredential.created_at, "set", retval=True)
+@event.listens_for(UserCredential.updated_at, "set", retval=True)
+def _coerce_credential_dt(value: datetime | None, *_, **__) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)

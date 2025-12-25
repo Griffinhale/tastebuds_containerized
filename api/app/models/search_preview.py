@@ -73,3 +73,14 @@ def _normalize_preview_timestamps(target: ExternalSearchPreview, *_, **__) -> No
 @event.listens_for(UserExternalSearchQuota, "refresh")
 def _normalize_quota_timestamps(target: UserExternalSearchQuota, *_, **__) -> None:
     target.window_start = _ensure_tz_aware(target.window_start)  # type: ignore[assignment]
+
+
+@event.listens_for(ExternalSearchPreview.expires_at, "set", retval=True)
+@event.listens_for(ExternalSearchPreview.created_at, "set", retval=True)
+def _coerce_preview_dt(value: datetime | None, *_, **__) -> datetime | None:
+    return _ensure_tz_aware(value)
+
+
+@event.listens_for(UserExternalSearchQuota.window_start, "set", retval=True)
+def _coerce_quota_dt(value: datetime | None, *_, **__) -> datetime | None:
+    return _ensure_tz_aware(value)
