@@ -14,6 +14,11 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Ingestion:** `POST /api/ingest/{source}` normalizes upstream payloads into canonical columns + metadata JSONB + extension tables, while persisting the full `raw_payload` in `media_sources`. Dedupe uses `(source_name, external_id)`.
 - **Search:** `GET /api/search` queries Postgres first, optionally fans out to external connectors, and requires auth for any external sources. External results are stored in a short-TTL preview cache (with payload/metadata caps) and fully ingested only when an authenticated user opens details or saves to a menu/library.
 - **Menus & sharing:** Authenticated owners manage menus/courses/items; `GET /api/public/menus/{slug}` serves published menus anonymously using a public DTO that omits `owner_id`.
+- **Library + Log (planned):** TODO: define progress endpoints, timeline storage, and goal tracking without mutating shared menu records.
+- **Menu narrative (planned):** TODO: add course intents, item annotations, and pairings with minimal additional joins.
+- **Taste Profile (planned):** TODO: define aggregation pipeline and caching for preference insights derived from logs/tags/menus.
+- **Availability awareness (planned):** TODO: ingest provider data, schedule refresh jobs, and map region-specific availability to items.
+- **Community exchange (planned):** TODO: model menu lineage, attribution, and fork/remix notifications.
 - **Health/telemetry:** `/health` and `/api/health` return only `{status}` to anonymous callers; authenticated or allowlisted callers also see connector status, repeated failure alerts, and open circuits for ingestion/search fan-out.
 - **Ops/queues:** `/api/ops/queues` (auth + admin allowlist) surfaces Redis/RQ queue sizes, worker presence, scheduler health, and vault encryption status for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
 

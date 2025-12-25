@@ -9,6 +9,13 @@
 - **user_item_states**: per-user status/rating/favorite/notes with timestamps and a rating check constraint.
 - **menus / courses / course_items**: ordered menu structure with public slug on `menus`.
 
+## Planned Extensions (TODO)
+- TODO: add `user_item_logs` for started/finished timestamps, time spent, quick notes, and goal tracking.
+- TODO: add menu narrative fields (course intent, item notes) and `menu_item_pairings` for cross-media links.
+- TODO: add `media_item_availability` (provider, region, format, last_checked_at) plus source metadata.
+- TODO: add `user_taste_profiles` snapshots derived from logs, tags, and menu signals.
+- TODO: add `menu_lineage` or `menu_forks` to track remix provenance and attribution.
+
 ## Relationships
 ```
 users --> menus --> courses --> course_items --> media_items

@@ -14,6 +14,9 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 3. **Link out, don’t lock in:** Integrations (Spotify playlists, Overseerr/Radarr/Sonarr, Jellyfin collections, Notion databases) are first-class exports instead of gated premium features.
 4. **Instant feedback:** Health pings, pagination, background ingestion, and optimistic UI states keep the app responsive even when third-party APIs throttle.
 5. **Accessible everywhere:** Keyboard-first editing, screen-reader safe drawers, and shareable public pages that degrade gracefully without JS.
+6. **Diet visibility:** The Library + Log makes progress, pacing, and reflection visible so users understand their actual consumption, not just plans.
+7. **Availability-aware curation:** Always surface where items can be watched/read/listened to, with alternatives when access is limited.
+8. **Community exchange with lineage:** Sharing supports forks/remixes with provenance and attribution without drowning users in noise.
 
 ## 3. Differentiation vs Incumbents
 - **Letterboxd / Goodreads:** Single-medium focus, tagging is social but cross-medium storytelling is missing. Tastebuds differentiates by blending media types in one sequence and by supporting data egress (JSON, ActivityPub, RSS).
@@ -27,10 +30,10 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **The Enthusiast (friends swapping recs):** Needs lightweight search + ingest, delightful share cards, Spotify/Jellyfin hand-offs, and safety around private drafts.
 
 ## 5. Product Surface Map
-- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`. Forthcoming: `/api/automations`, `/api/integrations/*`.
+- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`. Forthcoming: `/api/automations`, `/api/integrations/*`. TODO: define endpoints for library/log, taste profile, availability, and menu lineage.
 - **Connectors (shipping):** Google Books, TMDB, IGDB, Last.fm.
 - **Connectors (planned):** Spotify (playlist + track metadata), Discogs, MusicBrainz, StoryGraph export/import, Arr suite webhooks, Jellyfin/Plex library sync, Notion two-way sync, RSS/ActivityPub feeds.
-- **Interfaces:** Next.js workspace (auth, search, menu editor, share view), CLI/automation scripts, optional mobile-friendly PWA.
+- **Interfaces:** Next.js workspace (auth, search, menu editor, share view, Library + Log hub, Taste Profile dashboard, availability overlays, community exchange), CLI/automation scripts, optional mobile-friendly PWA.
 - **Architecture source of truth:** `docs/architecture.md` captures current services, data flows, and delivery dependencies (queue, reverse proxy, retention). Keep this plan and the architecture doc in lockstep.
 
 ## 6. Integration & Ecosystem Roadmap
@@ -58,6 +61,12 @@ _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/br
 - Search workspace: personalized boosts, “in collection” badges, surfaced dedupe reasons; reuse telemetry from 7.1 for user-facing feedback.
 - Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
 - Collaboration preview: share draft links with temporary tokens before full multi-user editing.
+- Library + Log hub: status tracking, timeline view, goals, quick log from search/menus, and an auto-built "Next up" queue.
+- Narrative menus: course intents, item annotations, pairings across media types, and story-mode reading views.
+- Taste Profile: evolving preference view powered by logs, tags, and menu signals with "balance" prompts.
+- Availability awareness: show provider/format access, region flags, and alternates when availability is missing.
+- Community exchange: fork/remix menus with lineage, attribution, and delta notes.
+TODO: draft RFCs for Library + Log, narrative menus, taste profile, availability, and community exchange.
 
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
 - Spotify linking screen + backend credential vault (per-user encrypted store and token rotation).
@@ -75,12 +84,17 @@ _Phase gates: ship 7.1 before enabling new connectors; 7.3 depends on a queue/br
 - **Connector credential UX:** Balance OAuth flows (Spotify) with headless token inputs (Jellyfin, Arr) while surfacing expiry/health states.
 - **Offline/low-connectivity workflows:** Provide printable or offline-ready menu exports for classrooms/events.
 - **Moderation:** For public menus, spam and IP management is an unsolved path; plan for trust & safety tooling before wide launch.
+- **Availability sourcing:** Decide on data providers, region handling, and cache policies for availability overlays.
+- **Taste profile privacy:** Define how preference insights are derived without exposing sensitive listening history.
+- **Community exchange governance:** Define controls for forks, attribution disputes, and abuse reporting at scale.
 
 ## 9. Success Metrics & Telemetry
 - **Curation success:** % of menus with ≥3 media types, average annotations per course, publish-to-view ratio.
 - **Integration depth:** Count of connected services (Spotify, Arr, Jellyfin) per active curator, latency from external event to Tastebuds ingestion.
 - **Reliability:** Ingestion pass rate, connector circuit-breaker uptime, session refresh failures, P95 search latency.
 - **Delight:** Net satisfaction from feedback prompts on share pages, copy-to-clipboard/Spotify-export conversions.
+- **Diet engagement:** Weekly active loggers, completion rate per status, and goal adherence.
+- **Sharing velocity:** Forks/remixes per public menu and follow-through from shared menus to started items.
 
 ## 10. Next Planning Cadence
 - Revisit this document monthly; track roadmap progress in issues tied to the sections above.
