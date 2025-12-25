@@ -34,7 +34,7 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 
 ## 7. Ops surface scoping
 - **Where:** `docker/proxy/nginx.conf`, `api/app/api/routes/ops.py`
-- **Status:** Proxy now rate-limits and IP-allows `/api/ops/`, and the API requires an admin email allowlist for diagnostics. Health includes queue + vault status.
+- **Status:** Proxy now rate-limits and IP-allows `/api/ops/`, validates `Host` for localhost-only use, and the API/web services are exposed only through the proxy by default. The API requires an admin email allowlist for diagnostics, and health includes queue + vault status.
 - **Residual:** Move to role-based admin claims once user roles exist; consider mutual TLS for production ops endpoints.
 
 ---

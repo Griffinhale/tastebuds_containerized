@@ -4,7 +4,7 @@ type ApiFetchOptions = {
   withCredentials?: boolean;
 };
 
-const browserBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+const browserBase = process.env.NEXT_PUBLIC_API_BASE || 'https://localhost/api';
 const serverBase =
   process.env.API_INTERNAL_BASE || process.env.NEXT_PUBLIC_API_BASE || 'http://api:8000/api';
 

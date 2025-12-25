@@ -626,7 +626,7 @@
   "variable": [
     {
       "key": "origin",
-      "value": "http://localhost:8000"
+      "value": "https://localhost"
     },
     {
       "key": "api_prefix",

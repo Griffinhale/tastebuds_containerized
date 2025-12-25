@@ -6,7 +6,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 
 ## Current Status (Dec 2025)
 - Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), Redis plus an RQ worker and scheduler (`redis`/`worker`/`scheduler`), the optional Next.js app (`web`), optional PgAdmin, and a local Nginx proxy that fronts the API and UI on port 80/443.
-- The local proxy terminates TLS with a bundled dev certificate (auto-rotated via `docker/proxy/entrypoint.sh`, swap for a real cert in prod), staples OCSP, enforces route-specific rate limits, redirects HTTP to HTTPS, and surfaces queue/redis health via `/api/ops/queues` (auth required).
+- The local proxy terminates TLS with a generated dev certificate (auto-rotated via `docker/proxy/entrypoint.sh`, swap for a real cert in prod), enforces route-specific rate limits, redirects HTTP to HTTPS, and surfaces queue/redis health via `/api/ops/queues` (auth required).
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
 - Session inventory: `/api/auth/sessions` lists active/expired refresh tokens for the current user and supports revocation per session; cookies continue to mirror new tokens on rotate/login.
 - Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`. Merged results are deterministic (internal first, then external by requested order, then title/release), with cross-connector dedupe keyed off canonical URLs or normalized title + release date.
@@ -48,7 +48,7 @@ The Compose stack also reads `.env` for the web service.
 - `migrate`: `alembic upgrade head` in the `api` container
 - `seed`: run the demo seed script
 - `test`: run pytest inside the API image against `TEST_DATABASE_URL`
-- `web`: build/start the Next.js container
+- `web`: build/start the Next.js container plus the proxy
 
 ## Run the stack
 ```bash
@@ -56,22 +56,22 @@ The Compose stack also reads `.env` for the web service.
 ./scripts/dev.sh migrate
 # optional helpers
 ./scripts/dev.sh seed   # demo data + menu
-./scripts/dev.sh web    # Next.js auth + menus UI on :3000
+./scripts/dev.sh web    # Next.js auth + menus UI on https://localhost
 
 ```
 
-`./scripts/dev.sh up` also brings up the `redis` broker, `worker`, and Nginx proxy so you can access the UI at `http://localhost` and the API at `http://localhost/api`; direct ports at `:3000` and `:8000` remain available if you need to bypass the proxy.
-The proxy listens on HTTPS via a bundled dev certificate; use `https://localhost` (self-signed) if you want to test TLS and rate limits.
+`./scripts/dev.sh up` also brings up the `redis` broker, `worker`, and Nginx proxy so you can access the UI at `https://localhost` and the API at `https://localhost/api`.
+The proxy listens on HTTPS via a generated dev certificate; use `https://localhost` (self-signed) if you want to test TLS and rate limits. API/web container ports are not published by default; use the proxy for local access.
 
 Raw commands if you prefer:
 ```bash
 docker compose up --build -d
 docker compose exec api alembic upgrade head
 docker compose exec api python -m app.scripts.seed
-docker compose up --build -d web
+docker compose up --build -d proxy
 ```
-API: `http://localhost:8000` (OpenAPI at `/docs`, health at `/health` or `/api/health`; telemetry is included only for authenticated or allowlisted callers)  
-Web app: `http://localhost:3000` (uses `NEXT_PUBLIC_API_BASE`)
+API: `https://localhost/api` (OpenAPI at `https://localhost/docs`, health at `/api/health`; telemetry is included only for authenticated or allowlisted callers)  
+Web app: `https://localhost` (uses `NEXT_PUBLIC_API_BASE`)
 
 ## Development without Docker
 ```bash
@@ -99,64 +99,64 @@ Authenticated routes accept `Authorization: Bearer <access_token>` and the brows
 Refresh tokens rotate on every call and are revoked server-side when they expire or when you log out—reusing an old refresh cookie will yield `401`.
 ```bash
 # Register
-curl -X POST http://localhost:8000/api/auth/register \
+curl -k -X POST https://localhost/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123","display_name":"Demo"}'
 # Login
-curl -X POST http://localhost:8000/api/auth/login \
+curl -k -X POST https://localhost/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123"}'
 ```
 Ingest media (deduped by `(source_name, external_id)`):
 ```bash
-curl -X POST http://localhost:8000/api/ingest/google_books \
+curl -k -X POST https://localhost/api/ingest/google_books \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"external_id":"zyTCAlFPjgYC"}'
-curl -X POST http://localhost:8000/api/ingest/tmdb \
+curl -k -X POST https://localhost/api/ingest/tmdb \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"external_id":"603"}'  # or "movie:603" / "tv:123"
 ```
 Build and share a menu:
 ```bash
-MENU_ID=$(curl -s -X POST http://localhost:8000/api/menus \
+MENU_ID=$(curl -sk -X POST https://localhost/api/menus \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"title":"Neo-Noir Night","description":"Books + Movies + Music","is_public":true}' \
   | jq -r '.id')
 
-COURSE_ID=$(curl -s -X POST http://localhost:8000/api/menus/$MENU_ID/courses \
+COURSE_ID=$(curl -sk -X POST https://localhost/api/menus/$MENU_ID/courses \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"title":"Appetizer","description":"Set the tone","position":1}' \
   | jq -r '.id')
 
-curl -X POST http://localhost:8000/api/menus/$MENU_ID/courses/$COURSE_ID/items \
+curl -k -X POST https://localhost/api/menus/$MENU_ID/courses/$COURSE_ID/items \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"media_item_id\":\"$MEDIA_ID\",\"position\":1,\"notes\":\"Read first.\"}"
 
-curl http://localhost:8000/api/public/menus/$(curl -s http://localhost:8000/api/menus/$MENU_ID \
+curl -k https://localhost/api/public/menus/$(curl -sk https://localhost/api/menus/$MENU_ID \
   -H "Authorization: Bearer $TOKEN" | jq -r '.slug')
 ```
 Tags:
 ```bash
-TAG_ID=$(curl -s -X POST http://localhost:8000/api/tags \
+TAG_ID=$(curl -sk -X POST https://localhost/api/tags \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Neo-Noir"}' | jq -r '.id')
-curl -X POST http://localhost:8000/api/tags/$TAG_ID/media \
+curl -k -X POST https://localhost/api/tags/$TAG_ID/media \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"media_item_id\":\"$MEDIA_ID\"}"
 ```
 Search with optional external fan-out (ingests results before returning them):
 ```bash
-curl "http://localhost:8000/api/search?q=blade%20runner&include_external=true" \
+curl -k "https://localhost/api/search?q=blade%20runner&include_external=true" \
   -H "Authorization: Bearer $TOKEN"
 # Paginate/filter and request specific connectors (include_external is implicit when sources are supplied):
-curl "http://localhost:8000/api/search?q=zelda&types=game&sources=internal&sources=igdb&page=2&per_page=10&external_per_source=3" \
+curl -k "https://localhost/api/search?q=zelda&types=game&sources=internal&sources=igdb&page=2&per_page=10&external_per_source=3" \
   -H "Authorization: Bearer $TOKEN"
 # Response metadata includes paging, per-source counts, cross-source dedupe tallies, and timing per connector under `source_metrics`.
 ```
@@ -185,7 +185,7 @@ GitHub Actions run on push/PR:
 - Database not ready: `docker compose ps` should show `db` healthy; retry `./scripts/dev.sh migrate`.
 - Missing env vars or API keys: the API logs list the missing key; ensure `.env` is loaded and rebuild the `api` container.
 - TMDB/IGDB/Last.fm/Google Books failures: connectors now emit structured ingestion logs and apply per-source circuit breakers with exponential backoff. If calls get skipped, look for `ingestion_circuit_open`/`ingestion_skip` events and wait for cooldowns to elapse before retrying.
-- Compose port conflicts: adjust `docker-compose.yml` published ports if 5432/8000/3000 are busy.
+- Compose port conflicts: adjust `docker-compose.yml` published ports if 80/443/5432/5050 are busy.
 
 ## Reference docs
 - `docs/architecture.md`: current services, data flows, and delivery dependencies.

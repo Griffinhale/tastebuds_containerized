@@ -20,7 +20,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 
 ## 4) API Smoke Tests
 - [ ] Register + login via `README.md` examples; decode `access_token` to confirm subject and type.
-- [ ] `GET /api/docs` renders OpenAPI successfully.
+- [ ] `GET /docs` renders OpenAPI successfully.
 - [ ] `POST /api/ingest/{source}` succeeds for each configured connector (requires valid API keys).
 - [ ] `POST /api/menus` with nested courses/items works; slug matches DB state.
 - [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
@@ -34,13 +34,13 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
 
 ## 5) Frontend App
-- [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `:3000` and reads `.env`.
+- [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `https://localhost` and reads `.env`.
 - [ ] Home page cards show API status plus the signed-in widget; refresh/log out buttons work (cookies survive reloads).
 - [ ] The home search workspace accepts queries/prompts, respects media-type filters and the include-external toggle, and renders result cards with source context.
 - [ ] `/login` and `/register` submit successfully against the FastAPI auth endpoints and set httpOnly cookies.
 - [ ] `/menus` lists existing menus, supports drag-to-reorder course items with optimistic updates, and still allows creating/deleting courses/items. The search/ingest drawer should announce its loading/empty/error states via the new live regions and still add catalog hits directly into a course.
 - [ ] Course search fan-out: toggle `Include external sources`, run a query, and confirm the results are ingested (metadata counts increment) and selectable.
-- [ ] Publish a menu and load `http://localhost:3000/menus/{slug}` to confirm the share-ready preview renders, skeleton states display on reload, and the copy/share controls produce a usable link with the new SEO metadata.
+- [ ] Publish a menu and load `https://localhost/menus/{slug}` to confirm the share-ready preview renders, skeleton states display on reload, and the copy/share controls produce a usable link with the new SEO metadata.
 - [ ] Let a session expire and hit the `Refresh` button on the Signed-in widget; the UI should show "Session expired. Please log in again." once rotation fails.
 
 ## 6) Docs & Artifacts

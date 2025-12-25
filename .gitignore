@@ -1,2 +1,7 @@
 # Local environment overrides; keep the example committed
 .env
+
+# Proxy TLS artifacts (generated locally)
+docker/proxy/certs/*.crt
+docker/proxy/certs/*.key
+docker/proxy/certs/*.pem

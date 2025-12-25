@@ -12,6 +12,21 @@ from app.services.task_queue import task_queue
 logger = logging.getLogger("app.jobs.schedule_registry")
 
 
+def _job_exists(scheduler: Scheduler, job_id: str) -> bool:
+    if hasattr(scheduler, "get_job"):
+        return scheduler.get_job(job_id) is not None
+    try:
+        for job in scheduler.get_jobs():  # type: ignore[attr-defined]
+            if getattr(job, "id", None) == job_id:
+                return True
+            get_id = getattr(job, "get_id", None)
+            if callable(get_id) and get_id() == job_id:
+                return True
+    except Exception as exc:  # pragma: no cover - scheduler/redis specific
+        logger.warning("Unable to list scheduled jobs: %s", exc)
+    return False
+
+
 def _schedule_entries() -> list[dict]:
     preview_interval = max(60, settings.external_search_preview_ttl_seconds // 2)
     queue_name = task_queue.queue_names[0] if task_queue.queue_names else "default"
@@ -47,16 +62,21 @@ def ensure_schedules() -> None:
         return
     scheduler = Scheduler(connection=task_queue.connection, queue_name=task_queue.queue_names[0])
     for entry in _schedule_entries():
-        existing = scheduler.get_job(entry["id"])
-        if existing:
+        if _job_exists(scheduler, entry["id"]):
             continue
-        scheduler.schedule(
-            scheduled_time=datetime.utcnow(),
-            func=entry["func"],
-            interval=entry["interval"],
-            repeat=entry["repeat"],
-            id=entry["id"],
-            queue_name=entry["queue_name"],
-            result_ttl=int(timedelta(hours=1).total_seconds()),
-        )
+        try:
+            scheduler.schedule(
+                scheduled_time=datetime.utcnow(),
+                func=entry["func"],
+                interval=entry["interval"],
+                repeat=entry["repeat"],
+                id=entry["id"],
+                queue_name=entry["queue_name"],
+                result_ttl=int(timedelta(hours=1).total_seconds()),
+            )
+        except TypeError as exc:
+            logger.warning(
+                "Skipping scheduler bootstrap due to incompatible rq/rq-scheduler versions: %s", exc
+            )
+            return
         logger.info("Scheduled job %s every %ss on queue %s", entry["id"], entry["interval"], entry["queue_name"])

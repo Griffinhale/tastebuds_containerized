@@ -17,7 +17,7 @@ export function ApiStatus() {
         if (cancelled) return;
         setStatus('ok');
         setMessage(
-          `API reachable at ${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'}`
+          `API reachable at ${process.env.NEXT_PUBLIC_API_BASE || 'https://localhost/api'}`
         );
         const normalized = normalizeConnectorHealth(res);
         setConnectors(normalized);

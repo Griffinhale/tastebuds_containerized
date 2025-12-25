@@ -41,7 +41,7 @@ Commands:
   migrate    Run Alembic migrations inside the api container
   seed       Execute the demo seed script
   test       Run pytest inside the api image (installs dev deps automatically)
-  web        Run the web frontend (Next.js) via docker compose
+  web        Run the web frontend (Next.js) plus the proxy
   lint       Run ruff checks for the API and prettier for the web app inside containers
   fmt        Autoformat API (ruff format) and web (prettier --write) inside containers
 USAGE
@@ -86,7 +86,7 @@ case "$cmd" in
     run_compose run --rm api sh -c "pip install -r requirements-dev.txt && TEST_DATABASE_URL=$TEST_DB pytest app/tests"
     ;;
   web)
-    run_compose up --build -d web
+    run_compose up --build -d web proxy
     ;;
   lint)
     run_compose run --rm api sh -c "pip install -r requirements-dev.txt && python -m ruff check app"

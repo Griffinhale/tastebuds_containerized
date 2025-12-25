@@ -1,11 +1,11 @@
 # API Guide
 
-Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login/refresh return both access and refresh tokens and also set httpOnly cookies for browser clients.
+Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login/refresh return both access and refresh tokens and also set httpOnly cookies for browser clients. When using the proxy, base URL is `https://localhost` and the dev cert is self-signed (use `curl -k` or trust the cert).
 
 ## Health & Docs
 - `GET /health` and `GET /api/health` return `{"status":"ok","ingestion":{"sources":{},"issues":[]}}`. When a connector circuit is open or a connector's last call failed, `status` flips to `degraded` and `ingestion.issues` lists the affected sources/operations along with the last error or remaining cooldown.
 - `GET /api/ops/queues` (auth required) reports Redis/RQ health: queue sizes, worker presence, scheduler counts, and Redis server info. Useful for spotting stalled jobs or empty workers.
-- OpenAPI/Swagger UI: `/docs` (served from the API service).
+- OpenAPI/Swagger UI: `/docs` (proxied to the API service).
 
 ## Auth
 Browser clients receive httpOnly cookies (`access_token`, `refresh_token`) on login/register/refresh; tokens are also returned in the JSON response for non-browser callers.
@@ -13,7 +13,7 @@ Browser clients receive httpOnly cookies (`access_token`, `refresh_token`) on lo
 ### POST /api/auth/register
 Create a user and return tokens.
 ```bash
-curl -X POST http://localhost:8000/api/auth/register \
+curl -k -X POST https://localhost/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123","display_name":"Demo"}'
 ```
@@ -21,7 +21,7 @@ curl -X POST http://localhost:8000/api/auth/register \
 ### POST /api/auth/login
 Exchange credentials for a token pair.
 ```bash
-curl -X POST http://localhost:8000/api/auth/login \
+curl -k -X POST https://localhost/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@example.com","password":"changeme123"}'
 ```
@@ -31,7 +31,7 @@ Response for both: `{ access_token, refresh_token, token_type, user }` and sets 
 ### POST /api/auth/refresh
 Issue a new token pair from a refresh token. Supply the refresh token either in the request body or rely on the `refresh_token` cookie.
 ```bash
-curl -X POST http://localhost:8000/api/auth/refresh \
+curl -k -X POST https://localhost/api/auth/refresh \
   -H 'Content-Type: application/json' \
   -d '{"refresh_token":"<refresh>"}'
 ```
@@ -40,12 +40,20 @@ Response matches login/register and sets fresh cookies.
 ### POST /api/auth/logout
 Clears auth cookies. Returns `204 No Content`.
 
+### GET /api/auth/sessions
+List refresh-token sessions for the current user.
+- Query params: `include_expired` (default false), `include_revoked` (default false).
+- Response items include: `id`, `created_at`, `expires_at`, `revoked_at`, `revoked_reason`, `replaced_by_token_id`, `is_active`, `is_current`.
+
+### POST /api/auth/sessions/{token_id}/revoke
+Revoke a specific session by ID. Returns `204 No Content` or `404` if the session does not belong to the caller.
+
 ## Users & States
 - `GET /api/me` - current profile.
 - `GET /api/me/states` - all of your `user_item_states` rows.
 - `PUT /api/me/states/{media_item_id}` - upsert status/rating/favorite/notes/timestamps for a media item.
   ```bash
-  curl -X PUT http://localhost:8000/api/me/states/$MEDIA_ID \
+  curl -k -X PUT https://localhost/api/me/states/$MEDIA_ID \
     -H "Authorization: Bearer $TOKEN" \
     -H 'Content-Type: application/json' \
     -d '{"status":"consumed","rating":9,"favorite":true}'

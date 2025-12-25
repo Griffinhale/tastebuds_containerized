@@ -32,14 +32,12 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips=*
     env_file:
       - example.env
       - .env
     volumes:
       - ./api:/app
-    ports:
-      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -77,16 +75,17 @@ services:
       context: ./web
       dockerfile: Dockerfile
     environment:
-      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000/api}
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-https://localhost/api}
       API_INTERNAL_BASE: ${API_INTERNAL_BASE:-http://api:8000/api}
-    ports:
-      - "3000:3000"
     depends_on:
       api:
         condition: service_started
 
   proxy:
-    image: nginx:stable-alpine
+    build:
+      context: ./docker/proxy
+      dockerfile: Dockerfile
+    image: tastebuds-proxy
     command: ["/bin/sh", "/etc/nginx/entrypoint.sh"]
     ports:
       - "80:80"

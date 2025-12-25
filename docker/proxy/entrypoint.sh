@@ -9,6 +9,10 @@ ROTATE_WITHIN_SECONDS="${TLS_ROTATE_WITHIN_SECONDS:-1209600}" # 14 days
 CHECK_INTERVAL_SECONDS="${TLS_ROTATE_CHECK_INTERVAL_SECONDS:-43200}" # 12 hours
 SUBJECT="${TLS_CERT_SUBJECT:-/C=US/ST=Local/L=Local/O=Tastebuds/OU=Dev/CN=localhost}"
 
+has_openssl() {
+  command -v openssl >/dev/null 2>&1
+}
+
 generate_dev_cert() {
   echo "Generating development certificate for ${SUBJECT}"
   mkdir -p "$CERT_DIR"
@@ -21,6 +25,15 @@ generate_dev_cert() {
 }
 
 ensure_cert_ready() {
+  if ! has_openssl; then
+    if [ ! -f "$CERT_PATH" ] || [ ! -f "$KEY_PATH" ]; then
+      echo "OpenSSL not available and no existing cert/key found; cannot start TLS proxy." >&2
+      exit 1
+    fi
+    echo "OpenSSL not available; using existing certs without rotation."
+    return
+  fi
+
   if [ ! -f "$CERT_PATH" ] || [ ! -f "$KEY_PATH" ]; then
     generate_dev_cert
     return
@@ -44,6 +57,8 @@ refresh_loop() {
 }
 
 ensure_cert_ready
-refresh_loop &
+if has_openssl; then
+  refresh_loop &
+fi
 
 nginx -g "daemon off;"
