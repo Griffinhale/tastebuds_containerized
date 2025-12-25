@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -13,6 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.ingestion.base import ConnectorResult
 from app.models.search_preview import ExternalSearchPreview, UserExternalSearchQuota
+
+
+def _utcnow() -> datetime:
+    now = datetime.utcnow()
+    return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
 
 
 def _serialize_result(result: ConnectorResult) -> dict[str, Any]:
@@ -51,7 +56,7 @@ def _bounded_payload(payload: dict[str, Any], max_bytes: int) -> dict[str, Any]:
 async def cache_connector_result(
     session: AsyncSession, user_id: uuid.UUID, result: ConnectorResult
 ) -> ExternalSearchPreview:
-    now = datetime.utcnow()
+    now = _utcnow()
     expires_at = now + timedelta(seconds=settings.external_search_preview_ttl_seconds)
     stmt = (
         select(ExternalSearchPreview)
@@ -98,7 +103,7 @@ async def cache_connector_result(
 
 
 async def prune_expired_previews(session: AsyncSession) -> int:
-    now = datetime.utcnow()
+    now = _utcnow()
     result = await session.execute(delete(ExternalSearchPreview).where(ExternalSearchPreview.expires_at <= now))
     await session.commit()
     return result.rowcount or 0
@@ -106,9 +111,11 @@ async def prune_expired_previews(session: AsyncSession) -> int:
 
 async def enforce_search_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
     window_seconds = max(1, settings.external_search_quota_window_seconds)
-    now = datetime.utcnow()
+    now = _utcnow()
     bucket_start = math.floor(now.timestamp() / window_seconds) * window_seconds
     window_start = datetime.utcfromtimestamp(bucket_start)
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=timezone.utc)
     quota = await session.get(UserExternalSearchQuota, user_id)
     if not quota:
         quota = UserExternalSearchQuota(user_id=user_id, window_start=window_start, count=1)

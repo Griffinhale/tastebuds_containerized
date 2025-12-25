@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -36,7 +36,7 @@ class ExternalSearchPreview(Base):
     metadata_payload: Mapped[dict | None] = mapped_column("metadata", JSON_COMPATIBLE, default=dict)
     raw_payload: Mapped[dict[str, typing.Any]] = mapped_column(JSON_COMPATIBLE, default=dict)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", backref="external_search_previews")
 
