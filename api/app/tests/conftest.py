@@ -18,6 +18,24 @@ from app.db.base_class import Base
 from app.main import app
 
 
+async def _ensure_user_item_log_enum(conn) -> None:
+    """Ensure the user_item_log_type enum includes current labels."""
+    await conn.exec_driver_sql(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_item_log_type') THEN
+                ALTER TYPE user_item_log_type ADD VALUE IF NOT EXISTS 'started';
+                ALTER TYPE user_item_log_type ADD VALUE IF NOT EXISTS 'progress';
+                ALTER TYPE user_item_log_type ADD VALUE IF NOT EXISTS 'finished';
+                ALTER TYPE user_item_log_type ADD VALUE IF NOT EXISTS 'note';
+                ALTER TYPE user_item_log_type ADD VALUE IF NOT EXISTS 'goal';
+            END IF;
+        END $$;
+        """
+    )
+
+
 @pytest.fixture(autouse=True)
 def _use_plaintext_passwords(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(security, "pwd_context", CryptContext(schemes=["plaintext"]))
@@ -36,6 +54,8 @@ async def session() -> AsyncSession:
     async with engine.begin() as conn:
         if schema_name:
             await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"')
+        if url.drivername.startswith("postgresql"):
+            await _ensure_user_item_log_enum(conn)
         await conn.run_sync(Base.metadata.create_all)
     TestingSession = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     try:

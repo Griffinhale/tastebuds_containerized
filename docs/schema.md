@@ -7,10 +7,10 @@
 - **media_sources**: ingestion provenance per item (`source_name`, `external_id`, `canonical_url`, `raw_payload`, `fetched_at`), unique on `(source_name, external_id)`.
 - **tags / media_item_tags**: free-form tagging with optional owner scope.
 - **user_item_states**: per-user status/rating/favorite/notes with timestamps and a rating check constraint.
+- **user_item_logs**: per-user timeline entries (started/finished/progress/notes/goals) with optional minutes, progress %, and goal targets.
 - **menus / courses / course_items**: ordered menu structure with public slug on `menus`.
 
 ## Planned Extensions (TODO)
-- TODO: add `user_item_logs` for started/finished timestamps, time spent, quick notes, and goal tracking.
 - TODO: add menu narrative fields (course intent, item notes) and `menu_item_pairings` for cross-media links.
 - TODO: add `media_item_availability` (provider, region, format, last_checked_at) plus source metadata.
 - TODO: add `user_taste_profiles` snapshots derived from logs, tags, and menu signals.
@@ -20,6 +20,7 @@
 ```
 users --> menus --> courses --> course_items --> media_items
       \-> user_item_states -------------/
+      \-> user_item_logs ---------------/
 
 media_items --> media_sources
 media_items --> book_items | movie_items | game_items | music_items

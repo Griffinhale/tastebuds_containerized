@@ -63,6 +63,10 @@ This document summarizes the current test suites and what each test checks.
 - `test_menu_slug_uniqueness`: duplicate titles yield unique slugs with numeric suffixes.
 - `test_menu_slug_stable_on_update`: menu slug does not change when updating the title.
 
+### `api/app/tests/test_library_logs.py`
+- `test_log_flow_updates_library`: log creation syncs library summary, next-up queue, and state status.
+- `test_log_filters_and_update`: log filters and patch updates work as expected.
+
 ### `api/app/tests/test_ops.py`
 - `test_ops_requires_auth`: unauthenticated requests to `/api/ops/queues` are rejected.
 - `test_ops_snapshot_with_auth`: admin allowlisted user receives status, queues, and vault in the snapshot.

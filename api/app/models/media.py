@@ -7,7 +7,17 @@ import typing
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, CheckConstraint, Date, DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +47,15 @@ class UserItemStatus(str, enum.Enum):
     WANT = "want_to_consume"
     PAUSED = "paused"
     DROPPED = "dropped"
+
+
+class UserItemLogType(str, enum.Enum):
+    """Event types for logging user progress and goals."""
+    STARTED = "started"
+    PROGRESS = "progress"
+    FINISHED = "finished"
+    NOTE = "note"
+    GOAL = "goal"
 
 
 class MediaItem(Base):
@@ -69,6 +88,7 @@ class MediaItem(Base):
     tag_links: Mapped[list["MediaItemTag"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
     course_items: Mapped[list["CourseItem"]] = relationship(back_populates="media_item")
     user_states: Mapped[list["UserItemState"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
+    user_logs: Mapped[list["UserItemLog"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
 
 
 class BookItem(Base):
@@ -171,8 +191,8 @@ class UserItemState(Base):
     rating: Mapped[int | None]
     favorite: Mapped[bool] = mapped_column(default=False)
     notes: Mapped[str | None]
-    started_at: Mapped[datetime | None]
-    finished_at: Mapped[datetime | None]
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -180,6 +200,38 @@ class UserItemState(Base):
 
     user: Mapped["User"] = relationship(back_populates="item_states")
     media_item: Mapped[MediaItem] = relationship(back_populates="user_states")
+
+
+class UserItemLog(Base):
+    """Per-user event log entries for media progress and goals."""
+    __tablename__ = "user_item_logs"
+    __table_args__ = (
+        CheckConstraint("minutes_spent >= 0", name="ck_log_minutes_spent_nonnegative"),
+        CheckConstraint("progress_percent >= 0 AND progress_percent <= 100", name="ck_log_progress_range"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    media_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE")
+    )
+    log_type: Mapped[UserItemLogType] = mapped_column(
+        Enum(UserItemLogType, name="user_item_log_type", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+    )
+    notes: Mapped[str | None] = mapped_column(String(2000))
+    minutes_spent: Mapped[int | None] = mapped_column(Integer)
+    progress_percent: Mapped[int | None] = mapped_column(Integer)
+    goal_target: Mapped[str | None] = mapped_column(String(255))
+    goal_due_on: Mapped[date | None] = mapped_column(Date)
+    logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    user: Mapped["User"] = relationship(back_populates="item_logs")
+    media_item: Mapped[MediaItem] = relationship(back_populates="user_logs")
 
 
 def _get_metadata(media: MediaItem) -> dict | None:

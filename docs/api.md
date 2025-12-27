@@ -59,6 +59,29 @@ Revoke a specific session by ID. Returns `204 No Content` or `404` if the sessio
     -d '{"status":"consumed","rating":9,"favorite":true}'
   ```
 
+## Library + Logs
+### GET /api/me/library
+Returns a library snapshot with status counts, full item list, and a next-up queue.
+
+### GET /api/me/logs
+List log entries for the current user.
+- Query params: `media_item_id`, `log_type` (`started`, `progress`, `finished`, `note`, `goal`), `limit`, `offset`.
+
+### POST /api/me/logs
+Create a log entry (also syncs the related `user_item_state` when appropriate).
+```bash
+curl -k -X POST https://localhost/api/me/logs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"media_item_id":"'$MEDIA_ID'","log_type":"progress","minutes_spent":30,"progress_percent":40,"notes":"Good pacing."}'
+```
+
+### PATCH /api/me/logs/{log_id}
+Update a log entry.
+
+### DELETE /api/me/logs/{log_id}
+Remove a log entry.
+
 ## Search
 `GET /api/search?q=...&types=book&types=movie&include_external=true`
 - Always searches Postgres first. Accepts `types` to filter media types and `page`/`per_page` for internal pagination.

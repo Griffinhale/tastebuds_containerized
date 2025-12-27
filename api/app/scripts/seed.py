@@ -20,14 +20,15 @@ from app.models.media import (
     MediaType,
     MovieItem,
     MusicItem,
+    UserItemLogType,
     UserItemStatus,
 )
 from app.models.menu import Menu
 from app.samples import load_ingestion_sample
-from app.schema.media import UserItemStateUpdate
+from app.schema.media import UserItemLogCreate, UserItemStateUpdate
 from app.schema.menu import CourseCreate, CourseItemCreate, MenuCreate
 from app.schema.tag import TagCreate
-from app.services import menu_service, tag_service, user_service, user_state_service
+from app.services import menu_service, tag_service, user_log_service, user_service, user_state_service
 from app.utils.slugify import menu_slug
 
 DEMO_EMAIL = "demo@tastebuds.local"
@@ -169,6 +170,7 @@ async def _seed_session(session: AsyncSession) -> None:
     menu = await _ensure_menu(session, user.id, media_items)
     await _ensure_tags(session, user.id, media_items)
     await _ensure_user_states(session, user.id, media_items)
+    await _ensure_user_logs(session, user.id, media_items)
 
     print(f"Seed complete - menu slug: {menu.slug}")
 
@@ -321,6 +323,46 @@ async def _ensure_user_states(session: AsyncSession, user_id, media_items: dict[
         media_items["game"].id,
         UserItemStateUpdate(status=UserItemStatus.WANT, notes="Finish after movie night"),
     )
+
+
+async def _ensure_user_logs(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> None:
+    """Create sample log entries for the demo user."""
+    logs = [
+        UserItemLogCreate(
+            media_item_id=media_items["book"].id,
+            log_type=UserItemLogType.STARTED,
+            notes="Started the first chapter.",
+            minutes_spent=45,
+        ),
+        UserItemLogCreate(
+            media_item_id=media_items["book"].id,
+            log_type=UserItemLogType.PROGRESS,
+            notes="Halfway through, loving the pacing.",
+            progress_percent=50,
+        ),
+        UserItemLogCreate(
+            media_item_id=media_items["movie"].id,
+            log_type=UserItemLogType.GOAL,
+            notes="Watch before the next menu night.",
+            goal_target="Finish by Friday",
+        ),
+        UserItemLogCreate(
+            media_item_id=media_items["music"].id,
+            log_type=UserItemLogType.NOTE,
+            notes="Great ambient track for focus sessions.",
+        ),
+    ]
+
+    for payload in logs:
+        existing = await user_log_service.list_logs(
+            session,
+            user_id,
+            media_item_id=payload.media_item_id,
+            log_type=payload.log_type,
+            limit=1,
+        )
+        if not existing:
+            await user_log_service.create_log(session, user_id, payload)
 
 
 def main() -> None:

@@ -30,7 +30,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **The Enthusiast (friends swapping recs):** Needs lightweight search + ingest, delightful share cards, Spotify/Jellyfin hand-offs, and safety around private drafts.
 
 ## 5. Product Surface Map
-- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`. Forthcoming: `/api/automations`, `/api/integrations/*`. TODO: define endpoints for library/log, taste profile, availability, and menu lineage.
+- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`, `/api/me/library`, `/api/me/logs`. Forthcoming: `/api/automations`, `/api/integrations/*`. TODO: define endpoints for taste profile, availability, and menu lineage.
 - **Connectors (shipping):** Google Books, TMDB, IGDB, Last.fm.
 - **Connectors (planned):** Spotify (playlist + track metadata), Discogs, MusicBrainz, StoryGraph export/import, Arr suite webhooks, Jellyfin/Plex library sync, Notion two-way sync, RSS/ActivityPub feeds.
 - **Interfaces:** Next.js workspace (auth, search, menu editor, share view, Library + Log hub, Taste Profile dashboard, availability overlays, community exchange), CLI/automation scripts, optional mobile-friendly PWA.
@@ -61,7 +61,7 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 - Search workspace: personalized boosts, “in collection” badges, surfaced dedupe reasons; reuse telemetry from 7.1 for user-facing feedback.
 - Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
 - Collaboration preview: share draft links with temporary tokens before full multi-user editing.
-- Library + Log hub: status tracking, timeline view, goals, quick log from search/menus, and an auto-built "Next up" queue.
+- Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, and an auto-built "Next up" queue.
 - Narrative menus: course intents, item annotations, pairings across media types, and story-mode reading views.
 - Taste Profile: evolving preference view powered by logs, tags, and menu signals with "balance" prompts.
 - Availability awareness: show provider/format access, region flags, and alternates when availability is missing.

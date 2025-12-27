@@ -61,6 +61,11 @@ export default function Home() {
           href="/menus"
         />
         <Card
+          title="Library & log"
+          description="Track status, goals, and progress across your media diet."
+          href="/library"
+        />
+        <Card
           title="Search & ingestion"
           description="Hit /api/search with include_external=true and import results inline."
           href="https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"

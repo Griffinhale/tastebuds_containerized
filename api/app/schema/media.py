@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.media import MediaType, UserItemStatus
+from app.models.media import MediaType, UserItemLogType, UserItemStatus
 from app.schema.base import ORMModel
 
 
@@ -71,3 +71,43 @@ class UserItemStateUpdate(BaseModel):
     notes: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
+
+
+class UserItemLogRead(ORMModel):
+    """User log entry fields for timeline views."""
+    id: UUID
+    user_id: UUID
+    media_item_id: UUID
+    log_type: UserItemLogType
+    notes: str | None = None
+    minutes_spent: int | None = None
+    progress_percent: int | None = None
+    goal_target: str | None = None
+    goal_due_on: date | None = None
+    logged_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    media_item: MediaItemBase | None = None
+
+
+class UserItemLogCreate(BaseModel):
+    """Payload for creating a log entry."""
+    media_item_id: UUID
+    log_type: UserItemLogType
+    notes: str | None = None
+    minutes_spent: int | None = Field(default=None, ge=0)
+    progress_percent: int | None = Field(default=None, ge=0, le=100)
+    goal_target: str | None = None
+    goal_due_on: date | None = None
+    logged_at: datetime | None = None
+
+
+class UserItemLogUpdate(BaseModel):
+    """Payload for updating a log entry."""
+    log_type: UserItemLogType | None = None
+    notes: str | None = None
+    minutes_spent: int | None = Field(default=None, ge=0)
+    progress_percent: int | None = Field(default=None, ge=0, le=100)
+    goal_target: str | None = None
+    goal_due_on: date | None = None
+    logged_at: datetime | None = None

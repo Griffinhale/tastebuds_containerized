@@ -14,7 +14,7 @@ from app.db.base_class import Base
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from app.models.auth import RefreshToken
-    from app.models.media import UserItemState
+    from app.models.media import UserItemLog, UserItemState
     from app.models.menu import Menu
 
 
@@ -33,4 +33,5 @@ class User(Base):
 
     menus: Mapped[list["Menu"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     item_states: Mapped[list["UserItemState"]] = relationship(back_populates="user")
+    item_logs: Mapped[list["UserItemLog"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
