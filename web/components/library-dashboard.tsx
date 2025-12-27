@@ -111,7 +111,9 @@ export function LibraryDashboard() {
 
   useEffect(() => {
     if (!libraryItems.length) return;
-    setLogDraft((draft) => (draft.media_item_id ? draft : { ...draft, media_item_id: libraryItems[0].media_item.id }));
+    setLogDraft((draft) =>
+      draft.media_item_id ? draft : { ...draft, media_item_id: libraryItems[0].media_item.id }
+    );
     setStateDraft((draft) =>
       draft.media_item_id ? draft : { ...draft, media_item_id: libraryItems[0].media_item.id }
     );
@@ -159,7 +161,8 @@ export function LibraryDashboard() {
     };
     if (logDraft.notes.trim()) payload.notes = logDraft.notes.trim();
     if (logDraft.minutes_spent !== '') payload.minutes_spent = Number(logDraft.minutes_spent);
-    if (logDraft.progress_percent !== '') payload.progress_percent = Number(logDraft.progress_percent);
+    if (logDraft.progress_percent !== '')
+      payload.progress_percent = Number(logDraft.progress_percent);
     if (logDraft.goal_target.trim()) payload.goal_target = logDraft.goal_target.trim();
     if (logDraft.goal_due_on) payload.goal_due_on = logDraft.goal_due_on;
 
@@ -230,7 +233,9 @@ export function LibraryDashboard() {
           </button>
         </div>
         {lastUpdated && !loading && !error && (
-          <p className="mt-2 text-xs text-slate-400">Last updated {lastUpdated.toLocaleTimeString()}</p>
+          <p className="mt-2 text-xs text-slate-400">
+            Last updated {lastUpdated.toLocaleTimeString()}
+          </p>
         )}
 
         {library && (
@@ -259,7 +264,10 @@ export function LibraryDashboard() {
           {library?.next_up.length ? (
             <ul className="mt-3 space-y-3">
               {library.next_up.map((entry) => (
-                <li key={entry.media_item.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <li
+                  key={entry.media_item.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                >
                   <MediaHeading media={entry.media_item} />
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
                     <span className="rounded-full border border-slate-800 px-2 py-1">
@@ -287,9 +295,7 @@ export function LibraryDashboard() {
             <p className="text-sm font-semibold text-emerald-300">Goals</p>
             <p className="text-xs text-slate-300">Targets pulled from your goal logs.</p>
           </div>
-          {!goalLogs.length && (
-            <p className="mt-3 text-sm text-slate-400">No goals logged yet.</p>
-          )}
+          {!goalLogs.length && <p className="mt-3 text-sm text-slate-400">No goals logged yet.</p>}
           {goalLogs.length ? (
             <ul className="mt-3 space-y-3">
               {goalLogs.slice(0, 4).map((goal) => (
@@ -427,7 +433,9 @@ export function LibraryDashboard() {
               Notes
               <textarea
                 value={logDraft.notes}
-                onChange={(event) => setLogDraft((draft) => ({ ...draft, notes: event.target.value }))}
+                onChange={(event) =>
+                  setLogDraft((draft) => ({ ...draft, notes: event.target.value }))
+                }
                 rows={3}
                 className="mt-1 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white"
               />
@@ -520,7 +528,9 @@ export function LibraryDashboard() {
               Notes
               <textarea
                 value={stateDraft.notes}
-                onChange={(event) => setStateDraft((draft) => ({ ...draft, notes: event.target.value }))}
+                onChange={(event) =>
+                  setStateDraft((draft) => ({ ...draft, notes: event.target.value }))
+                }
                 rows={3}
                 className="mt-1 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white"
               />
@@ -551,7 +561,10 @@ export function LibraryDashboard() {
         {libraryItems.length ? (
           <ul className="mt-4 grid gap-3 md:grid-cols-2">
             {libraryItems.map((entry) => (
-              <li key={entry.media_item.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <li
+                key={entry.media_item.id}
+                className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+              >
                 <div className="flex items-start gap-3">
                   <CoverArt media={entry.media_item} />
                   <div className="flex-1">
