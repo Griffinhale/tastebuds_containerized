@@ -19,6 +19,8 @@ import {
   getMenu,
   listMenus,
   reorderCourseItems,
+  updateCourse,
+  updateCourseItem,
 } from '../lib/menus';
 import { CourseItemSearch } from './course-item-search';
 
@@ -245,6 +247,18 @@ function CourseEditor({
   const [orderError, setOrderError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState(course.title);
+  const [draftDescription, setDraftDescription] = useState(course.description ?? '');
+  const [draftIntent, setDraftIntent] = useState(course.intent ?? '');
+
+  useEffect(() => {
+    setDraftTitle(course.title);
+    setDraftDescription(course.description ?? '');
+    setDraftIntent(course.intent ?? '');
+  }, [course.description, course.intent, course.title]);
 
   async function handleDelete() {
     setDeleting(true);
@@ -270,6 +284,16 @@ function CourseEditor({
     onCourseUpdated({ ...course, items: nextItems });
   }
 
+  const handleItemUpdated = useCallback(
+    (updatedItem: CourseItem) => {
+      onCourseUpdated({
+        ...course,
+        items: course.items.map((item) => (item.id === updatedItem.id ? updatedItem : item)),
+      });
+    },
+    [course, onCourseUpdated]
+  );
+
   function handleDragStart(itemId: string) {
     setDraggingId(itemId);
     setDragOverId(itemId);
@@ -284,6 +308,33 @@ function CourseEditor({
   function resetDragState() {
     setDraggingId(null);
     setDragOverId(null);
+  }
+
+  async function handleCourseSave() {
+    setSavingEdits(true);
+    setEditError(null);
+    try {
+      const updated = await updateCourse(menuId, course.id, {
+        title: draftTitle.trim(),
+        description: draftDescription.trim() ? draftDescription : null,
+        intent: draftIntent.trim() ? draftIntent : null,
+      });
+      onCourseUpdated(updated);
+      setEditing(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update course.';
+      setEditError(message);
+    } finally {
+      setSavingEdits(false);
+    }
+  }
+
+  function handleCourseCancel() {
+    setDraftTitle(course.title);
+    setDraftDescription(course.description ?? '');
+    setDraftIntent(course.intent ?? '');
+    setEditError(null);
+    setEditing(false);
   }
 
   async function handleDrop(targetId: string) {
@@ -326,15 +377,86 @@ function CourseEditor({
           </p>
           <h4 className="text-base font-semibold text-white">{course.title}</h4>
           {course.description && <p className="text-sm text-slate-200">{course.description}</p>}
+          {course.intent && <p className="text-sm text-emerald-200">{course.intent}</p>}
         </div>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {deleting ? 'Removing…' : 'Delete course'}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setEditing((prev) => !prev)}
+            className="text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
+          >
+            {editing ? 'Close editor' : 'Edit course'}
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleting ? 'Removing…' : 'Delete course'}
+          </button>
+        </div>
       </div>
+
+      {editing && (
+        <div className="mt-4 space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-400">Narrative details</p>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400" htmlFor={`course_edit_title_${course.id}`}>
+              Title
+            </label>
+            <input
+              id={`course_edit_title_${course.id}`}
+              type="text"
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400" htmlFor={`course_edit_desc_${course.id}`}>
+              Description
+            </label>
+            <textarea
+              id={`course_edit_desc_${course.id}`}
+              rows={2}
+              value={draftDescription}
+              onChange={(e) => setDraftDescription(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+              placeholder="Optional context for this course."
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400" htmlFor={`course_edit_intent_${course.id}`}>
+              Intent
+            </label>
+            <textarea
+              id={`course_edit_intent_${course.id}`}
+              rows={2}
+              value={draftIntent}
+              onChange={(e) => setDraftIntent(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+              placeholder="Why this course matters in the overall story."
+            />
+          </div>
+          {editError && <p className="text-xs text-red-300">{editError}</p>}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleCourseSave}
+              disabled={savingEdits || !draftTitle.trim()}
+              className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {savingEdits ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              onClick={handleCourseCancel}
+              className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 space-y-3">
         <p className="text-xs uppercase tracking-wide text-slate-400">Items</p>
@@ -353,6 +475,7 @@ function CourseEditor({
             item={item}
             menuId={menuId}
             onItemRemoved={() => handleItemRemoved(item.id)}
+            onItemUpdated={handleItemUpdated}
             dragState={
               course.items.length > 1
                 ? {
@@ -396,15 +519,25 @@ function CourseItemRow({
   item,
   menuId,
   onItemRemoved,
+  onItemUpdated,
   dragState,
 }: {
   item: CourseItem;
   menuId: string;
   onItemRemoved: () => void;
+  onItemUpdated: (item: CourseItem) => void;
   dragState?: DragState;
 }) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState(item.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNotes(item.notes ?? '');
+  }, [item.notes]);
 
   async function handleRemove() {
     setRemoving(true);
@@ -418,6 +551,29 @@ function CourseItemRow({
     } finally {
       setRemoving(false);
     }
+  }
+
+  async function handleNotesSave() {
+    setSaving(true);
+    setEditError(null);
+    try {
+      const updated = await updateCourseItem(menuId, item.id, {
+        notes: notes.trim() ? notes : null,
+      });
+      onItemUpdated(updated);
+      setEditing(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update notes.';
+      setEditError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleNotesCancel() {
+    setNotes(item.notes ?? '');
+    setEditError(null);
+    setEditing(false);
   }
 
   const dragClasses = dragState
@@ -455,16 +611,57 @@ function CourseItemRow({
             {item.media_item?.title || 'Untitled media'}{' '}
             <span className="text-xs text-slate-400">({item.media_item_id})</span>
           </p>
-          {item.notes && <p className="text-xs text-slate-300">{item.notes}</p>}
+          {item.notes && <p className="text-xs text-slate-300">Annotation: {item.notes}</p>}
         </div>
-        <button
-          onClick={handleRemove}
-          disabled={removing}
-          className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {removing ? 'Removing…' : 'Remove'}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setEditing((prev) => !prev)}
+            className="text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
+          >
+            {editing ? 'Close notes' : 'Edit notes'}
+          </button>
+          <button
+            onClick={handleRemove}
+            disabled={removing}
+            className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {removing ? 'Removing…' : 'Remove'}
+          </button>
+        </div>
       </div>
+      {editing && (
+        <div className="mt-3 space-y-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+          <label className="text-xs text-slate-400" htmlFor={`item_notes_${item.id}`}>
+            Annotation
+          </label>
+          <textarea
+            id={`item_notes_${item.id}`}
+            rows={2}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+            placeholder="Add a narrative note or pairing suggestion."
+          />
+          {editError && <p className="text-xs text-red-300">{editError}</p>}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleNotesSave}
+              disabled={saving}
+              className="rounded-lg bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {saving ? 'Saving…' : 'Save notes'}
+            </button>
+            <button
+              type="button"
+              onClick={handleNotesCancel}
+              className="text-xs font-semibold text-slate-400 underline decoration-slate-500/60"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
     </div>
   );
@@ -601,6 +798,7 @@ function AddCourseForm({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [intent, setIntent] = useState('');
   const [position, setPosition] = useState(nextPosition);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -616,6 +814,7 @@ function AddCourseForm({
     const payload: CreateCourseInput = {
       title,
       description: description || undefined,
+      intent: intent || undefined,
       position,
     };
 
@@ -624,6 +823,7 @@ function AddCourseForm({
       onCourseAdded(created);
       setTitle('');
       setDescription('');
+      setIntent('');
       setPosition((prev) => prev + 1);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create course.';
@@ -675,6 +875,19 @@ function AddCourseForm({
           onChange={(e) => setDescription(e.target.value)}
           className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
           placeholder="Optional context for this course."
+        />
+      </div>
+      <div className="mt-3 space-y-1">
+        <label className="text-xs text-slate-400" htmlFor={`course_intent_${menuId}`}>
+          Intent
+        </label>
+        <textarea
+          id={`course_intent_${menuId}`}
+          rows={2}
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+          placeholder="What should this course convey?"
         />
       </div>
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
@@ -766,7 +979,7 @@ function AddCourseItemForm({
       </div>
       <div className="space-y-1">
         <label className="text-xs text-slate-400" htmlFor={`item_notes_${course.id}`}>
-          Notes
+          Annotation
         </label>
         <textarea
           id={`item_notes_${course.id}`}
@@ -774,7 +987,7 @@ function AddCourseItemForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
-          placeholder="Optional serving notes."
+          placeholder="Optional pairing notes or context."
         />
       </div>
       {error && <p className="text-xs text-red-300">{error}</p>}

@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.models.media import MediaItem
 from app.models.menu import Course, CourseItem, Menu
 from app.models.search_preview import ExternalSearchPreview
-from app.schema.menu import CourseCreate, CourseItemCreate, MenuCreate, MenuUpdate
+from app.schema.menu import CourseCreate, CourseItemCreate, CourseItemUpdate, CourseUpdate, MenuCreate, MenuUpdate
 from app.services import media_service
 from app.utils.slugify import menu_slug
 
@@ -103,6 +103,19 @@ async def add_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -
     return await _load_course_with_items(session, course.id)
 
 
+async def update_course(session: AsyncSession, course: Course, payload: CourseUpdate) -> Course:
+    """Update mutable course attributes."""
+    fields = payload.model_fields_set
+    if "title" in fields and payload.title is not None:
+        course.title = payload.title
+    if "description" in fields:
+        course.description = payload.description
+    if "intent" in fields:
+        course.intent = payload.intent
+    await session.commit()
+    return await _load_course_with_items(session, course.id)
+
+
 async def get_course(session: AsyncSession, course_id: uuid.UUID, owner_id: uuid.UUID) -> Course:
     """Fetch a course scoped to an owner."""
     query = select(Course).join(Menu).where(Course.id == course_id, Menu.owner_id == owner_id)
@@ -125,6 +138,16 @@ async def add_course_item(session: AsyncSession, course: Course, payload: Course
     session.add(item)
     await session.commit()
     return await _load_course_item_with_media(session, item.id)
+
+
+async def update_course_item(
+    session: AsyncSession, course_item: CourseItem, payload: CourseItemUpdate
+) -> CourseItem:
+    """Update mutable course item attributes."""
+    if "notes" in payload.model_fields_set:
+        course_item.notes = payload.notes
+    await session.commit()
+    return await _load_course_item_with_media(session, course_item.id)
 
 
 async def delete_course(session: AsyncSession, course: Course) -> None:
@@ -210,6 +233,7 @@ async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreat
         menu_id=menu.id,
         title=payload.title,
         description=payload.description,
+        intent=payload.intent,
         position=payload.position,
     )
     session.add(course)

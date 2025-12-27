@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.user import User
-from app.schema.menu import MenuCreate, MenuUpdate
+from app.schema.menu import CourseCreate, CourseUpdate, MenuCreate, MenuUpdate
 from app.services import menu_service
 
 
@@ -43,3 +43,31 @@ async def test_menu_slug_stable_on_update(session):
     )
 
     assert updated.slug == original_slug
+
+
+@pytest.mark.asyncio
+async def test_course_intent_updates(session):
+    user = User(email="course-intent@test", hashed_password="x")
+    session.add(user)
+    await session.flush()
+
+    menu = await menu_service.create_menu(
+        session,
+        user.id,
+        MenuCreate(title="Narrative Menu", description=None, is_public=False),
+    )
+
+    course = await menu_service.add_course(
+        session,
+        menu,
+        CourseCreate(title="Course One", description="Start here", intent="Set the mood", position=1),
+    )
+
+    updated = await menu_service.update_course(
+        session,
+        course,
+        CourseUpdate(intent="Raise the stakes", description="Updated"),
+    )
+
+    assert updated.intent == "Raise the stakes"
+    assert updated.description == "Updated"

@@ -18,6 +18,11 @@ class CourseItemCreate(BaseModel):
     position: int
 
 
+class CourseItemUpdate(BaseModel):
+    """Payload for updating a course item annotation."""
+    notes: str | None = None
+
+
 class CourseItemReorder(BaseModel):
     """Payload for reordering course items."""
     item_ids: list[UUID]
@@ -36,8 +41,16 @@ class CourseCreate(BaseModel):
     """Payload for creating a menu course."""
     title: str
     description: str | None = None
+    intent: str | None = None
     position: int
     items: list[CourseItemCreate] = Field(default_factory=list)
+
+
+class CourseUpdate(BaseModel):
+    """Payload for updating course details."""
+    title: str | None = None
+    description: str | None = None
+    intent: str | None = None
 
 
 class CourseRead(ORMModel):
@@ -45,6 +58,7 @@ class CourseRead(ORMModel):
     id: UUID
     title: str
     description: str | None = None
+    intent: str | None = None
     position: int
     items: list[CourseItemRead] = Field(default_factory=list)
 

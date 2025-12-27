@@ -180,6 +180,7 @@ function CourseSection({ course }: { course: Course }) {
         <p className="text-xs uppercase tracking-wide text-slate-400">Course {course.position}</p>
         <h2 className="text-2xl font-semibold text-white">{course.title}</h2>
         {course.description && <p className="text-sm text-slate-300">{course.description}</p>}
+        {course.intent && <p className="text-sm text-emerald-200">{course.intent}</p>}
       </header>
 
       {course.items.length === 0 ? (
@@ -234,7 +235,9 @@ function CourseItemCard({ item }: { item: CourseItem }) {
                 })}
               </p>
             )}
-            {item.notes && <p className="mt-2 text-xs text-emerald-200">Notes: {item.notes}</p>}
+            {item.notes && (
+              <p className="mt-2 text-xs text-emerald-200">Annotation: {item.notes}</p>
+            )}
             {media?.description && (
               <p className="mt-2 text-xs leading-relaxed text-slate-300">{media.description}</p>
             )}

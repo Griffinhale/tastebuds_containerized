@@ -40,7 +40,7 @@ class Menu(Base):
 
 
 class Course(Base):
-    """Course grouping within a menu with explicit ordering."""
+    """Course grouping within a menu with explicit ordering and narrative intent."""
     __tablename__ = "courses"
     __table_args__ = (UniqueConstraint("menu_id", "position", name="uq_course_position"),)
 
@@ -48,6 +48,7 @@ class Course(Base):
     menu_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("menus.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    intent: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
 
     menu: Mapped[Menu] = relationship(back_populates="courses")

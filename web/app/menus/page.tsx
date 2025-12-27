@@ -15,8 +15,8 @@ export default function MenusPage() {
         <h1 className="text-3xl font-semibold text-white">Create and manage your menus.</h1>
         <p className="text-base text-slate-200">
           Menus are ordered collections of courses and course items. Each course card includes a
-          search & ingest drawer so you can type a query, fan out to external sources, and add items
-          without leaving this page.
+          search & ingest drawer plus narrative fields so you can add intent and annotations without
+          leaving this page.
         </p>
       </header>
 

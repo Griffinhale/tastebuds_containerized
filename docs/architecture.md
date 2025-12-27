@@ -15,7 +15,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Search:** `GET /api/search` queries Postgres first, optionally fans out to external connectors, and requires auth for any external sources. External results are stored in a short-TTL preview cache (with payload/metadata caps) and fully ingested only when an authenticated user opens details or saves to a menu/library.
 - **Menus & sharing:** Authenticated owners manage menus/courses/items; `GET /api/public/menus/{slug}` serves published menus anonymously using a public DTO that omits `owner_id`.
 - **Library + Log:** `/api/me/library` aggregates user states + log events into a status snapshot, while `/api/me/logs` captures timeline entries (progress, minutes, goals) without mutating menu data.
-- **Menu narrative (planned):** TODO: add course intents, item annotations, and pairings with minimal additional joins.
+- **Menu narrative (in progress):** course intents + item annotations are now stored on `courses`/`course_items`; pairings remain pending with minimal additional joins.
 - **Taste Profile (planned):** TODO: define aggregation pipeline and caching for preference insights derived from logs/tags/menus.
 - **Availability awareness (planned):** TODO: ingest provider data, schedule refresh jobs, and map region-specific availability to items.
 - **Community exchange (planned):** TODO: model menu lineage, attribution, and fork/remix notifications.

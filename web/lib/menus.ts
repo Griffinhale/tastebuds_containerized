@@ -24,6 +24,7 @@ export type Course = {
   id: string;
   title: string;
   description?: string | null;
+  intent?: string | null;
   position: number;
   items: CourseItem[];
 };
@@ -49,6 +50,7 @@ export type CreateMenuInput = {
 export type CreateCourseInput = {
   title: string;
   description?: string;
+  intent?: string;
   position: number;
 };
 
@@ -56,6 +58,16 @@ export type CreateCourseItemInput = {
   media_item_id: string;
   position: number;
   notes?: string;
+};
+
+export type UpdateCourseInput = {
+  title?: string;
+  description?: string | null;
+  intent?: string | null;
+};
+
+export type UpdateCourseItemInput = {
+  notes?: string | null;
 };
 
 export async function listMenus() {
@@ -90,7 +102,23 @@ export async function createCourse(menuId: string, input: CreateCourseInput) {
       body: JSON.stringify({
         title: input.title,
         description: input.description,
+        intent: input.intent,
         position: input.position,
+      }),
+    },
+    { isServer: false }
+  );
+}
+
+export async function updateCourse(menuId: string, courseId: string, input: UpdateCourseInput) {
+  return apiFetch<Course>(
+    `/menus/${menuId}/courses/${courseId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        title: input.title,
+        description: input.description,
+        intent: input.intent,
       }),
     },
     { isServer: false }
@@ -124,6 +152,21 @@ export async function deleteCourseItem(menuId: string, itemId: string) {
   await apiFetch(
     `/menus/${menuId}/course-items/${itemId}`,
     { method: 'DELETE' },
+    { isServer: false }
+  );
+}
+
+export async function updateCourseItem(
+  menuId: string,
+  itemId: string,
+  input: UpdateCourseItemInput
+) {
+  return apiFetch<CourseItem>(
+    `/menus/${menuId}/course-items/${itemId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ notes: input.notes }),
+    },
     { isServer: false }
   );
 }

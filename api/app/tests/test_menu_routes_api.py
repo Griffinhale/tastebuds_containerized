@@ -34,10 +34,11 @@ async def test_menu_course_item_flow(client, session):
 
     course_res = await client.post(
         f"/api/menus/{menu_id}/courses",
-        json={"title": "Appetizer", "description": "Openers", "position": 1},
+        json={"title": "Appetizer", "description": "Openers", "intent": "Set the tone.", "position": 1},
     )
     assert course_res.status_code == 201
     course = course_res.json()
+    assert course["intent"] == "Set the tone."
 
     media = MediaItem(title="Blade Runner", media_type=MediaType.MOVIE)
     session.add(media)
@@ -54,6 +55,21 @@ async def test_menu_course_item_flow(client, session):
     assert item_res.status_code == 201
     item = item_res.json()
     assert item["media_item_id"] == str(media.id)
+
+    update_course = await client.patch(
+        f"/api/menus/{menu_id}/courses/{course['id']}",
+        json={"intent": "Build intrigue.", "description": "Updated"},
+    )
+    assert update_course.status_code == 200
+    updated_course = update_course.json()
+    assert updated_course["intent"] == "Build intrigue."
+
+    update_item = await client.patch(
+        f"/api/menus/{menu_id}/course-items/{item['id']}",
+        json={"notes": "Updated notes."},
+    )
+    assert update_item.status_code == 200
+    assert update_item.json()["notes"] == "Updated notes."
 
     list_res = await client.get("/api/menus")
     assert list_res.status_code == 200

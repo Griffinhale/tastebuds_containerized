@@ -15,7 +15,9 @@ from app.schema.menu import (
     CourseItemCreate,
     CourseItemRead,
     CourseItemReorder,
+    CourseItemUpdate,
     CourseRead,
+    CourseUpdate,
     MenuCreate,
     MenuRead,
     MenuUpdate,
@@ -93,6 +95,22 @@ async def add_course_endpoint(
     return await menu_service.add_course(session, menu, payload)
 
 
+@router.patch("/{menu_id}/courses/{course_id}", response_model=CourseRead)
+async def update_course_endpoint(
+    menu_id: uuid.UUID,
+    course_id: uuid.UUID,
+    payload: CourseUpdate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Course:
+    """Update course metadata."""
+    menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
+    course = await menu_service.get_course(session, course_id, current_user.id)
+    if course.menu_id != menu.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found in menu")
+    return await menu_service.update_course(session, course, payload)
+
+
 @router.delete(
     "/{menu_id}/courses/{course_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -131,6 +149,22 @@ async def add_course_item_endpoint(
     if course.menu_id != menu.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found in menu")
     return await menu_service.add_course_item(session, course, payload)
+
+
+@router.patch("/{menu_id}/course-items/{item_id}", response_model=CourseItemRead)
+async def update_course_item_endpoint(
+    menu_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: CourseItemUpdate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CourseItemRead:
+    """Update course item annotations."""
+    menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
+    course_item = await menu_service.get_course_item(session, item_id, current_user.id)
+    if course_item.course.menu_id != menu.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found in menu")
+    return await menu_service.update_course_item(session, course_item, payload)
 
 
 @router.delete(

@@ -62,11 +62,11 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 - Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
 - Collaboration preview: share draft links with temporary tokens before full multi-user editing.
 - Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, and an auto-built "Next up" queue.
-- Narrative menus: course intents, item annotations, pairings across media types, and story-mode reading views.
+- Narrative menus: course intents + item annotations are now stored and editable; pairings across media types and story-mode views remain pending.
 - Taste Profile: evolving preference view powered by logs, tags, and menu signals with "balance" prompts.
 - Availability awareness: show provider/format access, region flags, and alternates when availability is missing.
 - Community exchange: fork/remix menus with lineage, attribution, and delta notes.
-TODO: draft RFCs for Library + Log, narrative menus, taste profile, availability, and community exchange.
+TODO: draft RFCs for Library + Log, narrative menus (pairings/story mode), taste profile, availability, and community exchange.
 
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
 - Spotify linking screen + backend credential vault (per-user encrypted store and token rotation).

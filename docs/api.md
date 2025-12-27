@@ -107,12 +107,14 @@ Remove a log entry.
 - `PATCH /api/menus/{id}` - update title/description/visibility.
 - `DELETE /api/menus/{id}` - delete a menu and cascade children.
 - `POST /api/menus/{id}/courses` - add a course (optionally with items).
+- `PATCH /api/menus/{id}/courses/{course_id}` - update a course title/description/intent.
 - `DELETE /api/menus/{id}/courses/{course_id}` - remove a course.
 - `POST /api/menus/{id}/courses/{course_id}/items` - add a course item pointing to an existing media item.
+- `PATCH /api/menus/{id}/course-items/{item_id}` - update course item annotations.
 - `DELETE /api/menus/{id}/course-items/{item_id}` - remove a course item.
 - `POST /api/menus/{id}/courses/{course_id}/reorder-items` - persist a new item order via an array of course item IDs.
 
-Ordering is enforced via unique `(menu_id, position)` for courses and `(course_id, position)` for items, so responses always reflect the intended chronology.
+Ordering is enforced via unique `(menu_id, position)` for courses and `(course_id, position)` for items, so responses always reflect the intended chronology. Courses support an optional `intent` field, and course items accept `notes` as narrative annotations.
 
 ## Tags
 - `GET /api/tags` - list your tags plus global ones.
