@@ -1,5 +1,7 @@
 'use client';
 
+// Shared login/register form with simple client-side state handling.
+
 import Link from 'next/link';
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -52,6 +54,7 @@ export function AuthForm({ variant }: { variant: Variant }) {
       if (variant === 'login') {
         await login(email, password);
       } else {
+        // Fall back to email as a display name when none is provided.
         await register(email, password, displayName || email);
       }
       router.push('/');

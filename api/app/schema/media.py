@@ -1,3 +1,5 @@
+"""Media-related schemas for catalog responses and updates."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -10,6 +12,7 @@ from app.schema.base import ORMModel
 
 
 class MediaSourceRead(ORMModel):
+    """Source metadata returned with media items."""
     id: UUID
     source_name: str
     external_id: str
@@ -18,6 +21,7 @@ class MediaSourceRead(ORMModel):
 
 
 class MediaItemBase(ORMModel):
+    """Shared fields for media item responses."""
     id: UUID
     media_type: MediaType
     title: str
@@ -30,10 +34,12 @@ class MediaItemBase(ORMModel):
 
 
 class MediaItemDetail(MediaItemBase):
+    """Media item response with attached sources."""
     sources: list[MediaSourceRead] = []
 
 
 class MediaItemUpsert(BaseModel):
+    """Payload for upserting a media item."""
     media_type: MediaType
     title: str
     subtitle: str | None = None
@@ -45,6 +51,7 @@ class MediaItemUpsert(BaseModel):
 
 
 class UserItemStateRead(ORMModel):
+    """User-specific media status details."""
     id: UUID
     media_item_id: UUID
     user_id: UUID
@@ -57,6 +64,7 @@ class UserItemStateRead(ORMModel):
 
 
 class UserItemStateUpdate(BaseModel):
+    """Payload for updating a user's media state."""
     status: UserItemStatus
     rating: int | None = Field(default=None, ge=0, le=10)
     favorite: bool = False

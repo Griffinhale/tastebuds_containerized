@@ -1,5 +1,7 @@
 'use client';
 
+// Ops queue status card for authenticated users.
+
 import { useEffect, useState } from 'react';
 
 import { QueueSnapshot, fetchQueueHealth } from '../lib/ops';
@@ -10,6 +12,7 @@ export function QueueStatus() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Avoid state updates after unmount.
     let cancelled = false;
     setLoading(true);
     fetchQueueHealth()
@@ -101,6 +104,7 @@ export function QueueStatus() {
 }
 
 function normalizeError(message: string) {
+  // Hide auth errors behind a friendly message.
   const normalized = message.toLowerCase();
   if (normalized.includes('unauthorized') || normalized.includes('token')) {
     return 'Sign in to view queue health.';

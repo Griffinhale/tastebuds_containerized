@@ -1,5 +1,7 @@
 'use client';
 
+// Menu dashboard with local optimistic updates and drag-and-drop ordering.
+
 import Link from 'next/link';
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -296,6 +298,7 @@ function CourseEditor({
     }
     resetDragState();
     setOrderError(null);
+    // Optimistically update order while persisting to the backend.
     onCourseUpdated({ ...course, items: reordered });
     setReordering(true);
     try {

@@ -1,3 +1,5 @@
+"""Webhook normalization helpers for integrations."""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +15,7 @@ logger = logging.getLogger("app.services.webhooks")
 
 @dataclass(slots=True)
 class WebhookEvent:
+    """Normalized webhook payload passed into handlers."""
     provider: str
     payload: dict[str, Any] = field(default_factory=dict)
     event_type: str | None = None

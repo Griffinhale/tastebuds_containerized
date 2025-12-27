@@ -1,3 +1,4 @@
+# Base image for the FastAPI API service and worker containers.
 FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

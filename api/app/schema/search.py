@@ -1,3 +1,5 @@
+"""Search query/response schemas for internal and external catalogs."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,12 +13,14 @@ from app.schema.media import MediaItemBase
 
 
 class SearchQuery(BaseModel):
+    """Search request payload including optional external fan-out."""
     q: str
     types: list[MediaType] | None = None
     include_external: bool = False
 
 
 class SearchResultItem(MediaItemBase):
+    """Search result with optional external preview metadata."""
     preview_id: UUID | None = None
     source_name: str | None = None
     source_id: str | None = None
@@ -24,6 +28,7 @@ class SearchResultItem(MediaItemBase):
 
 
 class SearchResult(BaseModel):
+    """Search response wrapper for grouped results."""
     results: list[SearchResultItem]
     source: str
     metadata: dict[str, Any] | None = None

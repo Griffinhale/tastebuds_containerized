@@ -1,5 +1,7 @@
 'use client';
 
+// API health card with connector status badges.
+
 import { useEffect, useState } from 'react';
 import { fetchHealth, normalizeConnectorHealth, ConnectorHealth } from '../lib/health';
 
@@ -10,6 +12,7 @@ export function ApiStatus() {
   const [connectorWarning, setConnectorWarning] = useState<string | null>(null);
 
   useEffect(() => {
+    // Guard against setting state after unmount.
     let cancelled = false;
 
     fetchHealth()

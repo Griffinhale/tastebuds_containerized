@@ -1,3 +1,5 @@
+"""Base connector primitives for external ingestion."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,6 +11,7 @@ from app.models.media import MediaType
 
 @dataclass(slots=True)
 class ConnectorResult:
+    """Normalized connector payload returned by ingestion sources."""
     media_type: MediaType
     title: str
     description: str | None
@@ -24,12 +27,15 @@ class ConnectorResult:
 
 
 class BaseConnector:
+    """Abstract connector interface for external sources."""
     source_name: str
 
     def parse_identifier(self, identifier: str) -> str:
+        """Normalize external identifiers before lookup."""
         return identifier.strip()
 
     async def fetch(self, identifier: str) -> ConnectorResult:
+        """Fetch a normalized result by external identifier."""
         raise NotImplementedError
 
     async def search(self, query: str, limit: int = 3) -> list[str]:

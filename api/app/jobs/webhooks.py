@@ -1,3 +1,5 @@
+"""Worker job wrapper for webhook handling."""
+
 from __future__ import annotations
 
 import asyncio

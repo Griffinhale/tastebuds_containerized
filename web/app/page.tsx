@@ -1,3 +1,4 @@
+// Home dashboard combining health widgets and discovery cards.
 import Link from 'next/link';
 
 import { ApiStatus } from '../components/api-status';
@@ -75,6 +76,7 @@ export default function Home() {
 }
 
 function Card({ title, description, href }: { title: string; description: string; href: string }) {
+  // Reusable card link styling for homepage sections.
   return (
     <Link
       href={href}

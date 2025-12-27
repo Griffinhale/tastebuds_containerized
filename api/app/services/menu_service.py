@@ -1,3 +1,5 @@
+"""Menu and course CRUD services with ordering invariants."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,6 +18,7 @@ from app.utils.slugify import menu_slug
 
 
 async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Menu]:
+    """List menus owned by a user with preloaded children."""
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
@@ -26,6 +29,7 @@ async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list
 
 
 async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.UUID | None = None) -> Menu:
+    """Fetch a menu by ID, optionally scoping to an owner."""
     query = (
         select(Menu)
         .execution_options(populate_existing=True)
@@ -42,6 +46,7 @@ async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.
 
 
 async def get_menu_by_slug(session: AsyncSession, slug: str) -> Menu | None:
+    """Fetch a public menu by slug."""
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
@@ -52,6 +57,7 @@ async def get_menu_by_slug(session: AsyncSession, slug: str) -> Menu | None:
 
 
 async def create_menu(session: AsyncSession, owner_id: uuid.UUID, payload: MenuCreate) -> Menu:
+    """Create a menu and any nested courses/items."""
     slug = await _generate_unique_slug(session, payload.title)
     menu = Menu(
         owner_id=owner_id,
@@ -73,6 +79,7 @@ async def create_menu(session: AsyncSession, owner_id: uuid.UUID, payload: MenuC
 
 
 async def update_menu(session: AsyncSession, menu: Menu, payload: MenuUpdate) -> Menu:
+    """Update mutable menu attributes."""
     if payload.title:
         menu.title = payload.title
     if payload.description is not None:
@@ -84,17 +91,20 @@ async def update_menu(session: AsyncSession, menu: Menu, payload: MenuUpdate) ->
 
 
 async def delete_menu(session: AsyncSession, menu: Menu) -> None:
+    """Delete a menu and its children."""
     await session.delete(menu)
     await session.commit()
 
 
 async def add_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -> Course:
+    """Append a course to an existing menu."""
     course = await _create_course(session, menu, payload)
     await session.commit()
     return await _load_course_with_items(session, course.id)
 
 
 async def get_course(session: AsyncSession, course_id: uuid.UUID, owner_id: uuid.UUID) -> Course:
+    """Fetch a course scoped to an owner."""
     query = select(Course).join(Menu).where(Course.id == course_id, Menu.owner_id == owner_id)
     result = await session.execute(query)
     course = result.scalar_one_or_none()
@@ -104,6 +114,7 @@ async def get_course(session: AsyncSession, course_id: uuid.UUID, owner_id: uuid
 
 
 async def add_course_item(session: AsyncSession, course: Course, payload: CourseItemCreate) -> CourseItem:
+    """Attach a media item to a course."""
     media = await _get_media(session, payload.media_item_id)
     item = CourseItem(
         course_id=course.id,
@@ -117,11 +128,13 @@ async def add_course_item(session: AsyncSession, course: Course, payload: Course
 
 
 async def delete_course(session: AsyncSession, course: Course) -> None:
+    """Delete a course and its items."""
     await session.delete(course)
     await session.commit()
 
 
 async def get_course_item(session: AsyncSession, item_id: uuid.UUID, owner_id: uuid.UUID) -> CourseItem:
+    """Fetch a course item scoped to an owner."""
     query = (
         select(CourseItem)
         .join(Course)
@@ -137,6 +150,7 @@ async def get_course_item(session: AsyncSession, item_id: uuid.UUID, owner_id: u
 
 
 async def delete_course_item(session: AsyncSession, course_item: CourseItem) -> None:
+    """Delete a course item."""
     await session.delete(course_item)
     await session.commit()
 
@@ -146,6 +160,11 @@ async def reorder_course_items(
     course: Course,
     item_ids: list[uuid.UUID],
 ) -> Course:
+    """Reorder course items while preserving uniqueness constraints.
+
+    Implementation notes:
+    - The two-phase update avoids unique constraint collisions on position.
+    """
     db_course = await _load_course_with_items(session, course.id)
     existing_ids = [item.id for item in db_course.items]
     if sorted(existing_ids) != sorted(item_ids):
@@ -164,6 +183,7 @@ async def reorder_course_items(
 
     whens = [(CourseItem.id == item_id, position) for position, item_id in enumerate(item_ids, start=1)]
     num_items = len(item_ids)
+    # Bump positions out of the way before assigning final order.
     await session.execute(
         update(CourseItem)
         .where(
@@ -185,6 +205,7 @@ async def reorder_course_items(
 
 
 async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -> Course:
+    """Create a course and its items without committing."""
     course = Course(
         menu_id=menu.id,
         title=payload.title,
@@ -207,6 +228,7 @@ async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreat
 
 
 async def _get_media(session: AsyncSession, media_item_id: uuid.UUID) -> MediaItem:
+    """Resolve media by ID or ingest from a preview if present."""
     result = await session.execute(select(MediaItem).where(MediaItem.id == media_item_id))
     media = result.scalar_one_or_none()
     if not media:
@@ -223,6 +245,7 @@ async def _get_media(session: AsyncSession, media_item_id: uuid.UUID) -> MediaIt
 
 
 async def _generate_unique_slug(session: AsyncSession, title: str) -> str:
+    """Generate a menu slug that does not collide with existing menus."""
     base = menu_slug(title) or "menu"
     slug = base
     counter = 1
@@ -233,11 +256,13 @@ async def _generate_unique_slug(session: AsyncSession, title: str) -> str:
 
 
 async def _slug_exists(session: AsyncSession, slug: str) -> bool:
+    """Return True if a menu slug already exists."""
     result = await session.execute(select(Menu).where(Menu.slug == slug))
     return result.scalar_one_or_none() is not None
 
 
 async def _load_course_with_items(session: AsyncSession, course_id: uuid.UUID) -> Course:
+    """Fetch a course with items and media preloaded."""
     result = await session.execute(
         select(Course)
         .execution_options(populate_existing=True)
@@ -249,6 +274,7 @@ async def _load_course_with_items(session: AsyncSession, course_id: uuid.UUID) -
 
 
 async def _load_course_item_with_media(session: AsyncSession, course_item_id: uuid.UUID) -> CourseItem:
+    """Fetch a course item with its media preloaded."""
     result = await session.execute(
         select(CourseItem)
         .execution_options(populate_existing=True)
@@ -259,6 +285,7 @@ async def _load_course_item_with_media(session: AsyncSession, course_item_id: uu
 
 
 async def _load_menu_with_children(session: AsyncSession, menu_id: uuid.UUID) -> Menu:
+    """Fetch a menu with courses and items preloaded."""
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)

@@ -1,18 +1,19 @@
+"""Tests for search routes, preview caching, and connector gating."""
+
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Iterable
 
-import uuid
-
 import pytest
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.ingestion.base import BaseConnector, ConnectorResult
 from app.models.media import MediaItem, MediaType
 from app.models.search_preview import ExternalSearchPreview
 from app.services import search_preview_service
-from sqlalchemy import select
 
 
 class StubConnector(BaseConnector):

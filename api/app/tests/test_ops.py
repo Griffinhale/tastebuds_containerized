@@ -1,3 +1,5 @@
+"""Tests for ops endpoints and admin-only access checks."""
+
 from __future__ import annotations
 
 import uuid

@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# Multi-stage Next.js image with build-time pruning for slim runtime.
 
 FROM node:20-alpine AS deps
 WORKDIR /app

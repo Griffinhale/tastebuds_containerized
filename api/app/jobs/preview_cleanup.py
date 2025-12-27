@@ -1,3 +1,5 @@
+"""Sync wrappers around maintenance jobs for scheduler use."""
+
 from __future__ import annotations
 
 import logging
@@ -8,6 +10,7 @@ logger = logging.getLogger("app.jobs.preview_cleanup")
 
 
 def prune_external_search_previews() -> int:
+    """Run preview cleanup and return the number of rows deleted."""
     result = prune_external_search_previews_job()
     deleted_count = int(result.get("deleted", 0))
     logger.info("Pruned %d expired external search previews", deleted_count)
@@ -15,6 +18,7 @@ def prune_external_search_previews() -> int:
 
 
 def prune_ingestion_payloads(retention_days: int | None = None) -> int:
+    """Run payload scrubbing and return the number of rows updated."""
     result = prune_ingestion_payloads_job(retention_days=retention_days)
     stripped_count = int(result.get("stripped", 0))
     logger.info("Scrubbed %d ingestion payloads past retention", stripped_count)

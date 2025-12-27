@@ -1,3 +1,5 @@
+"""User media state CRUD helpers."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,6 +12,7 @@ from app.schema.media import UserItemStateUpdate
 
 
 async def list_states(session: AsyncSession, user_id: uuid.UUID) -> list[UserItemState]:
+    """List all media states for a user."""
     result = await session.execute(select(UserItemState).where(UserItemState.user_id == user_id))
     return result.scalars().all()
 
@@ -20,6 +23,7 @@ async def upsert_state(
     media_item_id: uuid.UUID,
     payload: UserItemStateUpdate,
 ) -> UserItemState:
+    """Create or update a user's media state for a given item."""
     media = await session.get(MediaItem, media_item_id)
     if not media:
         raise ValueError("Media item not found")

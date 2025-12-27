@@ -1,3 +1,5 @@
+"""IGDB connector for game metadata ingestion."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -12,6 +14,7 @@ from app.models.media import MediaType
 
 
 class IGDBConnector(BaseConnector):
+    """IGDB API connector with token caching."""
     source_name = "igdb"
     _token_url = "https://id.twitch.tv/oauth2/token"
     _game_url = "https://api.igdb.com/v4/games"
@@ -24,14 +27,17 @@ class IGDBConnector(BaseConnector):
         self._token_expires_at: datetime | None = None
 
     def _utcnow(self) -> datetime:
+        """Return a timezone-aware UTC timestamp."""
         now = datetime.utcnow()
         return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
 
     def _reset_token_cache(self) -> None:
+        """Clear cached access token state."""
         self._access_token = None
         self._token_expires_at = None
 
     def _needs_token_refresh(self) -> bool:
+        """Return True when the cached token is missing or expiring."""
         if not self._access_token or not self._token_expires_at:
             return True
         refresh_buffer = timedelta(seconds=max(self._token_refresh_buffer_seconds, 0))
@@ -41,6 +47,7 @@ class IGDBConnector(BaseConnector):
         return self._utcnow() + refresh_buffer >= expiry
 
     async def _ensure_token(self, force_refresh: bool = False) -> str:
+        """Ensure a valid bearer token is available for requests."""
         if not self.client_id or not self.client_secret:
             raise ExternalAPIError("IGDB credentials missing")
         if not force_refresh and not self._needs_token_refresh():
@@ -74,6 +81,7 @@ class IGDBConnector(BaseConnector):
         return token
 
     async def _authenticated_post(self, content: str) -> list[dict[str, Any]]:
+        """POST an IGDB query with automatic token refresh on 401s."""
         for attempt in range(2):
             token = await self._ensure_token(force_refresh=(attempt > 0))
             headers = {
@@ -97,6 +105,7 @@ class IGDBConnector(BaseConnector):
         raise ExternalAPIError("IGDB request failed after refreshing token")
 
     async def fetch(self, identifier: str) -> ConnectorResult:
+        """Fetch a game record by IGDB ID."""
         query = (
             "fields name,summary,first_release_date,cover.url,genres.name,platforms.name,"
             "involved_companies.company.name,involved_companies.publisher,involved_companies.developer;"
@@ -143,6 +152,7 @@ class IGDBConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
+        """Search IGDB for matching game IDs."""
         igdb_query = f'search "{query}"; fields id; limit {limit};'
         data = await self._authenticated_post(igdb_query)
         return [str(item["id"]) for item in data if item.get("id")]

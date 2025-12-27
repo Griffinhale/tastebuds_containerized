@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for API tests and database isolation."""
+
 from __future__ import annotations
 
 import uuid
@@ -28,6 +30,7 @@ async def session() -> AsyncSession:
     schema_name: str | None = None
     engine = create_async_engine(database_url, future=True)
     if url.drivername.startswith("postgresql"):
+        # Isolate each test run in its own schema for parallel-friendly cleanup.
         schema_name = f"test_{uuid.uuid4().hex}"
         engine = engine.execution_options(schema_translate_map={None: schema_name})
     async with engine.begin() as conn:

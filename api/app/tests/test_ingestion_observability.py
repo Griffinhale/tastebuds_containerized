@@ -1,3 +1,5 @@
+"""Tests for ingestion observability helpers and circuit-breaker behavior."""
+
 from __future__ import annotations
 
 import asyncio

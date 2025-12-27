@@ -1,3 +1,5 @@
+"""Helpers for loading ingestion sample JSON payloads in tests."""
+
 from __future__ import annotations
 
 import json

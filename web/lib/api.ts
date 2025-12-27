@@ -1,3 +1,4 @@
+// Shared API fetch wrapper with server/client base URL switching.
 type ApiFetchOptions = {
   isServer?: boolean;
   token?: string;
@@ -9,6 +10,7 @@ const serverBase =
   process.env.API_INTERNAL_BASE || process.env.NEXT_PUBLIC_API_BASE || 'http://api:8000/api';
 
 export function getApiBase(isServer: boolean) {
+  // Use the internal Docker base for server-side requests.
   return isServer ? serverBase : browserBase;
 }
 
@@ -17,6 +19,7 @@ export async function apiFetch<T>(
   init?: RequestInit,
   opts: ApiFetchOptions = {}
 ): Promise<T> {
+  // Default to include cookies unless explicitly disabled.
   const base = getApiBase(opts.isServer ?? typeof window === 'undefined');
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
 

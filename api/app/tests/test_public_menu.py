@@ -1,3 +1,5 @@
+"""Tests for public menu access and ordering guarantees."""
+
 from __future__ import annotations
 
 import pytest

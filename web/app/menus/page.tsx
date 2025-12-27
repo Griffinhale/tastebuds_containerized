@@ -1,3 +1,4 @@
+// Authenticated menus dashboard page.
 import Link from 'next/link';
 
 import { MenuDashboard } from '../../components/menu-dashboard';

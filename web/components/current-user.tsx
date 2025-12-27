@@ -1,10 +1,13 @@
 'use client';
 
+// Current user panel that syncs session state across tabs.
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { SESSION_EVENT, SESSION_FLAG_KEY, User, logout, refreshTokens } from '../lib/auth';
 
 function readSessionFlag() {
+  // Local storage flag provides a lightweight session hint for the UI.
   if (typeof window === 'undefined') return false;
   try {
     return window.localStorage.getItem(SESSION_FLAG_KEY) === '1';
@@ -25,6 +28,7 @@ export function CurrentUser() {
   }, [hadSession]);
 
   useEffect(() => {
+    // Listen to storage and custom events to keep session state in sync.
     function syncFromStorage(event: StorageEvent) {
       if (event.key !== SESSION_FLAG_KEY) return;
       setHadSession(event.newValue === '1');

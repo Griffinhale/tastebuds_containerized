@@ -1,3 +1,5 @@
+"""Menu, course, and course item models for curated lists."""
+
 from __future__ import annotations
 
 import typing
@@ -16,6 +18,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 class Menu(Base):
+    """Menu header metadata and owner relationship."""
     __tablename__ = "menus"
     __table_args__ = (UniqueConstraint("slug", name="uq_menu_slug"),)
 
@@ -37,6 +40,7 @@ class Menu(Base):
 
 
 class Course(Base):
+    """Course grouping within a menu with explicit ordering."""
     __tablename__ = "courses"
     __table_args__ = (UniqueConstraint("menu_id", "position", name="uq_course_position"),)
 
@@ -53,6 +57,7 @@ class Course(Base):
 
 
 class CourseItem(Base):
+    """Item placement within a course with stable ordering."""
     __tablename__ = "course_items"
     __table_args__ = (UniqueConstraint("course_id", "position", name="uq_course_items_position"),)
 

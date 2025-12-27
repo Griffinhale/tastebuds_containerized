@@ -1,3 +1,9 @@
+"""FastAPI application entrypoint and health reporting utilities.
+
+Invariants:
+- Health detail is only exposed to authenticated users or allowlisted hosts.
+"""
+
 import ipaddress
 from typing import Any
 
@@ -25,10 +31,17 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 @app.on_event("startup")
 async def _register_schedules() -> None:
+    """Register scheduled jobs on startup."""
     ensure_schedules()
 
 
 def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Condense ingestion monitor state into health-friendly telemetry.
+
+    Implementation notes:
+    - Treat open circuits and repeated failures as degraded signals.
+    - Preserve per-operation errors to aid ops troubleshooting.
+    """
     issues: list[dict[str, Any]] = []
     sources: dict[str, Any] = {}
     for source, payload in snapshot.items():
@@ -90,6 +103,7 @@ def _summarize_ingestion(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _entry_matches(entry: str, candidate: str) -> bool:
+    """Return True if an allowlist entry matches a candidate host/IP."""
     try:
         network = ipaddress.ip_network(entry, strict=False)
         return ipaddress.ip_address(candidate) in network
@@ -98,6 +112,7 @@ def _entry_matches(entry: str, candidate: str) -> bool:
 
 
 def _ip_or_host_allowlisted(request: Request) -> bool:
+    """Check request client/host headers against the health allowlist."""
     if not settings.health_allowlist:
         return False
     client_candidates: list[str] = []
@@ -114,6 +129,7 @@ def _ip_or_host_allowlisted(request: Request) -> bool:
 
 
 def _can_view_health_detail(request: Request, current_user: User | None) -> bool:
+    """Authorize access to detailed health telemetry."""
     if current_user:
         return True
     return _ip_or_host_allowlisted(request)
@@ -122,6 +138,7 @@ def _can_view_health_detail(request: Request, current_user: User | None) -> bool
 @app.get("/health", tags=["internal"])
 @app.get(f"{settings.api_prefix}/health", tags=["internal"])
 async def health(request: Request, current_user: User | None = Depends(get_optional_current_user)) -> dict[str, Any]:
+    """Return health status and optionally include ingestion telemetry."""
     if not _can_view_health_detail(request, current_user):
         return {"status": "ok"}
 

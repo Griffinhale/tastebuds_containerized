@@ -1,3 +1,5 @@
+"""Tests for ingestion mappings and media extension hydration."""
+
 from __future__ import annotations
 
 import pytest

@@ -1,3 +1,4 @@
+// Menu CRUD API helpers for the web app.
 import { apiFetch } from './api';
 
 export type MediaItemPreview = {
@@ -58,6 +59,7 @@ export type CreateCourseItemInput = {
 };
 
 export async function listMenus() {
+  // Authenticated menu list for the current user.
   return apiFetch<Menu[]>('/menus', undefined, { isServer: false });
 }
 
@@ -138,6 +140,7 @@ export async function reorderCourseItems(menuId: string, courseId: string, itemI
 }
 
 export async function getPublicMenuBySlug(slug: string) {
+  // Server-side fetch avoids leaking cookies to public endpoints.
   const encoded = encodeURIComponent(slug.trim());
   return apiFetch<Menu>(`/public/menus/${encoded}`, undefined, {
     isServer: true,

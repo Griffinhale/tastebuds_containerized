@@ -1,3 +1,5 @@
+"""Authentication route tests for register/login/refresh/logout flows."""
+
 from __future__ import annotations
 
 import uuid

@@ -32,6 +32,7 @@ user_item_status_enum = postgresql.ENUM(
 
 
 def upgrade() -> None:
+    """Create initial schema and enum types."""
     media_type_enum.create(op.get_bind(), checkfirst=True)
     user_item_status_enum.create(op.get_bind(), checkfirst=True)
 
@@ -188,6 +189,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop initial schema and enum types."""
     op.drop_table("user_item_states")
     op.drop_table("media_item_tags")
     op.drop_table("tags")

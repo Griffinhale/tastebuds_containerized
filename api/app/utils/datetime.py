@@ -1,9 +1,12 @@
+"""Datetime parsing helpers for ingestion payloads."""
+
 from __future__ import annotations
 
 from datetime import date
 
 
 def parse_date(value: str | None) -> date | None:
+    """Parse YYYY, YYYY-MM, or YYYY-MM-DD strings into dates."""
     if not value:
         return None
     try:

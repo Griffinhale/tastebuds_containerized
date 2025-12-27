@@ -1,3 +1,5 @@
+"""Worker job entrypoint for sync tasks."""
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +21,7 @@ def run_sync_job(
     force_refresh: bool = False,
     requested_by: str | None = None,
 ) -> dict[str, Any]:
-    """RQ-friendly sync/refresh hook."""
+    """Execute a sync task in a worker-friendly wrapper."""
 
     async def _run() -> dict[str, Any]:
         async with async_session() as session:

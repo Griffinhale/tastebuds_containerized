@@ -1,3 +1,5 @@
+"""Menu endpoints for CRUD operations on menus and courses."""
+
 from __future__ import annotations
 
 import uuid
@@ -27,6 +29,7 @@ router = APIRouter()
 async def list_menus(
     session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> list[Menu]:
+    """List menus for the current user."""
     return await menu_service.list_menus_for_user(session, current_user.id)
 
 
@@ -36,6 +39,7 @@ async def create_menu_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Menu:
+    """Create a menu for the current user."""
     return await menu_service.create_menu(session, current_user.id, payload)
 
 
@@ -45,6 +49,7 @@ async def get_menu_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Menu:
+    """Fetch a menu by ID."""
     return await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
 
 
@@ -55,6 +60,7 @@ async def update_menu_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Menu:
+    """Update menu metadata."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     return await menu_service.update_menu(session, menu, payload)
 
@@ -70,6 +76,7 @@ async def delete_menu_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    """Delete a menu and its courses."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     await menu_service.delete_menu(session, menu)
 
@@ -81,6 +88,7 @@ async def add_course_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Course:
+    """Add a new course to a menu."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     return await menu_service.add_course(session, menu, payload)
 
@@ -97,6 +105,7 @@ async def delete_course_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    """Delete a course from a menu."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     course = await menu_service.get_course(session, course_id, current_user.id)
     if course.menu_id != menu.id:
@@ -116,6 +125,7 @@ async def add_course_item_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Add a media item to a course."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     course = await menu_service.get_course(session, course_id, current_user.id)
     if course.menu_id != menu.id:
@@ -135,6 +145,7 @@ async def delete_course_item_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    """Delete a course item from a menu."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     course_item = await menu_service.get_course_item(session, item_id, current_user.id)
     if course_item.course.menu_id != menu.id:
@@ -153,6 +164,7 @@ async def reorder_course_items_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Course:
+    """Reorder items within a course."""
     menu = await menu_service.get_menu(session, menu_id, owner_id=current_user.id)
     course = await menu_service.get_course(session, course_id, current_user.id)
     if course.menu_id != menu.id:

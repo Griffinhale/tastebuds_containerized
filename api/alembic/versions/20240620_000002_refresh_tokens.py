@@ -18,6 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add refresh token table and index."""
     op.create_table(
         "refresh_tokens",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -38,5 +39,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop refresh token table and index."""
     op.drop_index("ix_refresh_tokens_user_id", table_name="refresh_tokens")
     op.drop_table("refresh_tokens")

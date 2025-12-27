@@ -1,3 +1,5 @@
+"""Schedule registry for recurring maintenance jobs."""
+
 from __future__ import annotations
 
 import logging
@@ -13,6 +15,7 @@ logger = logging.getLogger("app.jobs.schedule_registry")
 
 
 def _job_exists(scheduler: Scheduler, job_id: str) -> bool:
+    """Return True if a scheduled job ID is already registered."""
     if hasattr(scheduler, "get_job"):
         return scheduler.get_job(job_id) is not None
     try:
@@ -28,6 +31,7 @@ def _job_exists(scheduler: Scheduler, job_id: str) -> bool:
 
 
 def _schedule_entries() -> list[dict]:
+    """Build the list of periodic job definitions."""
     preview_interval = max(60, settings.external_search_preview_ttl_seconds // 2)
     queue_name = task_queue.queue_names[0] if task_queue.queue_names else "default"
     entries: list[dict] = [

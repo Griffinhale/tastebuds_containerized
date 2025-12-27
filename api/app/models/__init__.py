@@ -35,3 +35,4 @@ __all__ = [
     "ExternalSearchPreview",
     "UserExternalSearchQuota",
 ]
+"""SQLAlchemy ORM models for the Tastebuds API."""

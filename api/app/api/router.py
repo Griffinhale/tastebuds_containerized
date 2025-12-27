@@ -1,3 +1,5 @@
+"""API router composition for all route groups."""
+
 from fastapi import APIRouter
 
 from .routes import auth, ingest, menus, ops, public, search, tags, users

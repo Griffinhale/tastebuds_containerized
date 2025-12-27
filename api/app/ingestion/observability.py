@@ -1,3 +1,5 @@
+"""Circuit breaker and metrics tracking for ingestion connectors."""
+
 from __future__ import annotations
 
 import asyncio
@@ -17,6 +19,7 @@ class CircuitOpenError(Exception):
 
 @dataclass
 class CircuitBreakerState:
+    """Track per-source failure streaks and cooldown windows."""
     threshold: int = 3
     base_backoff_seconds: float = 15.0
     max_backoff_seconds: float = 300.0
@@ -26,22 +29,27 @@ class CircuitBreakerState:
     opened_count: int = 0
 
     def __post_init__(self) -> None:
+        """Initialize the current backoff based on base settings."""
         self.current_backoff = self.base_backoff_seconds
 
     def can_call(self) -> bool:
+        """Return True if the circuit is closed and calls are allowed."""
         return time.monotonic() >= self.open_until
 
     def remaining_cooldown(self) -> float:
+        """Return remaining cooldown seconds before calls are allowed."""
         if self.can_call():
             return 0.0
         return self.open_until - time.monotonic()
 
     def record_success(self) -> None:
+        """Reset circuit state after a successful call."""
         self.failure_streak = 0
         self.open_until = 0.0
         self.current_backoff = self.base_backoff_seconds
 
     def record_failure(self) -> None:
+        """Advance circuit state and open on threshold breaches."""
         self.failure_streak += 1
         if self.failure_streak < self.threshold:
             return
@@ -52,6 +60,7 @@ class CircuitBreakerState:
         self.current_backoff = min(self.current_backoff * 2, self.max_backoff_seconds)
 
     def snapshot(self) -> dict[str, Any]:
+        """Return a serializable snapshot of the circuit state."""
         return {
             "failure_streak": self.failure_streak,
             "open_until": self.open_until,
@@ -63,6 +72,7 @@ class CircuitBreakerState:
 
 @dataclass
 class OperationMetrics:
+    """Aggregated counters for a source operation."""
     started: int = 0
     succeeded: int = 0
     failed: int = 0
@@ -72,6 +82,7 @@ class OperationMetrics:
 
 
 class IngestionMonitor:
+    """Track ingestion performance and enforce circuit breaking."""
     def __init__(
         self,
         *,
@@ -92,6 +103,7 @@ class IngestionMonitor:
         self._lock = asyncio.Lock()
 
     def allow_call(self, source: str) -> bool:
+        """Return True if a source circuit allows new work."""
         circuit = self._circuits[source]
         return circuit.can_call()
 
@@ -103,6 +115,7 @@ class IngestionMonitor:
         reason: str,
         context: dict[str, Any] | None = None,
     ) -> None:
+        """Log a skipped call with circuit state for observability."""
         async with self._lock:
             metrics = self._metrics[source][operation]
             metrics.skipped += 1
@@ -124,6 +137,12 @@ class IngestionMonitor:
         *,
         context: dict[str, Any] | None = None,
     ) -> Any:
+        """Execute a connector call while tracking metrics and circuit state.
+
+        Implementation notes:
+        - Failures update the circuit breaker and emit structured logs.
+        - Successes reset the failure streak and record latency.
+        """
         context = context or {}
         async with self._lock:
             circuit = self._circuits[source]
@@ -185,6 +204,7 @@ class IngestionMonitor:
         return result
 
     async def snapshot(self) -> dict[str, Any]:
+        """Return a snapshot of all tracked source metrics."""
         async with self._lock:
             snap: dict[str, Any] = {}
             for source, operations in self._metrics.items():

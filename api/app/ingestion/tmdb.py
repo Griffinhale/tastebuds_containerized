@@ -1,3 +1,5 @@
+"""TMDB connector for movie and TV metadata ingestion."""
+
 from __future__ import annotations
 
 from urllib.parse import urlparse
@@ -14,6 +16,7 @@ IMAGE_BASE = "https://image.tmdb.org/t/p/original"
 
 
 class TMDBConnector(BaseConnector):
+    """TMDB API connector with bearer token preference."""
     source_name = "tmdb"
 
     def __init__(self, api_key: str | None = None, auth_token: str | None = None) -> None:
@@ -21,6 +24,7 @@ class TMDBConnector(BaseConnector):
         self.auth_token = auth_token or settings.tmdb_api_auth_header
 
     def parse_identifier(self, identifier: str) -> str:
+        """Normalize TMDB identifiers, accepting URLs or type:id tokens."""
         if identifier.startswith("http"):
             parsed = urlparse(identifier)
             parts = parsed.path.strip("/").split("/")
@@ -29,6 +33,7 @@ class TMDBConnector(BaseConnector):
         return super().parse_identifier(identifier)
 
     def _auth(self) -> tuple[dict[str, str], dict[str, str]]:
+        """Return headers/params for TMDB auth, preferring bearer tokens."""
         headers: dict[str, str] = {"accept": "application/json"}
         params: dict[str, str] = {}
         if self.auth_token:
@@ -40,6 +45,7 @@ class TMDBConnector(BaseConnector):
         return headers, params
 
     async def fetch(self, identifier: str) -> ConnectorResult:
+        """Fetch a TMDB record, trying movie then TV endpoints if needed."""
         token = self.parse_identifier(identifier)
         media_type_hint = None
         if ":" in token:
@@ -56,6 +62,7 @@ class TMDBConnector(BaseConnector):
         raise ExternalAPIError("TMDB resource not found")
 
     async def _fetch(self, kind: str, tmdb_id: str) -> ConnectorResult | None:
+        """Fetch and normalize a single TMDB record."""
         headers, params = self._auth()
         payload = await fetch_json(
             f"https://api.themoviedb.org/3/{kind}/{tmdb_id}",
@@ -106,6 +113,7 @@ class TMDBConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
+        """Search TMDB across movie and TV indices."""
         try:
             headers, params = self._auth()
         except ExternalAPIError:

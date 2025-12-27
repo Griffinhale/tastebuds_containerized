@@ -1,3 +1,5 @@
+"""Tag endpoints for user-managed labels on media."""
+
 from __future__ import annotations
 
 import uuid
@@ -19,6 +21,7 @@ async def list_tags(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TagRead]:
+    """List available tags for the current user."""
     tags = await tag_service.list_tags(session, current_user.id)
     return [TagRead.model_validate(tag) for tag in tags]
 
@@ -29,6 +32,7 @@ async def create_tag_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TagRead:
+    """Create a new tag for the current user."""
     try:
         tag = await tag_service.create_tag(session, current_user.id, payload)
     except ValueError as exc:
@@ -47,6 +51,7 @@ async def delete_tag_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    """Delete a tag by ID."""
     try:
         await tag_service.delete_tag(session, current_user.id, tag_id)
     except ValueError as exc:
@@ -59,6 +64,7 @@ async def list_media_tags_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TagRead]:
+    """List tags assigned to a media item."""
     tags = await tag_service.list_media_tags(session, current_user.id, media_item_id)
     return [TagRead.model_validate(tag) for tag in tags]
 
@@ -70,6 +76,7 @@ async def add_tag_to_media_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TagRead:
+    """Assign a tag to a media item."""
     try:
         await tag_service.add_tag_to_media(session, current_user.id, tag_id, payload.media_item_id)
     except ValueError as exc:
@@ -92,6 +99,7 @@ async def remove_tag_from_media_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    """Remove a tag assignment from a media item."""
     try:
         await tag_service.remove_tag_from_media(session, current_user.id, tag_id, media_item_id)
     except ValueError as exc:

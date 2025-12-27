@@ -1,3 +1,5 @@
+"""Search preview caching and quota enforcement for external results."""
+
 from __future__ import annotations
 
 import json
@@ -16,11 +18,13 @@ from app.models.search_preview import ExternalSearchPreview, UserExternalSearchQ
 
 
 def _utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
     now = datetime.utcnow()
     return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
 
 
 def _ensure_utc(dt: datetime | None) -> datetime | None:
+    """Normalize datetimes to UTC for consistent comparisons."""
     if dt is None:
         return None
     if dt.tzinfo is None:
@@ -29,6 +33,7 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
 
 
 def _serialize_result(result: ConnectorResult) -> dict[str, Any]:
+    """Serialize connector results for preview storage."""
     raw_payload = _bounded_payload(result.raw_payload, settings.external_search_preview_max_payload_bytes)
     return {
         "source_url": result.source_url,
@@ -38,6 +43,7 @@ def _serialize_result(result: ConnectorResult) -> dict[str, Any]:
 
 
 def _bounded_payload(payload: dict[str, Any], max_bytes: int) -> dict[str, Any]:
+    """Bound payload sizes for preview storage with a truncation marker."""
     if not payload:
         return {}
     if max_bytes <= 0:
@@ -64,6 +70,7 @@ def _bounded_payload(payload: dict[str, Any], max_bytes: int) -> dict[str, Any]:
 async def cache_connector_result(
     session: AsyncSession, user_id: uuid.UUID, result: ConnectorResult
 ) -> ExternalSearchPreview:
+    """Store or update a short-lived external search preview."""
     now = _utcnow()
     expires_at = now + timedelta(seconds=settings.external_search_preview_ttl_seconds)
     stmt = (
@@ -113,6 +120,7 @@ async def cache_connector_result(
 
 
 async def prune_expired_previews(session: AsyncSession) -> int:
+    """Delete expired preview rows."""
     now = _utcnow()
     result = await session.execute(delete(ExternalSearchPreview).where(ExternalSearchPreview.expires_at <= now))
     await session.commit()
@@ -120,6 +128,11 @@ async def prune_expired_previews(session: AsyncSession) -> int:
 
 
 async def enforce_search_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Throttle external search fan-out using per-user windows.
+
+    Implementation notes:
+    - Windows are bucketed by wall-clock seconds to keep logic lightweight.
+    """
     window_seconds = max(1, settings.external_search_quota_window_seconds)
     now = _utcnow()
     bucket_start = math.floor(now.timestamp() / window_seconds) * window_seconds

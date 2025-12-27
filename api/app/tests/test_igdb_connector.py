@@ -1,3 +1,5 @@
+"""Connector tests for IGDB auth, parsing, and mapping behavior."""
+
 from __future__ import annotations
 
 from collections import deque
@@ -9,7 +11,6 @@ import pytest
 
 from app.core.config import settings
 from app.ingestion.igdb import IGDBConnector
-
 
 TOKEN_URL = IGDBConnector._token_url
 GAME_URL = IGDBConnector._game_url

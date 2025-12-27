@@ -28,6 +28,7 @@ media_type_enum = postgresql.ENUM(
 
 
 def upgrade() -> None:
+    """Add external preview cache and quota tables."""
     op.create_table(
         "external_search_previews",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -60,6 +61,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop external preview cache and quota tables."""
     op.drop_table("user_external_search_quotas")
     op.drop_index("ix_external_search_previews_expires_at", table_name="external_search_previews")
     op.drop_index("ix_external_search_previews_user_id", table_name="external_search_previews")

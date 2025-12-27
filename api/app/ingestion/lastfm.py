@@ -1,3 +1,5 @@
+"""Last.fm connector for track metadata ingestion."""
+
 from __future__ import annotations
 
 from urllib.parse import unquote, urlparse
@@ -10,12 +12,14 @@ from app.utils.datetime import parse_date
 
 
 class LastFMConnector(BaseConnector):
+    """Last.fm API connector for track information."""
     source_name = "lastfm"
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or settings.lastfm_api_key
 
     def parse_identifier(self, identifier: str) -> tuple[str | None, str | None, str | None]:
+        """Parse identifiers into artist/track/mbid components."""
         artist = track = mbid = None
         if "::" in identifier:
             artist, track = identifier.split("::", 1)
@@ -30,6 +34,7 @@ class LastFMConnector(BaseConnector):
         return artist, track, mbid
 
     async def fetch(self, identifier: str) -> ConnectorResult:
+        """Fetch a track record by MBID or artist/track pair."""
         artist, track, mbid = self.parse_identifier(identifier)
         if not self.api_key:
             raise ExternalAPIError("Last.fm API key missing")
@@ -86,6 +91,7 @@ class LastFMConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
+        """Search Last.fm for track identifiers."""
         if not self.api_key:
             return []
         params = {

@@ -1,11 +1,15 @@
+"""Authentication-related request/response schemas."""
+
 from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
 from app.schema.user import UserRead
 
 
 class TokenPair(BaseModel):
+    """Access and refresh token bundle returned after auth."""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -13,6 +17,7 @@ class TokenPair(BaseModel):
 
 
 class SessionRead(BaseModel):
+    """Session metadata for listing and revocation views."""
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

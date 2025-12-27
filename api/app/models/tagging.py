@@ -1,3 +1,5 @@
+"""Tagging models for user-defined labels on media items."""
+
 from __future__ import annotations
 
 import typing
@@ -14,6 +16,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 class Tag(Base):
+    """User-owned tag metadata."""
     __tablename__ = "tags"
     __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_owner_tag"),)
 
@@ -25,6 +28,7 @@ class Tag(Base):
 
 
 class MediaItemTag(Base):
+    """Association table linking tags to media items."""
     __tablename__ = "media_item_tags"
     __table_args__ = (UniqueConstraint("media_item_id", "tag_id", name="uq_media_tag"),)
 

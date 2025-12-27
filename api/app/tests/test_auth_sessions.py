@@ -1,3 +1,5 @@
+"""Tests for auth session listing and revocation flows."""
+
 from __future__ import annotations
 
 import uuid

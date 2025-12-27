@@ -1,3 +1,5 @@
+"""Tests for health endpoints and optional auth checks."""
+
 from __future__ import annotations
 
 import uuid

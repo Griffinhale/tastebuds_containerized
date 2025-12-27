@@ -1,3 +1,5 @@
+"""Async SQLAlchemy engine/session factory for the API."""
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -7,5 +9,6 @@ async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncS
 
 
 async def get_session() -> AsyncSession:
+    """Yield an async session for dependency injection."""
     async with async_session() as session:
         yield session

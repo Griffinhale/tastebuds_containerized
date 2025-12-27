@@ -1,3 +1,4 @@
+# Attribute mapping for TMDB ingestion into the internal media schema.
 source: tmdb
 canonical:
   media_items:

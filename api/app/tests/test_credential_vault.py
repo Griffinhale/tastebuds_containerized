@@ -1,11 +1,13 @@
+"""Tests for credential vault storage, expiry, and retrieval."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.services.credential_vault import credential_vault
 from app.models.user import User
+from app.services.credential_vault import credential_vault
 
 
 @pytest.mark.asyncio

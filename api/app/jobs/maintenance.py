@@ -1,11 +1,13 @@
+"""Maintenance jobs for preview and payload retention."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 
+from app.core.config import settings
 from app.db.session import async_session
 from app.services import media_service
-from app.core.config import settings
 
 logger = logging.getLogger("app.jobs.maintenance")
 

@@ -1,3 +1,4 @@
+# Attribute mapping for Google Books ingestion into the internal media schema.
 source: google_books
 canonical:
   media_items:

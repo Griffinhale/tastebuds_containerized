@@ -1,3 +1,5 @@
+"""Search endpoints for internal and external media sources."""
+
 from __future__ import annotations
 
 import enum
@@ -18,6 +20,7 @@ from app.services.task_queue import task_queue
 
 
 class SearchSource(str, enum.Enum):
+    """Enumerated source filters for search requests."""
     INTERNAL = "internal"
     EXTERNAL = "external"
     GOOGLE_BOOKS = "google_books"
@@ -43,6 +46,7 @@ router = APIRouter()
 
 @dataclass(slots=True)
 class AggregatedSearchHit:
+    """Internal/external search hit with ordering metadata."""
     item: SearchResultItem
     origin: str
     source: str
@@ -61,6 +65,12 @@ async def search(
     current_user: User | None = Depends(get_optional_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> SearchResult:
+    """Search internal items and optionally fan out to external sources.
+
+    Implementation notes:
+    - External fan-out requires auth and enforces quota per user.
+    - External results are merged after internal items with stable ordering.
+    """
     include_internal = True
     connector_sources: list[str] = []
     allowed_media_types: set[MediaType] | None = set(types) if types else None
@@ -136,6 +146,7 @@ async def search(
     if connector_sources and current_user:
         await search_preview_service.enforce_search_quota(session, current_user.id)
         async def _inline_external() -> dict:
+            # Inline fallback used when the task queue is unavailable.
             outcome = await media_service.search_external_sources(
                 session,
                 q,

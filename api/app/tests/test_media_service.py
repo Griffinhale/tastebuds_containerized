@@ -1,3 +1,5 @@
+"""Service-layer tests for media upsert behavior and payload handling."""
+
 from __future__ import annotations
 
 import uuid

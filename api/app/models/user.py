@@ -1,3 +1,5 @@
+"""User model with authentication and ownership relationships."""
+
 from __future__ import annotations
 
 import typing
@@ -17,6 +19,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 class User(Base):
+    """Primary user account record."""
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

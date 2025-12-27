@@ -1,3 +1,5 @@
+"""Google Books connector for book metadata ingestion."""
+
 from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
@@ -10,12 +12,14 @@ from app.utils.datetime import parse_date
 
 
 class GoogleBooksConnector(BaseConnector):
+    """Google Books API connector for volume data."""
     source_name = "google_books"
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or settings.google_books_api_key
 
     def parse_identifier(self, identifier: str) -> str:
+        """Normalize Google Books identifiers, accepting URLs."""
         if identifier.startswith("http"):
             parsed = urlparse(identifier)
             qs = parse_qs(parsed.query)
@@ -30,6 +34,7 @@ class GoogleBooksConnector(BaseConnector):
         return super().parse_identifier(identifier)
 
     async def fetch(self, identifier: str) -> ConnectorResult:
+        """Fetch a volume record by ID."""
         volume_id = self.parse_identifier(identifier)
         params = {"key": self.api_key} if self.api_key else None
         payload = await fetch_json(
@@ -71,6 +76,7 @@ class GoogleBooksConnector(BaseConnector):
         )
 
     async def search(self, query: str, limit: int = 3) -> list[str]:
+        """Search Google Books for matching volume IDs."""
         params = {"q": query, "maxResults": limit}
         if self.api_key:
             params["key"] = self.api_key

@@ -1,3 +1,5 @@
+"""User endpoints for profiles and media state tracking."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +16,7 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserRead)
 async def read_current_user(current_user: User = Depends(get_current_user)) -> User:
+    """Return the current authenticated user."""
     return current_user
 
 
@@ -22,6 +25,7 @@ async def list_states(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    """List media states for the current user."""
     return await user_state_service.list_states(session, current_user.id)
 
 
@@ -32,6 +36,7 @@ async def upsert_state(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    """Create or update a media state for the current user."""
     try:
         state = await user_state_service.upsert_state(session, current_user.id, media_item_id, payload)
     except ValueError as exc:

@@ -1,3 +1,5 @@
+"""Tag CRUD and assignment services."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,12 +13,14 @@ from app.schema.tag import TagCreate
 
 
 async def list_tags(session: AsyncSession, owner_id: uuid.UUID) -> list[Tag]:
+    """List user and shared tags sorted by name."""
     stmt = select(Tag).where(or_(Tag.owner_id == owner_id, Tag.owner_id.is_(None))).order_by(Tag.name.asc())
     result = await session.execute(stmt)
     return result.scalars().all()
 
 
 async def list_media_tags(session: AsyncSession, owner_id: uuid.UUID, media_item_id: uuid.UUID) -> list[Tag]:
+    """List tags assigned to a media item."""
     stmt = (
         select(Tag)
         .join(MediaItemTag, MediaItemTag.tag_id == Tag.id)
@@ -31,6 +35,7 @@ async def list_media_tags(session: AsyncSession, owner_id: uuid.UUID, media_item
 
 
 async def create_tag(session: AsyncSession, owner_id: uuid.UUID, payload: TagCreate) -> Tag:
+    """Create a new tag scoped to an owner."""
     name = payload.name.strip()
     if not name:
         raise ValueError("Tag name cannot be blank")
@@ -42,6 +47,7 @@ async def create_tag(session: AsyncSession, owner_id: uuid.UUID, payload: TagCre
 
 
 async def delete_tag(session: AsyncSession, owner_id: uuid.UUID, tag_id: uuid.UUID) -> None:
+    """Delete a tag if it belongs to the owner."""
     tag = await session.get(Tag, tag_id)
     if not tag or tag.owner_id != owner_id:
         raise ValueError("Tag not found")
@@ -52,6 +58,7 @@ async def delete_tag(session: AsyncSession, owner_id: uuid.UUID, tag_id: uuid.UU
 async def add_tag_to_media(
     session: AsyncSession, owner_id: uuid.UUID, tag_id: uuid.UUID, media_item_id: uuid.UUID
 ) -> MediaItemTag:
+    """Attach a tag to a media item, enforcing ownership rules."""
     tag = await session.get(Tag, tag_id)
     if not tag or (tag.owner_id not in (None, owner_id)):
         raise ValueError("Tag not available")
@@ -79,6 +86,7 @@ async def add_tag_to_media(
 async def remove_tag_from_media(
     session: AsyncSession, owner_id: uuid.UUID, tag_id: uuid.UUID, media_item_id: uuid.UUID
 ) -> None:
+    """Remove a tag from a media item if accessible."""
     tag = await session.get(Tag, tag_id)
     if not tag or (tag.owner_id not in (None, owner_id)):
         raise ValueError("Tag not available")

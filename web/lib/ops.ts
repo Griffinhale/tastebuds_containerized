@@ -1,3 +1,4 @@
+// Ops endpoint helpers for queue health dashboards.
 import { apiFetch } from './api';
 
 export type QueueSnapshot = {
@@ -17,5 +18,6 @@ export type QueueSnapshot = {
 };
 
 export async function fetchQueueHealth() {
+  // Fetch queue health for the ops panel.
   return apiFetch<QueueSnapshot>('/ops/queues', {}, { isServer: false });
 }

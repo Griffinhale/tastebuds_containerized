@@ -1,3 +1,5 @@
+"""HTTP helpers with retry/backoff for external ingestion calls."""
+
 from __future__ import annotations
 
 import httpx
@@ -5,6 +7,7 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 
 
 class ExternalAPIError(Exception):
+    """Raised for transient or fatal external API failures."""
     pass
 
 
@@ -16,6 +19,7 @@ async def fetch_json(
     method: str = "GET",
     data: dict | None = None,
 ) -> dict:
+    """Fetch JSON with retries for transient HTTP or upstream errors."""
     async for attempt in AsyncRetrying(
         stop=stop_after_attempt(3),
         wait=wait_exponential_jitter(initial=1, max=8),

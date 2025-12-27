@@ -1,3 +1,5 @@
+"""API route tests for menu CRUD and course/media flows."""
+
 from __future__ import annotations
 
 import uuid

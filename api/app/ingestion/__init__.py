@@ -1,3 +1,5 @@
+"""Connector registry for ingestion sources."""
+
 from __future__ import annotations
 
 from typing import Dict
@@ -12,6 +14,7 @@ _CONNECTORS: Dict[str, BaseConnector] = {}
 
 
 def get_connector(source: str) -> BaseConnector:
+    """Return a connector instance for the given source name."""
     key = source.lower()
     if key not in _CONNECTORS:
         if key == "google_books":

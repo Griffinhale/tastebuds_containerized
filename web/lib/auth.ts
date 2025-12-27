@@ -1,5 +1,7 @@
 'use client';
 
+// Client-side auth helpers with session broadcast for other tabs.
+
 import { apiFetch } from './api';
 
 export const SESSION_FLAG_KEY = 'tastebuds_session_active';
@@ -10,6 +12,7 @@ type SessionEventDetail = {
 };
 
 function broadcastSessionState(hasSession: boolean) {
+  // Persist a simple flag and broadcast so UI can update across tabs.
   if (typeof window === 'undefined') return;
   try {
     if (hasSession) {

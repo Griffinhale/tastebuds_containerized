@@ -1,3 +1,5 @@
+"""External search preview and quota tracking models."""
+
 from __future__ import annotations
 
 import typing
@@ -5,7 +7,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, event
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -13,6 +15,7 @@ from app.models.media import JSON_COMPATIBLE, MediaType
 
 
 class ExternalSearchPreview(Base):
+    """Short-lived preview record for external search results."""
     __tablename__ = "external_search_previews"
     __table_args__ = (
         UniqueConstraint("user_id", "source_name", "external_id", name="uq_preview_per_user"),
@@ -42,6 +45,7 @@ class ExternalSearchPreview(Base):
 
 
 class UserExternalSearchQuota(Base):
+    """Per-user quota window tracking for external search fan-out."""
     __tablename__ = "user_external_search_quotas"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -65,6 +69,7 @@ def _ensure_tz_aware(dt: datetime | None) -> datetime | None:
 @event.listens_for(ExternalSearchPreview, "load")
 @event.listens_for(ExternalSearchPreview, "refresh")
 def _normalize_preview_timestamps(target: ExternalSearchPreview, *_, **__) -> None:
+    """Normalize preview timestamps after load/refresh events."""
     target.expires_at = _ensure_tz_aware(target.expires_at)  # type: ignore[assignment]
     target.created_at = _ensure_tz_aware(target.created_at)  # type: ignore[assignment]
 
@@ -72,6 +77,7 @@ def _normalize_preview_timestamps(target: ExternalSearchPreview, *_, **__) -> No
 @event.listens_for(UserExternalSearchQuota, "load")
 @event.listens_for(UserExternalSearchQuota, "refresh")
 def _normalize_quota_timestamps(target: UserExternalSearchQuota, *_, **__) -> None:
+    """Normalize quota window timestamps after load/refresh events."""
     target.window_start = _ensure_tz_aware(target.window_start)  # type: ignore[assignment]
 
 
@@ -80,6 +86,7 @@ def _normalize_quota_timestamps(target: UserExternalSearchQuota, *_, **__) -> No
 def _coerce_preview_dt(
     _target: ExternalSearchPreview, value: datetime | None, *_: object, **__: object
 ) -> datetime | None:
+    """Coerce preview timestamps to UTC on assignment."""
     return _ensure_tz_aware(value)
 
 
@@ -87,4 +94,5 @@ def _coerce_preview_dt(
 def _coerce_quota_dt(
     _target: UserExternalSearchQuota, value: datetime | None, *_: object, **__: object
 ) -> datetime | None:
+    """Coerce quota window timestamps to UTC on assignment."""
     return _ensure_tz_aware(value)

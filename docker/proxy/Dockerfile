@@ -1,3 +1,4 @@
+# Nginx proxy image with OpenSSL for local TLS certificate rotation.
 FROM nginx:stable-alpine
 
 RUN apk add --no-cache openssl

@@ -1,3 +1,4 @@
+# Attribute mapping for IGDB ingestion into the internal media schema.
 source: igdb
 canonical:
   media_items:

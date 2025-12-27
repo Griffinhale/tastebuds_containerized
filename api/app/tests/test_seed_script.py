@@ -1,3 +1,5 @@
+"""Tests for the demo seed script and its idempotency."""
+
 from __future__ import annotations
 
 import pytest

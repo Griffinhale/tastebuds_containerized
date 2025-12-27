@@ -1,3 +1,5 @@
+"""Media catalog models, including typed extensions and sources."""
+
 from __future__ import annotations
 
 import enum
@@ -20,6 +22,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 class MediaType(str, enum.Enum):
+    """Supported media categories for catalog items."""
     BOOK = "book"
     MOVIE = "movie"
     TV = "tv"
@@ -28,6 +31,7 @@ class MediaType(str, enum.Enum):
 
 
 class UserItemStatus(str, enum.Enum):
+    """Tracking statuses for a user's progress on a media item."""
     CONSUMED = "consumed"
     CONSUMING = "currently_consuming"
     WANT = "want_to_consume"
@@ -36,6 +40,7 @@ class UserItemStatus(str, enum.Enum):
 
 
 class MediaItem(Base):
+    """Canonical media record shared across sources and menus."""
     __tablename__ = "media_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -67,6 +72,7 @@ class MediaItem(Base):
 
 
 class BookItem(Base):
+    """Book-specific extension fields for a media item."""
     __tablename__ = "book_items"
 
     media_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -83,6 +89,7 @@ class BookItem(Base):
 
 
 class MovieItem(Base):
+    """Movie-specific extension fields for a media item."""
     __tablename__ = "movie_items"
 
     media_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -97,6 +104,7 @@ class MovieItem(Base):
 
 
 class GameItem(Base):
+    """Game-specific extension fields for a media item."""
     __tablename__ = "game_items"
 
     media_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -111,6 +119,7 @@ class GameItem(Base):
 
 
 class MusicItem(Base):
+    """Music-specific extension fields for a media item."""
     __tablename__ = "music_items"
 
     media_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -125,6 +134,7 @@ class MusicItem(Base):
 
 
 class MediaSource(Base):
+    """Upstream source payload metadata for a media item."""
     __tablename__ = "media_sources"
     __table_args__ = (UniqueConstraint("source_name", "external_id", name="uq_source_external"),)
 
@@ -142,6 +152,7 @@ class MediaSource(Base):
 
 
 class UserItemState(Base):
+    """Per-user state tracking for a media item."""
     __tablename__ = "user_item_states"
     __table_args__ = (
         UniqueConstraint("user_id", "media_item_id", name="uq_user_item"),
@@ -172,10 +183,12 @@ class UserItemState(Base):
 
 
 def _get_metadata(media: MediaItem) -> dict | None:
+    """Expose the JSON metadata field via a property alias."""
     return media.metadata_
 
 
 def _set_metadata(media: MediaItem, value: dict | None) -> None:
+    """Set metadata through the property alias."""
     media.metadata_ = value
 
 

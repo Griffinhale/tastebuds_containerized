@@ -1,4 +1,5 @@
 #!/bin/sh
+# Generate/rotate dev TLS certs before launching nginx for local proxying.
 set -euo pipefail
 
 CERT_DIR="${CERT_DIR:-/etc/nginx/certs}"

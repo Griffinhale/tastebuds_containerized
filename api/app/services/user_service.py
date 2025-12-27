@@ -1,3 +1,5 @@
+"""User account CRUD and authentication helpers."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,11 +13,13 @@ from app.models.user import User
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    """Fetch a user by normalized email address."""
     result = await session.execute(select(User).where(User.email == email.lower()))
     return result.scalar_one_or_none()
 
 
 async def get_user_by_id(session: AsyncSession, user_id: str | uuid.UUID) -> User | None:
+    """Fetch a user by UUID, accepting string inputs."""
     try:
         user_uuid = uuid.UUID(str(user_id))
     except ValueError:
@@ -25,6 +29,7 @@ async def get_user_by_id(session: AsyncSession, user_id: str | uuid.UUID) -> Use
 
 
 async def create_user(session: AsyncSession, email: str, password: str, display_name: str | None = None) -> User:
+    """Create a new user account with hashed credentials."""
     existing = await get_user_by_email(session, email)
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -36,6 +41,7 @@ async def create_user(session: AsyncSession, email: str, password: str, display_
 
 
 async def authenticate_user(session: AsyncSession, email: str, password: str) -> User:
+    """Validate credentials and return the matching user."""
     user = await get_user_by_email(session, email)
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")

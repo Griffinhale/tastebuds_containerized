@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Wrapper for docker compose workflows and local tooling in a single entrypoint.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -7,6 +8,7 @@ cd "$ROOT_DIR"
 DEFAULT_TEST_DB="postgresql+asyncpg://tastebuds:tastebuds@db:5432/tastebuds_test"
 
 should_use_flatpak() {
+  # Detect Flatpak environments that require host-spawned Docker access.
   if [ "${TASTEBUDS_USE_FLATPAK:-0}" = "1" ]; then
     if ! command -v flatpak-spawn >/dev/null 2>&1; then
       echo "flatpak-spawn is required when TASTEBUDS_USE_FLATPAK=1" >&2
@@ -50,6 +52,7 @@ USAGE
 run_node_task() {
   local cmd="$1"
   local workdir="${2:-$ROOT_DIR/web}"
+  # Run Node tasks in a container to avoid host toolchain drift.
   if should_use_flatpak; then
     flatpak-spawn --host docker run --rm -v "$workdir:/work" -w /work node:20-alpine sh -c "$cmd"
   else

@@ -1,3 +1,5 @@
+"""Tag service tests for lifecycle and access control."""
+
 from __future__ import annotations
 
 import pytest

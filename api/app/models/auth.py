@@ -1,3 +1,5 @@
+"""Authentication-related models and helpers."""
+
 from __future__ import annotations
 
 import typing
@@ -15,10 +17,12 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 def utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp for token tracking."""
     return datetime.now(timezone.utc)
 
 
 class RefreshToken(Base):
+    """Refresh token record with revocation and rotation metadata."""
     __tablename__ = "refresh_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

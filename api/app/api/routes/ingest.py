@@ -1,3 +1,5 @@
+"""Ingestion endpoints for external previews."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,11 +21,13 @@ async def ingest_media(
     session: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> IngestResponse:
+    """Ingest an external item and return the stored media record."""
     identifier = payload.external_id or payload.url
     if not identifier:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identifier required")
 
     async def _fallback() -> dict:
+        # Inline fallback when worker queue is unavailable.
         media_item = await media_service.ingest_from_source(
             session, source=source, identifier=identifier, force_refresh=payload.force_refresh
         )

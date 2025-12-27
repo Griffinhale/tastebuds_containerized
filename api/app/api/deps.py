@@ -1,3 +1,5 @@
+"""FastAPI dependency helpers for auth and database access."""
+
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +14,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login
 
 
 async def get_db() -> AsyncSession:
+    """Yield a database session for request-scoped dependencies."""
     async for session in get_session():
         yield session
 
@@ -21,6 +24,7 @@ async def get_current_user(
     token: str | None = Depends(oauth2_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias="access_token"),
 ) -> User:
+    """Resolve the current user from bearer or cookie tokens."""
     candidate = token or access_token_cookie
     if not candidate:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -29,6 +33,7 @@ async def get_current_user(
 
 
 async def _resolve_user_from_token(session: AsyncSession, token: str) -> User:
+    """Decode a JWT and fetch the associated user."""
     payload = decode_token(token)
     if not payload or payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -44,6 +49,7 @@ async def get_optional_current_user(
     token: str | None = Depends(oauth2_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias="access_token"),
 ) -> User | None:
+    """Return the current user if authenticated, otherwise None."""
     candidate = token or access_token_cookie
     if not candidate:
         return None
@@ -51,6 +57,7 @@ async def get_optional_current_user(
 
 
 async def require_ops_admin(user: User = Depends(get_current_user)) -> User:
+    """Ensure the current user is authorized for ops endpoints."""
     allowlist = set(settings.ops_admin_emails or [])
     if allowlist and (user.email or "").lower() not in allowlist:
         raise HTTPException(

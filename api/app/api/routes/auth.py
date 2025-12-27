@@ -1,3 +1,5 @@
+"""Auth endpoints for registration, login, and session management."""
+
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -7,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_access_token
+from app.models.user import User
 from app.schema.auth import SessionRead, TokenPair
 from app.schema.user import UserCreate, UserLogin, UserRead
-from app.models.user import User
 from app.services import refresh_token_service, user_service
 
 router = APIRouter()
@@ -19,6 +21,7 @@ REFRESH_COOKIE_NAME = "refresh_token"
 
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """Set access/refresh cookies with httpOnly protections."""
     secure = settings.environment.lower() == "production"
     response.set_cookie(
         ACCESS_COOKIE_NAME,
@@ -41,6 +44,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
 
 
 def clear_auth_cookies(response: Response) -> None:
+    """Clear auth cookies on logout or invalid refresh."""
     secure = settings.environment.lower() == "production"
     for name in (ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME):
         directives = ["Path=/", "HttpOnly", "SameSite=Lax"]
@@ -51,6 +55,7 @@ def clear_auth_cookies(response: Response) -> None:
 
 
 def _normalize_timestamp(value: datetime | None) -> datetime | None:
+    """Normalize session timestamps to UTC for comparisons."""
     if value is None:
         return None
     if value.tzinfo is None:
@@ -59,6 +64,7 @@ def _normalize_timestamp(value: datetime | None) -> datetime | None:
 
 
 def _serialize_session(token, current_token_id: UUID | None) -> SessionRead:
+    """Build a session response including active/current flags."""
     expires_at = _normalize_timestamp(token.expires_at)
     revoked_at = _normalize_timestamp(token.revoked_at)
     created_at = _normalize_timestamp(token.created_at)
@@ -77,6 +83,7 @@ def _serialize_session(token, current_token_id: UUID | None) -> SessionRead:
 
 
 async def _token_response(session: AsyncSession, user: UserRead) -> TokenPair:
+    """Create access/refresh tokens for a user."""
     access = create_access_token(str(user.id))
     refresh = await refresh_token_service.issue_refresh_token(session, user.id)
     return TokenPair(access_token=access, refresh_token=refresh, user=user)
@@ -84,6 +91,7 @@ async def _token_response(session: AsyncSession, user: UserRead) -> TokenPair:
 
 @router.post("/register", response_model=TokenPair)
 async def register(payload: UserCreate, response: Response, session: AsyncSession = Depends(get_db)) -> TokenPair:
+    """Register a user and set auth cookies."""
     user = await user_service.create_user(
         session, email=payload.email, password=payload.password, display_name=payload.display_name
     )
@@ -94,6 +102,7 @@ async def register(payload: UserCreate, response: Response, session: AsyncSessio
 
 @router.post("/login", response_model=TokenPair)
 async def login(payload: UserLogin, response: Response, session: AsyncSession = Depends(get_db)) -> TokenPair:
+    """Authenticate a user and issue auth cookies."""
     user = await user_service.authenticate_user(session, payload.email, payload.password)
     tokens = await _token_response(session, UserRead.model_validate(user))
     set_auth_cookies(response, tokens.access_token, tokens.refresh_token)
@@ -107,6 +116,7 @@ async def refresh(
     refresh_token: str | None = Body(default=None, embed=True),
     refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
 ) -> TokenPair:
+    """Rotate refresh tokens and issue a new access token."""
     raw_token = refresh_token or refresh_cookie
     if not raw_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
@@ -136,6 +146,7 @@ async def logout(
     session: AsyncSession = Depends(get_db),
     refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
 ) -> Response:
+    """Revoke refresh token and clear cookies."""
     if refresh_cookie:
         await refresh_token_service.revoke_refresh_token(session, refresh_cookie, reason="logout")
     clear_auth_cookies(response)
@@ -151,6 +162,7 @@ async def list_sessions(
     current_user: User = Depends(get_current_user),
     refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
 ) -> list[SessionRead]:
+    """List refresh token sessions for the current user."""
     tokens = await refresh_token_service.list_user_tokens(
         session,
         current_user.id,
@@ -171,6 +183,7 @@ async def revoke_session(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
+    """Revoke a specific refresh token session."""
     revoked = await refresh_token_service.revoke_refresh_token_by_id(
         session, current_user.id, token_id, reason="user_revoked"
     )

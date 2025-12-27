@@ -1,3 +1,4 @@
+// Health endpoint helpers for API/ingestion status panels.
 import { apiFetch } from './api';
 
 export type ConnectorHealth = {
@@ -36,10 +37,12 @@ export type HealthResponse = {
 };
 
 export async function fetchHealth() {
+  // Use the public health endpoint to drive the UI status widgets.
   return apiFetch<HealthResponse>('/health', {}, { isServer: false });
 }
 
 export function normalizeConnectorHealth(payload: HealthResponse): ConnectorHealth[] {
+  // Fold server payload into connector-friendly summaries.
   const sources = payload.ingestion?.sources ?? {};
   const issues = payload.ingestion?.issues ?? [];
   return Object.entries(sources).map(([source, data]) => {

@@ -1,3 +1,5 @@
+"""Encrypted credential storage model with timezone normalization hooks."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,6 +13,7 @@ from app.db.base_class import Base
 
 
 class UserCredential(Base):
+    """Encrypted third-party credential with rotation and expiry metadata."""
     __tablename__ = "user_credentials"
     __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_provider"),)
 
@@ -37,6 +40,7 @@ class UserCredential(Base):
 
 
 def _normalize_credential(target: UserCredential, *_, **__) -> None:
+    """Normalize naive datetimes to UTC after load/refresh events."""
     if target.expires_at and target.expires_at.tzinfo is None:
         target.expires_at = target.expires_at.replace(tzinfo=timezone.utc)  # type: ignore[assignment]
     if target.rotated_at and target.rotated_at.tzinfo is None:
@@ -58,6 +62,7 @@ event.listen(UserCredential, "refresh", _normalize_credential)
 def _coerce_credential_dt(
     _target: UserCredential, value: datetime | None, *_: object, **__: object
 ) -> datetime | None:
+    """Coerce credential datetimes to UTC on assignment."""
     if value is None:
         return None
     if value.tzinfo is None:

@@ -1,5 +1,7 @@
 'use client';
 
+// Client-side search helpers for internal/external media queries.
+
 import { apiFetch } from './api';
 
 export type MediaType = 'book' | 'movie' | 'tv' | 'game' | 'music';
@@ -39,6 +41,7 @@ type SearchParams = {
 };
 
 export async function searchMedia(params: SearchParams): Promise<MediaSearchResponse> {
+  // Convert optional search params into query string entries.
   const searchParams = new URLSearchParams();
   searchParams.set('q', params.query);
   if (params.includeExternal) {

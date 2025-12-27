@@ -1,3 +1,5 @@
+"""Seed script for demo data in local/dev environments."""
+
 from __future__ import annotations
 
 import asyncio
@@ -37,6 +39,7 @@ MENU_SLUG = menu_slug(MENU_TITLE)
 
 @dataclass(frozen=True)
 class SeedMediaDefinition:
+    """Structured definition for seed media items and source payloads."""
     key: str
     media_type: MediaType
     title: str
@@ -143,6 +146,7 @@ SEED_MEDIA: tuple[SeedMediaDefinition, ...] = (
 
 
 async def seed(session: AsyncSession | None = None) -> None:
+    """Seed demo data into the database."""
     if session is None:
         async with async_session() as managed_session:
             await _seed_session(managed_session)
@@ -151,6 +155,7 @@ async def seed(session: AsyncSession | None = None) -> None:
 
 
 async def _seed_session(session: AsyncSession) -> None:
+    """Populate a session with demo users, menus, and media."""
     user = await user_service.get_user_by_email(session, DEMO_EMAIL)
     if not user:
         user = await user_service.create_user(
@@ -169,6 +174,7 @@ async def _seed_session(session: AsyncSession) -> None:
 
 
 async def _ensure_media_items(session: AsyncSession) -> dict[str, MediaItem]:
+    """Ensure seed media items exist and return them keyed by label."""
     items: dict[str, MediaItem] = {}
     for definition in SEED_MEDIA:
         items[definition.key] = await _get_or_create_media(session, definition)
@@ -176,6 +182,7 @@ async def _ensure_media_items(session: AsyncSession) -> dict[str, MediaItem]:
 
 
 async def _get_or_create_media(session: AsyncSession, definition: SeedMediaDefinition) -> MediaItem:
+    """Create media + source records if they do not already exist."""
     stmt = (
         select(MediaSource)
         .options(selectinload(MediaSource.media_item))
@@ -215,6 +222,7 @@ async def _get_or_create_media(session: AsyncSession, definition: SeedMediaDefin
 
 
 def _attach_extension(session: AsyncSession, media_item_id, definition: SeedMediaDefinition) -> None:
+    """Attach the correct media extension row for the seed item."""
     data = dict(definition.extension)
     if definition.media_type == MediaType.BOOK:
         session.add(BookItem(media_item_id=media_item_id, **data))
@@ -229,6 +237,7 @@ def _attach_extension(session: AsyncSession, media_item_id, definition: SeedMedi
 
 
 async def _ensure_menu(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> Menu:
+    """Create the demo menu if it is missing."""
     stmt = select(Menu).where(Menu.owner_id == user_id, Menu.slug == MENU_SLUG)
     result = await session.execute(stmt)
     existing = result.scalar_one_or_none()
@@ -287,6 +296,7 @@ async def _ensure_menu(session: AsyncSession, user_id, media_items: dict[str, Me
 
 
 async def _ensure_tags(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> None:
+    """Create demo tags and attach them to media items."""
     tag_names = ("Inspiration", "Cinematic", "Reflective")
     existing_tags = {tag.name: tag for tag in await tag_service.list_tags(session, user_id) if tag.owner_id == user_id}
     for name in tag_names:
@@ -298,6 +308,7 @@ async def _ensure_tags(session: AsyncSession, user_id, media_items: dict[str, Me
 
 
 async def _ensure_user_states(session: AsyncSession, user_id, media_items: dict[str, MediaItem]) -> None:
+    """Set up demo user state entries for selected items."""
     await user_state_service.upsert_state(
         session,
         user_id,
@@ -313,6 +324,7 @@ async def _ensure_user_states(session: AsyncSession, user_id, media_items: dict[
 
 
 def main() -> None:
+    """CLI entrypoint for seeding demo data."""
     asyncio.run(seed())
 
 

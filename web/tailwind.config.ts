@@ -1,3 +1,4 @@
+// Tailwind scan paths and theme extensions for the Next.js app.
 import type { Config } from 'tailwindcss';
 
 const config: Config = {

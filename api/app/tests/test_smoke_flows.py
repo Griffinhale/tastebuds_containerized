@@ -1,7 +1,9 @@
+"""End-to-end smoke tests for core auth, menu, and ingestion flows."""
+
 from __future__ import annotations
 
-from datetime import date
 import uuid
+from datetime import date
 
 import pytest
 

@@ -1,3 +1,4 @@
+// Public menu page with share metadata and preview tiles.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -14,9 +15,11 @@ type PageProps = {
 const notFoundCopy = 'menu not found';
 const appBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'http://localhost:3000';
 
+// Cache the fetch to reuse in metadata + page rendering.
 const getMenuBySlug = cache(async (slug: string) => getPublicMenuBySlug(slug));
 
 async function loadMenu(slug: string): Promise<Menu> {
+  // Translate 404-style errors into Next.js notFound responses.
   try {
     return await getMenuBySlug(slug);
   } catch (err) {
@@ -274,6 +277,7 @@ function collectPreviewImages(menu: Menu) {
 }
 
 function buildShareUrl(slug: string) {
+  // Normalize base URL to avoid accidental double slashes.
   const normalizedBase = appBaseUrl.endsWith('/') ? appBaseUrl.slice(0, -1) : appBaseUrl;
   return `${normalizedBase}/menus/${slug}`;
 }

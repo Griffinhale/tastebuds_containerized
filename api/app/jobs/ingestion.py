@@ -1,3 +1,5 @@
+"""Worker jobs for ingestion tasks."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,7 +14,7 @@ logger = logging.getLogger("app.jobs.ingestion")
 
 
 def ingest_media_job(*, source: str, identifier: str, force_refresh: bool = False) -> dict[str, Any]:
-    """Enqueue-able ingestion job."""
+    """Ingest an external item and return a serialized media detail."""
 
     async def _run() -> dict[str, Any]:
         async with async_session() as session:

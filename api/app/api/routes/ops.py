@@ -1,3 +1,5 @@
+"""Operations endpoints for queue diagnostics."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends

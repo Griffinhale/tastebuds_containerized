@@ -1,3 +1,4 @@
+// Registration page wrapper around the shared auth form.
 import Link from 'next/link';
 
 import { AuthForm } from '../../components/auth-form';

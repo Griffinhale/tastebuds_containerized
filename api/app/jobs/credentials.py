@@ -1,3 +1,5 @@
+"""Integration credential rotation job placeholder."""
+
 from __future__ import annotations
 
 import logging

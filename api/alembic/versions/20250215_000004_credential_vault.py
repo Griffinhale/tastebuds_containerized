@@ -20,6 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """Add user credential vault table and indexes."""
     op.create_table(
         "user_credentials",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -45,6 +46,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop user credential vault table and indexes."""
     op.drop_index(op.f("ix_user_credentials_user_id"), table_name="user_credentials")
     op.drop_index(op.f("ix_user_credentials_provider"), table_name="user_credentials")
     op.drop_index(op.f("ix_user_credentials_expires_at"), table_name="user_credentials")

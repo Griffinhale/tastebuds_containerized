@@ -1,5 +1,7 @@
 'use client';
 
+// Share actions with clipboard fallback for public menus.
+
 import { useCallback, useState } from 'react';
 
 type ShareMenuActionsProps = {
@@ -18,6 +20,7 @@ export function ShareMenuActions({ title, shareUrl }: ShareMenuActionsProps) {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
       } else {
+        // Fallback for older browsers without clipboard API.
         const textarea = document.createElement('textarea');
         textarea.value = shareUrl;
         textarea.style.position = 'fixed';

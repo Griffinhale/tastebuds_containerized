@@ -1,3 +1,5 @@
+"""Application settings parsed from environment variables and defaults."""
+
 import json
 from functools import lru_cache
 from typing import Optional
@@ -51,6 +53,7 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: str | list[str] | None) -> list[str]:
+        """Normalize CORS origins from JSON, CSV, or list inputs."""
         if isinstance(value, list):
             cleaned = [origin.strip() for origin in value if isinstance(origin, str) and origin.strip()]
             return cleaned or DEFAULT_CORS_ORIGINS.copy()
@@ -73,6 +76,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_tmdb_credentials(self) -> "Settings":
+        """Ensure TMDB credentials are present before enabling ingestion."""
         if not (self.tmdb_api_auth_header or self.tmdb_api_key):
             msg = "TMDB_API_AUTH_HEADER (preferred) or TMDB_API_KEY must be set for TMDB ingestion"
             raise ValueError(msg)
@@ -81,6 +85,7 @@ class Settings(BaseSettings):
     @field_validator("worker_queue_names", mode="before")
     @classmethod
     def _split_worker_queue_names(cls, value: str | list[str] | None) -> list[str]:
+        """Normalize worker queue names from JSON, CSV, or list inputs."""
         if isinstance(value, list):
             cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
             if cleaned:
@@ -105,6 +110,7 @@ class Settings(BaseSettings):
     @field_validator("health_allowlist", mode="before")
     @classmethod
     def _split_health_allowlist(cls, value: str | list[str] | None) -> list[str]:
+        """Normalize health allowlist entries from JSON, CSV, or list inputs."""
         if isinstance(value, list):
             cleaned = [item.strip() for item in value if isinstance(item, str) and item.strip()]
             return cleaned
@@ -125,6 +131,7 @@ class Settings(BaseSettings):
     @field_validator("ops_admin_emails", mode="before")
     @classmethod
     def _split_ops_admin_emails(cls, value: str | list[str] | None) -> list[str]:
+        """Normalize ops admin emails from JSON, CSV, or list inputs."""
         if isinstance(value, list):
             return [email.strip().lower() for email in value if isinstance(email, str) and email.strip()]
         if isinstance(value, str):
@@ -145,6 +152,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Return cached settings to avoid re-parsing environment variables."""
     return Settings()
 
 

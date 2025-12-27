@@ -1,3 +1,5 @@
+"""Menu and course schemas for request/response payloads."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -10,16 +12,19 @@ from app.schema.media import MediaItemBase
 
 
 class CourseItemCreate(BaseModel):
+    """Payload for adding an item to a course."""
     media_item_id: UUID
     notes: str | None = None
     position: int
 
 
 class CourseItemReorder(BaseModel):
+    """Payload for reordering course items."""
     item_ids: list[UUID]
 
 
 class CourseItemRead(ORMModel):
+    """Course item representation returned by the API."""
     id: UUID
     media_item_id: UUID
     notes: str | None = None
@@ -28,6 +33,7 @@ class CourseItemRead(ORMModel):
 
 
 class CourseCreate(BaseModel):
+    """Payload for creating a menu course."""
     title: str
     description: str | None = None
     position: int
@@ -35,6 +41,7 @@ class CourseCreate(BaseModel):
 
 
 class CourseRead(ORMModel):
+    """Course representation returned by the API."""
     id: UUID
     title: str
     description: str | None = None
@@ -43,6 +50,7 @@ class CourseRead(ORMModel):
 
 
 class MenuCreate(BaseModel):
+    """Payload for creating a menu with optional courses."""
     title: str
     description: str | None = None
     is_public: bool = False
@@ -50,12 +58,14 @@ class MenuCreate(BaseModel):
 
 
 class MenuUpdate(BaseModel):
+    """Payload for updating menu metadata."""
     title: str | None = None
     description: str | None = None
     is_public: bool | None = None
 
 
 class MenuRead(ORMModel):
+    """Menu representation returned to authenticated users."""
     id: UUID
     title: str
     description: str | None = None
@@ -68,6 +78,7 @@ class MenuRead(ORMModel):
 
 
 class PublicMenuRead(ORMModel):
+    """Menu representation safe for public sharing."""
     id: UUID
     title: str
     description: str | None = None

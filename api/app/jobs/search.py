@@ -1,3 +1,5 @@
+"""RQ jobs for external search fan-out and serialization."""
+
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +13,7 @@ from app.services import media_service
 
 
 def _deserialize_media_types(values: Iterable[str] | None) -> set[MediaType] | None:
+    """Convert string media type values to enums, skipping invalid entries."""
     if not values:
         return None
     media_types: set[MediaType] = set()
@@ -23,12 +26,14 @@ def _deserialize_media_types(values: Iterable[str] | None) -> set[MediaType] | N
 
 
 def _deserialize_existing_keys(keys: Iterable[Iterable[str]] | None) -> set[media_service.DedupeKey] | None:
+    """Convert serialized dedupe keys back into tuples."""
     if not keys:
         return None
     return {tuple(key) for key in keys if key}
 
 
 def serialize_external_outcome(outcome: media_service.ExternalSearchOutcome) -> dict[str, Any]:
+    """Serialize external search outcomes for queue transport."""
     return {
         "hits": [{"source": hit.source, "item": hit.item.model_dump()} for hit in outcome.hits],
         "counts": outcome.counts,
@@ -41,6 +46,7 @@ def serialize_external_outcome(outcome: media_service.ExternalSearchOutcome) -> 
 
 
 def deserialize_external_outcome(payload: dict[str, Any] | None) -> media_service.ExternalSearchOutcome:
+    """Deserialize queued search outcomes back into rich objects."""
     payload = payload or {}
     timings = {
         source: media_service.ExternalSourceTiming(
@@ -72,6 +78,7 @@ def fanout_external_search_job(
     allowed_media_types: list[str] | None = None,
     existing_keys: list[list[str]] | None = None,
 ) -> dict[str, Any]:
+    """Run external search fan-out inside a worker process."""
     async def _run() -> dict[str, Any]:
         async with async_session() as session:
             outcome = await media_service.search_external_sources(

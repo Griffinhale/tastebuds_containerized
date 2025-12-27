@@ -1,3 +1,5 @@
+"""Sync workflow helpers for background ingestion tasks."""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +17,7 @@ logger = logging.getLogger("app.services.sync")
 
 @dataclass(slots=True)
 class SyncTask:
+    """Structured payload describing a sync request."""
     provider: str
     external_id: str
     action: str = "ingest"

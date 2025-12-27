@@ -1,6 +1,17 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState, useId, useRef, ForwardedRef, forwardRef } from 'react';
+// Course item search with external fan-out and inline add-to-course actions.
+
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  useId,
+  useRef,
+  ForwardedRef,
+  forwardRef,
+} from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
 import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
@@ -66,6 +77,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   }, [error]);
 
   useEffect(() => {
+    // Fetch connector telemetry for external search messaging.
     let cancelled = false;
     fetchHealth()
       .then((payload) => {
@@ -176,6 +188,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         if (!append) {
           return response.results;
         }
+        // Deduplicate by ID when appending additional pages.
         const seen = new Set(prev.map((item) => item.id));
         const additions = response.results.filter((item) => !seen.has(item.id));
         return [...prev, ...additions];
@@ -382,7 +395,10 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         aria-labelledby={`${resultsHeadingId} ${statusRegionId}`}
         aria-busy={searching || loadingMore}
       >
-        <p id={resultsHeadingId} className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <p
+          id={resultsHeadingId}
+          className="text-xs font-semibold uppercase tracking-wide text-slate-400"
+        >
           Results
         </p>
         <p id={statusRegionId} className="text-xs text-slate-400" role="status" aria-live="polite">

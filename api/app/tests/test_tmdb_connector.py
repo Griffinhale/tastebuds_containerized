@@ -1,3 +1,5 @@
+"""Connector tests for TMDB auth logic and error handling."""
+
 from __future__ import annotations
 
 import pytest

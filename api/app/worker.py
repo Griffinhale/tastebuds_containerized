@@ -1,6 +1,9 @@
+"""RQ worker entrypoint for background job processing."""
+
 from __future__ import annotations
 
 import logging
+
 from redis import Redis
 from rq import Connection, Queue, Worker
 
@@ -10,14 +13,17 @@ WORKER_LOG_FORMAT = "%(asctime)s %(name)s [%(levelname)s] %(message)s"
 
 
 def _configure_logging() -> None:
+    """Configure worker logging to match application log level."""
     logging.basicConfig(level=settings.log_level, format=WORKER_LOG_FORMAT, force=True)
 
 
 def _queue_objects(connection: Redis) -> list[Queue]:
+    """Build queue objects based on configured queue names."""
     return [Queue(name, connection=connection) for name in settings.worker_queue_names]
 
 
 def main() -> None:
+    """Run the worker loop with scheduler support enabled."""
     _configure_logging()
     logger = logging.getLogger("app.worker")
     redis_connection = Redis.from_url(settings.redis_url)

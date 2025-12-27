@@ -1,7 +1,14 @@
+"""Media catalog services including ingestion, dedupe, and search.
+
+Invariants:
+- External search is circuit-breaker guarded and preview-only until ingestion.
+- Connector payload storage is bounded to enforce retention limits.
+"""
+
 from __future__ import annotations
 
-import uuid
 import json
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from time import monotonic
@@ -33,10 +40,12 @@ DedupeKey: TypeAlias = tuple[str, ...]
 
 
 def normalize_title(value: str) -> str:
+    """Normalize titles for dedupe comparisons."""
     return " ".join(value.casefold().split())
 
 
 def _bounded_payload(payload: dict[str, Any], max_bytes: int, *, kind: str) -> dict[str, Any]:
+    """Truncate oversized payloads while preserving a diagnostic preview."""
     if not payload:
         return {}
     if max_bytes <= 0:
@@ -65,6 +74,7 @@ def build_dedupe_key(
     canonical_url: str | None,
     release_date: date | None,
 ) -> DedupeKey:
+    """Build a deterministic dedupe key using URL or title/date fallbacks."""
     if canonical_url:
         return ("url", canonical_url.rstrip("/").casefold())
     normalized = normalize_title(title)
@@ -74,6 +84,7 @@ def build_dedupe_key(
 
 
 def build_dedupe_key_from_item(media_item: MediaItem) -> DedupeKey:
+    """Generate a dedupe key from a stored media item."""
     return build_dedupe_key(
         media_type=media_item.media_type,
         title=media_item.title,
@@ -83,6 +94,7 @@ def build_dedupe_key_from_item(media_item: MediaItem) -> DedupeKey:
 
 
 def build_dedupe_key_from_result(result: ConnectorResult) -> DedupeKey:
+    """Generate a dedupe key from an external connector result."""
     return build_dedupe_key(
         media_type=result.media_type,
         title=result.title,
@@ -93,18 +105,21 @@ def build_dedupe_key_from_result(result: ConnectorResult) -> DedupeKey:
 
 @dataclass(slots=True)
 class ExternalSourceTiming:
+    """Timing metadata for external connector calls."""
     search_ms: float | None = None
     fetch_ms: float = 0.0
 
 
 @dataclass(slots=True)
 class ExternalSearchHit:
+    """Resolved search hit annotated with its source name."""
     source: str
     item: SearchResultItem
 
 
 @dataclass(slots=True)
 class ExternalSearchOutcome:
+    """Aggregated external search response with counts and timings."""
     hits: list[ExternalSearchHit] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
     deduped_counts: dict[str, int] = field(default_factory=dict)
@@ -144,11 +159,13 @@ async def prune_media_source_payloads(
 
 
 async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
+    """Fetch a media item by primary key."""
     result = await session.execute(select(MediaItem).where(MediaItem.id == media_id))
     return result.scalar_one_or_none()
 
 
 async def get_media_with_sources(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
+    """Fetch a media item and preload its sources."""
     result = await session.execute(
         select(MediaItem).options(selectinload(MediaItem.sources)).where(MediaItem.id == media_id)
     )
@@ -163,6 +180,7 @@ async def search_media(
     offset: int = 0,
     limit: int = 20,
 ) -> tuple[list[MediaItem], int]:
+    """Search stored media items by title with pagination support."""
     filtered_stmt = select(MediaItem).where(MediaItem.title.ilike(f"%{query}%"))
     if media_types:
         filtered_stmt = filtered_stmt.where(MediaItem.media_type.in_(list(media_types)))
@@ -182,6 +200,12 @@ async def search_external_sources(
     allowed_media_types: set[MediaType] | None = None,
     existing_keys: set[DedupeKey] | None = None,
 ) -> ExternalSearchOutcome:
+    """Search external connectors and return deduped preview results.
+
+    Implementation notes:
+    - External calls are circuit-breaker gated per source.
+    - Deduplication prefers canonical URLs, then title/date keys.
+    """
     normalized_sources: list[str] = []
     seen: set[str] = set()
     source_candidates = sources or DEFAULT_EXTERNAL_SOURCES
@@ -286,6 +310,7 @@ async def search_external_sources(
 async def ingest_from_source(
     session: AsyncSession, *, source: str, identifier: str, force_refresh: bool = False
 ) -> MediaItem:
+    """Fetch a single item from an external source and store it."""
     connector = get_connector(source)
     if not ingestion_monitor.allow_call(source):
         await ingestion_monitor.record_skip(
@@ -310,6 +335,12 @@ async def ingest_from_source(
 async def upsert_media(
     session: AsyncSession, connector_result: ConnectorResult, force_refresh: bool = False
 ) -> MediaItem:
+    """Insert or update media items and sources from a connector result.
+
+    Implementation notes:
+    - Payloads are truncated to configured byte limits before storage.
+    - Extensions are updated in place to preserve media item identity.
+    """
     bounded_raw_payload = _bounded_payload(
         connector_result.raw_payload or {}, settings.ingestion_payload_max_bytes, kind="raw_ingestion"
     )
@@ -375,6 +406,7 @@ async def upsert_media(
 
 
 async def _apply_result_to_item(media_item: MediaItem, connector_result: ConnectorResult) -> None:
+    """Apply connector fields and extensions onto a media item instance."""
     media_item.media_type = connector_result.media_type
     media_item.title = connector_result.title
     media_item.description = connector_result.description
@@ -427,6 +459,7 @@ async def _apply_result_to_item(media_item: MediaItem, connector_result: Connect
 async def ensure_media_item(
     session: AsyncSession, *, title: str, media_type: MediaType, description: str | None = None
 ) -> MediaItem:
+    """Return an existing item or create a new one for the given title/type."""
     existing = await session.execute(
         select(MediaItem).where(and_(MediaItem.title == title, MediaItem.media_type == media_type))
     )

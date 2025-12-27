@@ -1,5 +1,7 @@
 'use client';
 
+// Search explorer for the homepage hero panel.
+
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
@@ -60,6 +62,7 @@ export function MediaSearchExplorer() {
   };
 
   useEffect(() => {
+    // Load connector health once to annotate external fan-out status.
     let cancelled = false;
     fetchHealth()
       .then((payload) => {

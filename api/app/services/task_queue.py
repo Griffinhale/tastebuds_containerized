@@ -1,14 +1,17 @@
+"""RQ task queue wrapper with inline fallback for local/test runs."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Callable
 
-from datetime import datetime
 from redis import Redis
 from redis.exceptions import RedisError
 from rq import Queue
+
 try:  # RQ < 1.10 lacks Retry; fallback gracefully
     from rq.retry import Retry  # type: ignore
 except Exception:  # pragma: no cover - runtime compatibility
@@ -27,6 +30,7 @@ DEFAULT_RETRY = Retry(max=3, interval=[5, 15, 30]) if Retry else None
 
 
 def _maybe_async(value: Any) -> Any:
+    """Normalize callables/coroutines into an awaitable result."""
     if asyncio.iscoroutine(value):
         return value
     if callable(value):
@@ -56,6 +60,7 @@ class TaskQueue:
         return self._connection
 
     def _bootstrap(self) -> None:
+        """Initialize Redis connectivity unless disabled for tests."""
         if settings.environment.lower() == "test":
             logger.info("Task queue disabled in test environment")
             return
@@ -72,6 +77,7 @@ class TaskQueue:
         logger.info("Task queue ready (queues: %s)", ", ".join(self.queue_names))
 
     def get_queue(self, queue_name: str | None = None) -> Queue:
+        """Return a configured queue instance for enqueuing jobs."""
         if not self._connection:
             raise RuntimeError("Queue connection not initialized")
         target = queue_name or (self.queue_names[0] if self.queue_names else "default")
@@ -176,6 +182,7 @@ class TaskQueue:
             return await _run_fallback()
 
     def snapshot(self) -> dict[str, Any]:
+        """Return a diagnostic snapshot of queue, worker, and scheduler state."""
         if not self._connection:
             return {
                 "status": "offline",
