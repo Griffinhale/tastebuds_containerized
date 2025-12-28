@@ -29,7 +29,7 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 
 ## 6. Integration credential handling
 - **Where:** `api/app/services/credential_vault.py`, `app/models/credential.py`
-- **Status:** Per-user integration secrets are encrypted with Fernet at rest (`user_credentials`), include optional expiries, and clear on failures. Vault health surfaces through `/api/ops/queues`.
+- **Status:** Per-user integration secrets are encrypted with Fernet at rest (`user_credentials`), include optional expiries, and clear on failures. Webhook tokens are stored as hashes in `integration_webhook_tokens`. Vault health surfaces through `/api/ops/queues`.
 - **Residual:** Add provider-specific rotation jobs once connectors (Spotify/Arr/Jellyfin) are wired; consider HSM/KMS when moving beyond dev.
 
 ## 7. Ops surface scoping

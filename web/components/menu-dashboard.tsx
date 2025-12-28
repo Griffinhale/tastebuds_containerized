@@ -31,7 +31,16 @@ import {
   updateCourseItem,
 } from '../lib/menus';
 import { CourseItemSearch } from './course-item-search';
-import { ApiError } from '../lib/api';
+import { apiFetch, ApiError } from '../lib/api';
+
+type SpotifyExportResponse = {
+  playlist_id: string;
+  playlist_url: string;
+  tracks_added: number;
+  tracks_skipped: number;
+  tracks_not_found: string[];
+  imported_tracks: number;
+};
 
 export function MenuDashboard() {
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -217,6 +226,8 @@ function MenuCard({
         <LineageSummary menuId={menu.id} />
       </div>
 
+      <SpotifyExportPanel menuId={menu.id} menuTitle={menu.title} />
+
       <div className="mt-6 space-y-4">
         <p className="text-sm font-semibold text-emerald-300">Courses</p>
         {menu.courses.length === 0 && (
@@ -334,6 +345,106 @@ function DraftSharePanel({
           )}
         </div>
       )}
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+function SpotifyExportPanel({ menuId, menuTitle }: { menuId: string; menuTitle: string }) {
+  const [playlistName, setPlaylistName] = useState(menuTitle);
+  const [publicPlaylist, setPublicPlaylist] = useState(false);
+  const [importTracks, setImportTracks] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPlaylistName(menuTitle);
+  }, [menuTitle]);
+
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const response = await apiFetch<SpotifyExportResponse>(
+        `/integrations/spotify/menus/${menuId}/export`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            playlist_name: playlistName || menuTitle,
+            public: publicPlaylist,
+            import_tracks: importTracks,
+          }),
+        }
+      );
+      setPlaylistUrl(response.playlist_url || null);
+      setStatus(`Created playlist with ${response.tracks_added} tracks.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Spotify export failed.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-emerald-300">Spotify export</p>
+          <p className="text-xs text-slate-300">
+            Push music courses into a Spotify playlist once your account is linked.
+          </p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
+        >
+          {exporting ? 'Exporting...' : 'Export menu'}
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <label className="space-y-1 text-xs text-slate-300">
+          <span>Playlist name</span>
+          <input
+            value={playlistName}
+            onChange={(event) => setPlaylistName(event.target.value)}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={publicPlaylist}
+            onChange={(event) => setPublicPlaylist(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-400"
+          />
+          Public playlist
+        </label>
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={importTracks}
+            onChange={(event) => setImportTracks(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-400"
+          />
+          Import tracks into Tastebuds
+        </label>
+      </div>
+      {playlistUrl && (
+        <a
+          href={playlistUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
+        >
+          Open playlist
+        </a>
+      )}
+      {status && <p className="mt-2 text-xs text-slate-200">{status}</p>}
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
     </div>
   );

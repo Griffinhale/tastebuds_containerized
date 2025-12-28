@@ -32,7 +32,10 @@ from app.utils.slugify import menu_slug
 def _menu_load_options():
     """Return common eager-loading options for menu reads."""
     return (
-        selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item),
+        selectinload(Menu.courses)
+        .selectinload(Course.items)
+        .selectinload(CourseItem.media_item)
+        .selectinload(MediaItem.music),
         selectinload(Menu.pairings)
         .selectinload(MenuItemPairing.primary_item)
         .selectinload(CourseItem.media_item),

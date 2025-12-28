@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -20,12 +21,12 @@ class WebhookEvent:
     payload: dict[str, Any] = field(default_factory=dict)
     event_type: str | None = None
     source_ip: str | None = None
+    user_id: uuid.UUID | None = None
     received_at: datetime = field(default_factory=datetime.utcnow)
 
 
 async def handle_webhook(session: AsyncSession, event: WebhookEvent) -> dict[str, Any]:
-    """Lightweight webhook handler that normalizes payloads before deeper processing."""
-    _ = session  # placeholder for future persistence
+    """Normalize webhook payloads and enqueue integration ingestion."""
     payload_bytes = len(json.dumps(event.payload, default=str).encode("utf-8"))
     summary = {
         "provider": event.provider,
@@ -41,4 +42,15 @@ async def handle_webhook(session: AsyncSession, event: WebhookEvent) -> dict[str
         payload_bytes,
         event.source_ip or "unknown",
     )
+    if event.provider == "arr" and event.user_id:
+        from app.services.integration_queue_service import record_arr_event
+
+        ingest_event = await record_arr_event(
+            session,
+            user_id=event.user_id,
+            provider=event.provider,
+            payload=event.payload,
+        )
+        summary["ingest_event_id"] = str(ingest_event.id)
+        summary["ingest_status"] = ingest_event.status.value
     return summary

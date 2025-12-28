@@ -132,6 +132,28 @@ Remove a log entry.
 Ordering is enforced via unique `(menu_id, position)` for courses and `(course_id, position)` for items, so responses always reflect the intended chronology. Courses now return `updated_at` for conflict-aware edits, support an optional `intent` field, and course items accept `notes` as narrative annotations with their own `updated_at`.
 When `expected_updated_at` is supplied and stale, the API responds with `409 Conflict` and includes `current_updated_at` in the error detail payload so clients can resolve the mismatch.
 
+## Integrations
+- `GET /api/integrations` - list provider status (connected/expired/errors).
+- `POST /api/integrations/{provider}/credentials` - store headless credentials (Arr/Jellyfin/Plex).
+- `DELETE /api/integrations/{provider}` - revoke credentials + webhook tokens.
+- `POST /api/integrations/{provider}/rotate` - trigger provider token refresh.
+- `GET /api/integrations/spotify/authorize` - get Spotify OAuth authorization URL.
+- `GET /api/integrations/spotify/callback` - OAuth redirect target (handled by API, redirects to web).
+- `POST /api/integrations/spotify/menus/{menu_id}/export` - export a menu’s music tracks into a Spotify playlist.
+- `POST /api/integrations/arr/webhook-token` - generate a new Arr webhook token + URL.
+- `POST /api/integrations/arr/webhook/{token}` - inbound Arr webhook receiver (no auth).
+- `GET /api/integrations/arr/queue` - list Arr ingest queue events (auth required, optional `status_filter`).
+- `POST /api/integrations/arr/queue/{event_id}/ingest` - ingest a queued Arr event.
+- `POST /api/integrations/arr/queue/{event_id}/dismiss` - dismiss a queued Arr event.
+- `POST /api/integrations/{provider}/sync` - trigger Jellyfin/Plex sync (provider = `jellyfin` or `plex`).
+
+## Automations
+- `GET /api/automations` - list automation rules.
+- `POST /api/automations` - create a rule.
+- `PATCH /api/automations/{rule_id}` - update a rule.
+- `DELETE /api/automations/{rule_id}` - delete a rule.
+- `POST /api/automations/{rule_id}/run` - trigger a rule run immediately.
+
 ## Tags
 - `GET /api/tags` - list your tags plus global ones.
 - `POST /api/tags` - create a tag scoped to the caller.

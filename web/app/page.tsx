@@ -71,6 +71,11 @@ export default function Home() {
           href="/taste-profile"
         />
         <Card
+          title="Integrations"
+          description="Link Spotify, Arr, Jellyfin, and Plex with tokens and webhooks."
+          href="/integrations"
+        />
+        <Card
           title="Search & ingestion"
           description="Hit /api/search with include_external=true and import results inline."
           href="https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"

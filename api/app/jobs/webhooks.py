@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 from app.db.session import async_session
@@ -13,13 +14,24 @@ logger = logging.getLogger("app.jobs.webhooks")
 
 
 def handle_webhook_event_job(
-    *, provider: str, payload: dict[str, Any], event_type: str | None = None, source_ip: str | None = None
+    *,
+    provider: str,
+    payload: dict[str, Any],
+    event_type: str | None = None,
+    source_ip: str | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """RQ-friendly wrapper to process webhook events asynchronously."""
 
     async def _run() -> dict[str, Any]:
         async with async_session() as session:
-            event = WebhookEvent(provider=provider, payload=payload, event_type=event_type, source_ip=source_ip)
+            event = WebhookEvent(
+                provider=provider,
+                payload=payload,
+                event_type=event_type,
+                source_ip=source_ip,
+                user_id=uuid.UUID(user_id) if user_id else None,
+            )
             return await handle_webhook(session, event)
 
     summary = asyncio.run(_run())

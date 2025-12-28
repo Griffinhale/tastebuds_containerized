@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_name: str = "Tastebuds API"
     environment: str = "development"
     api_prefix: str = "/api"
+    app_base_url: str = Field(default="https://localhost", alias="NEXT_PUBLIC_APP_BASE_URL")
 
     database_url: str
     test_database_url: Optional[str] = None
@@ -31,6 +32,12 @@ class Settings(BaseSettings):
     igdb_client_id: Optional[str] = None
     igdb_client_secret: Optional[str] = None
     lastfm_api_key: Optional[str] = None
+    spotify_client_id: Optional[str] = None
+    spotify_client_secret: Optional[str] = None
+    spotify_redirect_uri: Optional[str] = None
+    spotify_scopes: list[str] | str = Field(
+        default_factory=lambda: ["playlist-modify-private", "playlist-modify-public", "user-read-email"]
+    )
 
     log_level: str = "INFO"
     cors_origins: list[str] | str = Field(default_factory=lambda: DEFAULT_CORS_ORIGINS.copy())
@@ -109,6 +116,27 @@ class Settings(BaseSettings):
             if names:
                 return names
         return ["default"]
+
+    @field_validator("spotify_scopes", mode="before")
+    @classmethod
+    def _split_spotify_scopes(cls, value: str | list[str] | None) -> list[str]:
+        """Normalize Spotify OAuth scopes from JSON, CSV, or list inputs."""
+        if isinstance(value, list):
+            cleaned = [scope.strip() for scope in value if isinstance(scope, str) and scope.strip()]
+            return cleaned
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return ["playlist-modify-private", "playlist-modify-public", "user-read-email"]
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                cleaned = [str(scope).strip() for scope in parsed if str(scope).strip()]
+                return cleaned
+            return [scope.strip() for scope in stripped.split(",") if scope.strip()]
+        return ["playlist-modify-private", "playlist-modify-public", "user-read-email"]
 
     @field_validator("health_allowlist", mode="before")
     @classmethod

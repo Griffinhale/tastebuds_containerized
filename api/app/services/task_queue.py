@@ -84,7 +84,13 @@ class TaskQueue:
         return Queue(target, connection=self._connection)
 
     async def enqueue_webhook_event(
-        self, *, provider: str, payload: dict[str, Any], event_type: str | None = None, source_ip: str | None = None
+        self,
+        *,
+        provider: str,
+        payload: dict[str, Any],
+        event_type: str | None = None,
+        source_ip: str | None = None,
+        user_id: str | None = None,
     ) -> Any:
         """Dispatch webhook events through the dedicated queue."""
         from app.jobs.webhooks import handle_webhook_event_job
@@ -98,6 +104,7 @@ class TaskQueue:
             payload=payload,
             event_type=event_type,
             source_ip=source_ip,
+            user_id=user_id,
         )
 
     async def enqueue_sync_task(

@@ -14,6 +14,9 @@
 - **menu_share_tokens**: temporary tokens for draft share links.
 - **media_item_availability**: provider/region/format availability entries with status + last checked.
 - **user_taste_profiles**: cached preference summaries derived from logs/tags/menus.
+- **integration_webhook_tokens**: hashed webhook tokens that associate inbound events to a user/provider.
+- **integration_ingest_events**: queued webhook events ready for ingestion (Arr -> TMDB).
+- **automation_rules**: user-defined automation rules with trigger/action metadata.
 
 ## Relationships
 ```
@@ -21,6 +24,9 @@ users --> menus --> courses --> course_items --> media_items
       \-> user_item_states -------------/
       \-> user_item_logs ---------------/
       \-> user_taste_profiles
+      \-> integration_webhook_tokens
+      \-> integration_ingest_events
+      \-> automation_rules
 
 media_items --> media_sources
 media_items --> book_items | movie_items | game_items | music_items

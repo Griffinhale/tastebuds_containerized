@@ -15,6 +15,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a home search workspace with connector health + dedupe/collection signals, a menus dashboard with autosave + conflict-aware course/item editors (inline note formatting, drag handles, keyboard reorder), narrative pairings + draft share links for menu collaboration, a Library + Log hub for status tracking and timeline entries, a taste profile dashboard, and slug-based public menu pages rendered at `/menus/[slug]` (with availability overlays and fork/lineage context).
+- Integrations are now manageable via `/api/integrations` and the `/integrations` UI: Spotify OAuth linking with menu export, Arr webhook intake with an ingest queue, and Jellyfin/Plex sync stubs backed by the integrations queue.
 - Known security gaps: review `docs/security.md` for remaining risks (production ACME/cert pipeline, connector credential refresh). Public menu DTO is now owner-safe, external search is auth+quota gated with preview caching + payload caps, and `/health` hides telemetry unless the caller is authenticated or allowlisted.
 - Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache with payload caps until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
 
@@ -38,6 +39,7 @@ Set at minimum:
 - `INGESTION_PAYLOAD_MAX_BYTES` / `INGESTION_METADATA_MAX_BYTES` to cap stored upstream payloads and `CREDENTIAL_VAULT_KEY` for encrypting integration secrets at rest (falls back to `JWT_SECRET_KEY` in dev).
 - `OPS_ADMIN_EMAILS` to restrict `/api/ops/*` diagnostics to a specific set of users.
 - External API credentials: `GOOGLE_BOOKS_API_KEY`, `TMDB_API_AUTH_HEADER` (TMDB v4 bearer, preferred) _or_ `TMDB_API_KEY` as a fallback, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `LASTFM_API_KEY`. TMDB credentials are validated at startup.
+- Spotify integration credentials: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI` (default `https://localhost/api/integrations/spotify/callback`), and optional `SPOTIFY_SCOPES`.
 The Compose stack also reads `.env` for the web service.
 
 ## Helper script (Docker & Flatpak friendly)

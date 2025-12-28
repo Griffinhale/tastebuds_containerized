@@ -30,7 +30,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **The Enthusiast (friends swapping recs):** Needs lightweight search + ingest, delightful share cards, Spotify/Jellyfin hand-offs, and safety around private drafts.
 
 ## 5. Product Surface Map
-- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/menus/{id}/fork`, `/api/menus/{id}/pairings`, `/api/menus/{id}/share-tokens`, `/api/public/menus/{slug}`, `/api/public/menus/draft/{token}`, `/api/public/menus/{slug}/lineage`, `/api/media/availability/*`, `/api/me/taste-profile`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`, `/api/me/library`, `/api/me/logs`. Forthcoming: `/api/automations`, `/api/integrations/*`.
+- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/menus/{id}/fork`, `/api/menus/{id}/pairings`, `/api/menus/{id}/share-tokens`, `/api/public/menus/{slug}`, `/api/public/menus/draft/{token}`, `/api/public/menus/{slug}/lineage`, `/api/media/availability/*`, `/api/me/taste-profile`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`, `/api/me/library`, `/api/me/logs`, `/api/automations`, `/api/integrations/*`.
 - **Connectors (shipping):** Google Books, TMDB, IGDB, Last.fm.
 - **Connectors (planned):** Spotify (playlist + track metadata), Discogs, MusicBrainz, StoryGraph export/import, Arr suite webhooks, Jellyfin/Plex library sync, Notion two-way sync, RSS/ActivityPub feeds.
 - **Interfaces:** Next.js workspace (auth, search, menu editor, share view, Library + Log hub, Taste Profile dashboard, availability overlays, community exchange), CLI/automation scripts, optional mobile-friendly PWA.
@@ -69,10 +69,10 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 TODO: draft RFCs for Library + Log, deeper narrative menus (story mode), taste profile refinements, availability providers, and community exchange governance.
 
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
-- Spotify linking screen + backend credential vault (per-user encrypted store and token rotation).
-- Arr suite integration kit: sample docker-compose w/ webhook forwarding, event schemas, automation recipes backed by the worker queue.
-- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers.
-- Automation hooks: webhooks + scheduled rules (“When IGDB releases follow list, propose menu update”).
+- Spotify linking screen + backend credential vault (per-user encrypted store and token rotation). (initial API + UI now in place)
+- Arr suite integration kit: sample docker-compose w/ webhook forwarding, event schemas, automation recipes backed by the worker queue. (webhook intake + ingest queue now available)
+- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers. (sync queue stubs now live)
+- Automation hooks: webhooks + scheduled rules (“When IGDB releases follow list, propose menu update”). (automation rule CRUD now live)
 
 ### 7.4 Ecosystem & Monetization Experiments (after moderation/abuse controls are defined)
 - ActivityPub/RSS outbox for public menus (Mastodon/WriteFreely friendly).

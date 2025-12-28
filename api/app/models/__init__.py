@@ -1,4 +1,6 @@
 from app.models.auth import RefreshToken
+from app.models.automation import AutomationRule
+from app.models.integration import IntegrationIngestEvent, IntegrationIngestStatus, IntegrationWebhookToken
 from app.models.media import (
     AvailabilityStatus,
     BookItem,
@@ -18,11 +20,15 @@ from app.models.tagging import MediaItemTag, Tag
 from app.models.user import User, UserTasteProfile
 
 __all__ = [
+    "AutomationRule",
     "BookItem",
     "Course",
     "CourseItem",
     "GameItem",
     "AvailabilityStatus",
+    "IntegrationIngestEvent",
+    "IntegrationIngestStatus",
+    "IntegrationWebhookToken",
     "MediaItem",
     "MediaItemAvailability",
     "MediaItemTag",

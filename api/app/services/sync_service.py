@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import media_service
+from app.services.integration_sync_service import SUPPORTED_SYNC_PROVIDERS, process_integration_sync
 
 logger = logging.getLogger("app.services.sync")
 
@@ -28,6 +29,8 @@ class SyncTask:
 
 async def process_sync_task(session: AsyncSession, task: SyncTask) -> dict[str, Any]:
     """Execute sync tasks (ingest/refresh) through the worker queue."""
+    if task.provider in SUPPORTED_SYNC_PROVIDERS:
+        return await process_integration_sync(session, task)
     if task.action == "ingest":
         media_item = await media_service.ingest_from_source(
             session,
