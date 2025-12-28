@@ -123,6 +123,7 @@ class ExternalSearchOutcome:
     hits: list[ExternalSearchHit] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
     deduped_counts: dict[str, int] = field(default_factory=dict)
+    dedupe_reasons: dict[str, dict[str, int]] = field(default_factory=dict)
     timings_ms: dict[str, ExternalSourceTiming] = field(default_factory=dict)
 
 
@@ -223,6 +224,7 @@ async def search_external_sources(
     aggregated: list[ExternalSearchHit] = []
     counts: dict[str, int] = {source: 0 for source in normalized_sources}
     deduped_counts: dict[str, int] = {source: 0 for source in normalized_sources}
+    dedupe_reasons: dict[str, dict[str, int]] = {source: {} for source in normalized_sources}
     timings: dict[str, ExternalSourceTiming] = {
         source: ExternalSourceTiming() for source in normalized_sources
     }
@@ -278,6 +280,13 @@ async def search_external_sources(
             dedupe_key = build_dedupe_key_from_result(result)
             if dedupe_key in dedupe_keys:
                 deduped_counts[source] += 1
+                reason_key = dedupe_key[0] if dedupe_key else "unknown"
+                reason_label = {
+                    "url": "canonical_url",
+                    "type-title-date": "title_release_date",
+                    "type-title": "title_only",
+                }.get(reason_key, reason_key)
+                dedupe_reasons[source][reason_label] = dedupe_reasons[source].get(reason_label, 0) + 1
                 continue
             dedupe_keys.add(dedupe_key)
             preview = await search_preview_service.cache_connector_result(session, user_id, result)
@@ -303,6 +312,7 @@ async def search_external_sources(
         hits=aggregated,
         counts=counts,
         deduped_counts=deduped_counts,
+        dedupe_reasons=dedupe_reasons,
         timings_ms=timings,
     )
 

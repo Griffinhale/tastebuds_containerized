@@ -17,6 +17,7 @@ export type CourseItem = {
   media_item_id: string;
   notes?: string | null;
   position: number;
+  updated_at: string;
   media_item?: MediaItemPreview | null;
 };
 
@@ -26,6 +27,7 @@ export type Course = {
   description?: string | null;
   intent?: string | null;
   position: number;
+  updated_at: string;
   items: CourseItem[];
 };
 
@@ -64,10 +66,12 @@ export type UpdateCourseInput = {
   title?: string;
   description?: string | null;
   intent?: string | null;
+  expectedUpdatedAt?: string;
 };
 
 export type UpdateCourseItemInput = {
   notes?: string | null;
+  expectedUpdatedAt?: string;
 };
 
 export async function listMenus() {
@@ -119,6 +123,7 @@ export async function updateCourse(menuId: string, courseId: string, input: Upda
         title: input.title,
         description: input.description,
         intent: input.intent,
+        expected_updated_at: input.expectedUpdatedAt,
       }),
     },
     { isServer: false }
@@ -165,7 +170,10 @@ export async function updateCourseItem(
     `/menus/${menuId}/course-items/${itemId}`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ notes: input.notes }),
+      body: JSON.stringify({
+        notes: input.notes,
+        expected_updated_at: input.expectedUpdatedAt,
+      }),
     },
     { isServer: false }
   );

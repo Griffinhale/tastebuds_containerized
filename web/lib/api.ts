@@ -5,6 +5,19 @@ type ApiFetchOptions = {
   withCredentials?: boolean;
 };
 
+export class ApiError extends Error {
+  status: number;
+  detail?: unknown;
+
+  constructor(message: string, status: number, detail?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 const browserBase = process.env.NEXT_PUBLIC_API_BASE || 'https://localhost/api';
 const serverBase =
   process.env.API_INTERNAL_BASE || process.env.NEXT_PUBLIC_API_BASE || 'http://api:8000/api';
@@ -36,16 +49,23 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     let message = `API request failed: ${res.status} ${res.statusText}`;
+    let detail: unknown;
     try {
       const errorBody = await res.json();
-      const detail = errorBody?.detail || errorBody?.message;
+      detail = errorBody?.detail || errorBody?.message;
       if (detail) {
-        message = typeof detail === 'string' ? detail : JSON.stringify(detail);
+        if (typeof detail === 'string') {
+          message = detail;
+        } else if (detail && typeof detail === 'object' && 'message' in detail) {
+          message = String((detail as { message?: string }).message ?? message);
+        } else {
+          message = JSON.stringify(detail);
+        }
       }
     } catch {
       // swallow parse errors and surface the generic message
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status, detail);
   }
 
   if (res.status === 204 || res.status === 205) {

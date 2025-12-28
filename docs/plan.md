@@ -57,8 +57,8 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 - Hardening updates: ingested payloads are now size-capped at write time and redacted on expiry; IGDB tokens refresh ahead of expiry and clear cached secrets on 401s; proxy profiles tightened with admin-only diagnostics; credential vault + integrations queue are online so Spotify/Arr/Jellyfin work can land without backtracking.
 
 ### 7.2 Experience Fit & Finish (after 7.1)
-- Menu editor improvements: inline note formatting, drag handles that reveal keyboard shortcuts, autosave with conflict detection.
-- Search workspace: personalized boosts, “in collection” badges, surfaced dedupe reasons; reuse telemetry from 7.1 for user-facing feedback.
+- Menu editor improvements (implemented): inline note formatting, drag handles with keyboard moves, and autosave with conflict detection.
+- Search workspace trust signals (implemented): “in collection” badges, surfaced dedupe reasons, and connector health callouts.
 - Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
 - Collaboration preview: share draft links with temporary tokens before full multi-user editing.
 - Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, and an auto-built "Next up" queue.

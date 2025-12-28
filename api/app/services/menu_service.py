@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -105,6 +106,7 @@ async def add_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -
 
 async def update_course(session: AsyncSession, course: Course, payload: CourseUpdate) -> Course:
     """Update mutable course attributes."""
+    _ensure_fresh_update(course.updated_at, payload.expected_updated_at, label="Course")
     fields = payload.model_fields_set
     if "title" in fields and payload.title is not None:
         course.title = payload.title
@@ -144,6 +146,7 @@ async def update_course_item(
     session: AsyncSession, course_item: CourseItem, payload: CourseItemUpdate
 ) -> CourseItem:
     """Update mutable course item attributes."""
+    _ensure_fresh_update(course_item.updated_at, payload.expected_updated_at, label="Course item")
     if "notes" in payload.model_fields_set:
         course_item.notes = payload.notes
     await session.commit()
@@ -221,7 +224,10 @@ async def reorder_course_items(
             CourseItem.course_id == course.id,
             CourseItem.id.in_(item_ids),
         )
-        .values(position=case(*whens, else_=CourseItem.position))
+        .values(
+            position=case(*whens, else_=CourseItem.position),
+            updated_at=func.now(),
+        )
     )
     await session.commit()
     return await _load_course_with_items(session, course.id)
@@ -283,6 +289,35 @@ async def _slug_exists(session: AsyncSession, slug: str) -> bool:
     """Return True if a menu slug already exists."""
     result = await session.execute(select(Menu).where(Menu.slug == slug))
     return result.scalar_one_or_none() is not None
+
+
+def _ensure_fresh_update(
+    current: datetime | None,
+    expected: datetime | None,
+    *,
+    label: str,
+) -> None:
+    """Guard against stale updates by comparing timestamps."""
+    if expected is None or current is None:
+        return
+
+    current_utc = _to_utc(current)
+    expected_utc = _to_utc(expected)
+    if current_utc != expected_utc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": f"{label} was updated by another session.",
+                "current_updated_at": current_utc.isoformat(),
+            },
+        )
+
+
+def _to_utc(value: datetime) -> datetime:
+    """Normalize timestamps to UTC for safe comparisons."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 async def _load_course_with_items(session: AsyncSession, course_id: uuid.UUID) -> Course:

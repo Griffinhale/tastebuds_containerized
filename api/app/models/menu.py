@@ -50,6 +50,9 @@ class Course(Base):
     description: Mapped[str | None] = mapped_column(Text)
     intent: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     menu: Mapped[Menu] = relationship(back_populates="courses")
     items: Mapped[list["CourseItem"]] = relationship(
@@ -69,6 +72,9 @@ class CourseItem(Base):
     )
     notes: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     course: Mapped[Course] = relationship(back_populates="items")
     media_item: Mapped["MediaItem"] = relationship(back_populates="course_items")

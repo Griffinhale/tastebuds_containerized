@@ -38,6 +38,7 @@ def serialize_external_outcome(outcome: media_service.ExternalSearchOutcome) -> 
         "hits": [{"source": hit.source, "item": hit.item.model_dump()} for hit in outcome.hits],
         "counts": outcome.counts,
         "deduped_counts": outcome.deduped_counts,
+        "dedupe_reasons": outcome.dedupe_reasons,
         "timings_ms": {
             source: {"search_ms": timing.search_ms, "fetch_ms": timing.fetch_ms}
             for source, timing in outcome.timings_ms.items()
@@ -65,6 +66,7 @@ def deserialize_external_outcome(payload: dict[str, Any] | None) -> media_servic
         hits=hits,
         counts=payload.get("counts") or {},
         deduped_counts=payload.get("deduped_counts") or {},
+        dedupe_reasons=payload.get("dedupe_reasons") or {},
         timings_ms=timings,
     )
 

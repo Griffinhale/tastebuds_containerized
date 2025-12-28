@@ -8,11 +8,12 @@ from datetime import date
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_optional_current_user
 from app.jobs.search import deserialize_external_outcome, fanout_external_search_job, serialize_external_outcome
-from app.models.media import MediaType
+from app.models.media import MediaType, UserItemLog, UserItemState
 from app.models.user import User
 from app.schema.search import SearchResult, SearchResultItem
 from app.services import media_service, search_preview_service
@@ -125,6 +126,25 @@ async def search(
             session, query=q, media_types=types, offset=offset, limit=per_page
         )
         internal_items = [SearchResultItem.model_validate(item) for item in internal_results]
+        if current_user and internal_items:
+            media_ids = [item.id for item in internal_items]
+            state_ids = await session.execute(
+                select(UserItemState.media_item_id).where(
+                    UserItemState.user_id == current_user.id,
+                    UserItemState.media_item_id.in_(media_ids),
+                )
+            )
+            log_ids = await session.execute(
+                select(UserItemLog.media_item_id).where(
+                    UserItemLog.user_id == current_user.id,
+                    UserItemLog.media_item_id.in_(media_ids),
+                )
+            )
+            in_collection_ids = set(state_ids.scalars().all()) | set(log_ids.scalars().all())
+            internal_items = [
+                item.model_copy(update={"in_collection": item.id in in_collection_ids})
+                for item in internal_items
+            ]
         dedupe_keys = {
             media_service.build_dedupe_key(
                 media_type=item.media_type,
@@ -225,15 +245,22 @@ async def search(
         metadata["counts"]["external_deduped"] = external_deduped_total
         source_counts = metadata["source_counts"]
         source_counts["external"] = returned_total
+        dedupe_reasons_total: dict[str, int] = {}
         for source_name in connector_sources:
             source_counts[source_name] = external_source_counts.get(source_name, 0)
             timing = external_outcome.timings_ms.get(source_name)
+            dedupe_reasons = external_outcome.dedupe_reasons.get(source_name, {})
+            for reason, count in dedupe_reasons.items():
+                dedupe_reasons_total[reason] = dedupe_reasons_total.get(reason, 0) + count
             metadata["source_metrics"][source_name] = {
                 "returned": external_source_counts.get(source_name, 0),
                 "ingested": external_outcome.counts.get(source_name, 0),
                 "deduped": external_outcome.deduped_counts.get(source_name, 0),
                 "search_ms": timing.search_ms if timing else None,
                 "fetch_ms": timing.fetch_ms if timing else 0.0,
+                "dedupe_reasons": dedupe_reasons,
             }
+        if dedupe_reasons_total:
+            metadata["dedupe_reasons"] = dedupe_reasons_total
 
     return SearchResult(results=results, source=source_label, metadata=metadata)

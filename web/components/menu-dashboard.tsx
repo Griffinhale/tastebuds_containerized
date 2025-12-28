@@ -3,7 +3,7 @@
 // Menu dashboard with local optimistic updates and drag-and-drop ordering.
 
 import Link from 'next/link';
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DragEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CreateCourseInput,
   CreateCourseItemInput,
@@ -23,6 +23,7 @@ import {
   updateCourseItem,
 } from '../lib/menus';
 import { CourseItemSearch } from './course-item-search';
+import { ApiError } from '../lib/api';
 
 export function MenuDashboard() {
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -253,12 +254,53 @@ function CourseEditor({
   const [draftTitle, setDraftTitle] = useState(course.title);
   const [draftDescription, setDraftDescription] = useState(course.description ?? '');
   const [draftIntent, setDraftIntent] = useState(course.intent ?? '');
+  const [autoSaveState, setAutoSaveState] = useState<
+    'idle' | 'saving' | 'saved' | 'error' | 'conflict'
+  >('idle');
+  const [autoSaveMessage, setAutoSaveMessage] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState({
+    title: course.title,
+    description: course.description ?? '',
+    intent: course.intent ?? '',
+    updatedAt: course.updated_at,
+  });
+  const normalizedDraft = useMemo(
+    () => ({
+      title: draftTitle.trim(),
+      description: draftDescription.trim(),
+      intent: draftIntent.trim(),
+    }),
+    [draftDescription, draftIntent, draftTitle]
+  );
+  const normalizedLastSaved = useMemo(
+    () => ({
+      title: lastSaved.title.trim(),
+      description: lastSaved.description.trim(),
+      intent: lastSaved.intent.trim(),
+    }),
+    [lastSaved.description, lastSaved.intent, lastSaved.title]
+  );
+  const isDraftDirty =
+    normalizedDraft.title !== normalizedLastSaved.title ||
+    normalizedDraft.description !== normalizedLastSaved.description ||
+    normalizedDraft.intent !== normalizedLastSaved.intent;
 
   useEffect(() => {
-    setDraftTitle(course.title);
-    setDraftDescription(course.description ?? '');
-    setDraftIntent(course.intent ?? '');
-  }, [course.description, course.intent, course.title]);
+    const shouldSyncDrafts = !editing || !isDraftDirty;
+    setLastSaved({
+      title: course.title,
+      description: course.description ?? '',
+      intent: course.intent ?? '',
+      updatedAt: course.updated_at,
+    });
+    if (shouldSyncDrafts) {
+      setDraftTitle(course.title);
+      setDraftDescription(course.description ?? '');
+      setDraftIntent(course.intent ?? '');
+    }
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
+  }, [course.description, course.intent, course.title, course.updated_at, editing, isDraftDirty]);
 
   async function handleDelete() {
     setDeleting(true);
@@ -310,31 +352,70 @@ function CourseEditor({
     setDragOverId(null);
   }
 
-  async function handleCourseSave() {
+  async function persistCourseUpdate({
+    mode,
+    allowStale,
+  }: {
+    mode: 'auto' | 'manual';
+    allowStale?: boolean;
+  }) {
+    if (!normalizedDraft.title) {
+      return;
+    }
     setSavingEdits(true);
     setEditError(null);
+    if (mode === 'auto') {
+      setAutoSaveState('saving');
+      setAutoSaveMessage('Saving…');
+    }
     try {
       const updated = await updateCourse(menuId, course.id, {
-        title: draftTitle.trim(),
-        description: draftDescription.trim() ? draftDescription : null,
-        intent: draftIntent.trim() ? draftIntent : null,
+        title: normalizedDraft.title,
+        description: normalizedDraft.description ? normalizedDraft.description : null,
+        intent: normalizedDraft.intent ? normalizedDraft.intent : null,
+        expectedUpdatedAt: allowStale ? undefined : lastSaved.updatedAt,
       });
       onCourseUpdated(updated);
-      setEditing(false);
+      setLastSaved({
+        title: updated.title,
+        description: updated.description ?? '',
+        intent: updated.intent ?? '',
+        updatedAt: updated.updated_at,
+      });
+      setAutoSaveState('saved');
+      setAutoSaveMessage(mode === 'auto' ? 'Autosaved just now.' : 'Changes saved.');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update course.';
-      setEditError(message);
+      if (err instanceof ApiError && err.status === 409) {
+        setAutoSaveState('conflict');
+        setAutoSaveMessage(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to update course.';
+        setEditError(message);
+        setAutoSaveState('error');
+        setAutoSaveMessage(message);
+      }
     } finally {
       setSavingEdits(false);
     }
   }
 
   function handleCourseCancel() {
-    setDraftTitle(course.title);
-    setDraftDescription(course.description ?? '');
-    setDraftIntent(course.intent ?? '');
+    setDraftTitle(lastSaved.title);
+    setDraftDescription(lastSaved.description);
+    setDraftIntent(lastSaved.intent);
+    setEditError(null);
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
+    setEditing(false);
+  }
+
+  async function handleConflictReload() {
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
     setEditError(null);
     setEditing(false);
+    await onRefresh();
+    setEditing(true);
   }
 
   async function handleDrop(targetId: string) {
@@ -348,15 +429,19 @@ function CourseEditor({
       return;
     }
     resetDragState();
+    await persistReorder(reordered);
+  }
+
+  async function persistReorder(nextItems: CourseItem[]) {
     setOrderError(null);
     // Optimistically update order while persisting to the backend.
-    onCourseUpdated({ ...course, items: reordered });
+    onCourseUpdated({ ...course, items: nextItems });
     setReordering(true);
     try {
       const refreshed = await reorderCourseItems(
         menuId,
         course.id,
-        reordered.map((item) => item.id)
+        nextItems.map((item) => item.id)
       );
       onCourseUpdated(refreshed);
     } catch (err) {
@@ -367,6 +452,39 @@ function CourseEditor({
       setReordering(false);
     }
   }
+
+  async function moveItem(itemId: string, direction: 'up' | 'down') {
+    if (reordering) return;
+    const currentIndex = course.items.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= course.items.length) return;
+    const updated = [...course.items];
+    const [moved] = updated.splice(currentIndex, 1);
+    updated.splice(targetIndex, 0, moved);
+    await persistReorder(rebuildPositions(updated));
+  }
+
+  useEffect(() => {
+    if (!editing || !isDraftDirty || savingEdits || autoSaveState === 'conflict') {
+      return;
+    }
+    if (!normalizedDraft.title) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      persistCourseUpdate({ mode: 'auto' });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [
+    autoSaveState,
+    editing,
+    isDraftDirty,
+    normalizedDraft.title,
+    normalizedDraft.description,
+    normalizedDraft.intent,
+    savingEdits,
+  ]);
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
@@ -441,11 +559,11 @@ function CourseEditor({
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={handleCourseSave}
-              disabled={savingEdits || !draftTitle.trim()}
+              onClick={() => persistCourseUpdate({ mode: 'manual' })}
+              disabled={savingEdits || !normalizedDraft.title}
               className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {savingEdits ? 'Saving…' : 'Save changes'}
+              {savingEdits ? 'Saving…' : 'Save now'}
             </button>
             <button
               type="button"
@@ -455,6 +573,37 @@ function CourseEditor({
               Cancel
             </button>
           </div>
+          {autoSaveMessage && (
+            <p
+              className={`text-xs ${
+                autoSaveState === 'conflict' || autoSaveState === 'error'
+                  ? 'text-amber-200'
+                  : 'text-emerald-200'
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              {autoSaveMessage}
+            </p>
+          )}
+          {autoSaveState === 'conflict' && (
+            <div className="flex flex-wrap gap-3 text-xs">
+              <button
+                type="button"
+                onClick={handleConflictReload}
+                className="rounded-lg border border-amber-300/40 px-3 py-1 text-amber-100"
+              >
+                Reload latest
+              </button>
+              <button
+                type="button"
+                onClick={() => persistCourseUpdate({ mode: 'manual', allowStale: true })}
+                className="text-xs font-semibold text-amber-200 underline decoration-amber-200/60"
+              >
+                Save anyway
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -466,16 +615,20 @@ function CourseEditor({
           </p>
         ) : (
           <p className="text-[11px] text-slate-500">
-            Drag items to reorder; changes save automatically.
+            Drag the handle or use the up/down buttons to reorder; changes save automatically.
           </p>
         )}
-        {course.items.map((item) => (
+        {course.items.map((item, index) => (
           <CourseItemRow
             key={item.id}
             item={item}
             menuId={menuId}
+            onRefresh={onRefresh}
             onItemRemoved={() => handleItemRemoved(item.id)}
             onItemUpdated={handleItemUpdated}
+            onMove={moveItem}
+            canMoveUp={index > 0}
+            canMoveDown={index < course.items.length - 1}
             dragState={
               course.items.length > 1
                 ? {
@@ -518,14 +671,22 @@ type DragState = {
 function CourseItemRow({
   item,
   menuId,
+  onRefresh,
   onItemRemoved,
   onItemUpdated,
+  onMove,
+  canMoveUp,
+  canMoveDown,
   dragState,
 }: {
   item: CourseItem;
   menuId: string;
+  onRefresh: () => Promise<void>;
   onItemRemoved: () => void;
   onItemUpdated: (item: CourseItem) => void;
+  onMove: (itemId: string, direction: 'up' | 'down') => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   dragState?: DragState;
 }) {
   const [removing, setRemoving] = useState(false);
@@ -534,10 +695,27 @@ function CourseItemRow({
   const [notes, setNotes] = useState(item.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [autoSaveState, setAutoSaveState] = useState<
+    'idle' | 'saving' | 'saved' | 'error' | 'conflict'
+  >('idle');
+  const [autoSaveMessage, setAutoSaveMessage] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState({
+    notes: item.notes ?? '',
+    updatedAt: item.updated_at,
+  });
+  const normalizedNotes = useMemo(() => notes.trim(), [notes]);
+  const normalizedLastSaved = useMemo(() => lastSaved.notes.trim(), [lastSaved.notes]);
+  const isDirty = normalizedNotes !== normalizedLastSaved;
 
   useEffect(() => {
-    setNotes(item.notes ?? '');
-  }, [item.notes]);
+    const shouldSyncNotes = !editing || !isDirty;
+    setLastSaved({ notes: item.notes ?? '', updatedAt: item.updated_at });
+    if (shouldSyncNotes) {
+      setNotes(item.notes ?? '');
+    }
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
+  }, [editing, isDirty, item.notes, item.updated_at]);
 
   async function handleRemove() {
     setRemoving(true);
@@ -553,28 +731,69 @@ function CourseItemRow({
     }
   }
 
-  async function handleNotesSave() {
+  async function persistNotesUpdate({
+    mode,
+    allowStale,
+  }: {
+    mode: 'auto' | 'manual';
+    allowStale?: boolean;
+  }) {
     setSaving(true);
     setEditError(null);
+    if (mode === 'auto') {
+      setAutoSaveState('saving');
+      setAutoSaveMessage('Saving…');
+    }
     try {
       const updated = await updateCourseItem(menuId, item.id, {
-        notes: notes.trim() ? notes : null,
+        notes: normalizedNotes ? normalizedNotes : null,
+        expectedUpdatedAt: allowStale ? undefined : lastSaved.updatedAt,
       });
       onItemUpdated(updated);
-      setEditing(false);
+      setLastSaved({ notes: updated.notes ?? '', updatedAt: updated.updated_at });
+      setAutoSaveState('saved');
+      setAutoSaveMessage(mode === 'auto' ? 'Autosaved just now.' : 'Notes saved.');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update notes.';
-      setEditError(message);
+      if (err instanceof ApiError && err.status === 409) {
+        setAutoSaveState('conflict');
+        setAutoSaveMessage(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to update notes.';
+        setEditError(message);
+        setAutoSaveState('error');
+        setAutoSaveMessage(message);
+      }
     } finally {
       setSaving(false);
     }
   }
 
   function handleNotesCancel() {
-    setNotes(item.notes ?? '');
+    setNotes(lastSaved.notes);
     setEditError(null);
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
     setEditing(false);
   }
+
+  async function handleNotesReload() {
+    setAutoSaveState('idle');
+    setAutoSaveMessage(null);
+    setEditError(null);
+    setEditing(false);
+    await onRefresh();
+    setEditing(true);
+  }
+
+  useEffect(() => {
+    if (!editing || !isDirty || saving || autoSaveState === 'conflict') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      persistNotesUpdate({ mode: 'auto' });
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [autoSaveState, editing, isDirty, saving, normalizedNotes]);
 
   const dragClasses = dragState
     ? dragState.isDragging
@@ -583,16 +802,11 @@ function CourseItemRow({
         ? 'border-emerald-400/70 bg-slate-900'
         : ''
     : '';
+  const formattedNotes = useMemo(() => (item.notes ? formatNotes(item.notes) : null), [item.notes]);
 
   return (
     <div
       className={`rounded-md border border-slate-800 bg-slate-900/70 p-3 transition ${dragClasses}`}
-      draggable={Boolean(dragState?.draggable)}
-      onDragStart={(event) => {
-        if (!dragState) return;
-        dragState.onDragStart();
-        event.dataTransfer.effectAllowed = 'move';
-      }}
       onDragOver={(event) => {
         if (!dragState) return;
         dragState.onDragOver(event);
@@ -602,16 +816,59 @@ function CourseItemRow({
         event.preventDefault();
         dragState.onDrop();
       }}
-      onDragEnd={() => dragState?.onDragEnd()}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Position {item.position}</p>
-          <p className="text-sm font-semibold text-white">
-            {item.media_item?.title || 'Untitled media'}{' '}
-            <span className="text-xs text-slate-400">({item.media_item_id})</span>
-          </p>
-          {item.notes && <p className="text-xs text-slate-300">Annotation: {item.notes}</p>}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              draggable={Boolean(dragState?.draggable)}
+              onDragStart={(event) => {
+                if (!dragState) return;
+                dragState.onDragStart();
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragEnd={() => dragState?.onDragEnd()}
+              disabled={!dragState?.draggable}
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Drag to reorder"
+              title="Drag to reorder"
+            >
+              Drag
+            </button>
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => onMove(item.id, 'up')}
+                disabled={!canMoveUp}
+                className="rounded-md border border-slate-800 px-2 py-1 text-[10px] text-slate-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Move item up"
+              >
+                Up
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(item.id, 'down')}
+                disabled={!canMoveDown}
+                className="rounded-md border border-slate-800 px-2 py-1 text-[10px] text-slate-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Move item down"
+              >
+                Down
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Position {item.position}
+            </p>
+            <p className="text-sm font-semibold text-white">
+              {item.media_item?.title || 'Untitled media'}{' '}
+              <span className="text-xs text-slate-400">({item.media_item_id})</span>
+            </p>
+            {formattedNotes && (
+              <div className="mt-2 space-y-1 text-xs text-slate-300">{formattedNotes}</div>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -642,15 +899,18 @@ function CourseItemRow({
             className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
             placeholder="Add a narrative note or pairing suggestion."
           />
+          <p className="text-[10px] text-slate-500">
+            Supports line breaks and bullets (start a line with &quot;-&quot;).
+          </p>
           {editError && <p className="text-xs text-red-300">{editError}</p>}
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={handleNotesSave}
+              onClick={() => persistNotesUpdate({ mode: 'manual' })}
               disabled={saving}
               className="rounded-lg bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {saving ? 'Saving…' : 'Save notes'}
+              {saving ? 'Saving…' : 'Save now'}
             </button>
             <button
               type="button"
@@ -660,6 +920,37 @@ function CourseItemRow({
               Cancel
             </button>
           </div>
+          {autoSaveMessage && (
+            <p
+              className={`text-xs ${
+                autoSaveState === 'conflict' || autoSaveState === 'error'
+                  ? 'text-amber-200'
+                  : 'text-emerald-200'
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              {autoSaveMessage}
+            </p>
+          )}
+          {autoSaveState === 'conflict' && (
+            <div className="flex flex-wrap gap-3 text-xs">
+              <button
+                type="button"
+                onClick={handleNotesReload}
+                className="rounded-lg border border-amber-300/40 px-3 py-1 text-amber-100"
+              >
+                Reload latest
+              </button>
+              <button
+                type="button"
+                onClick={() => persistNotesUpdate({ mode: 'manual', allowStale: true })}
+                className="text-xs font-semibold text-amber-200 underline decoration-amber-200/60"
+              >
+                Save anyway
+              </button>
+            </div>
+          )}
         </div>
       )}
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
@@ -1020,4 +1311,61 @@ function reorderItemsLocally(items: CourseItem[], sourceId: string, targetId: st
   const [moved] = updated.splice(currentIndex, 1);
   updated.splice(targetIndex, 0, moved);
   return rebuildPositions(updated);
+}
+
+function formatNotes(notes: string): ReactNode[] {
+  const lines = notes.split(/\r?\n/);
+  const blocks: ReactNode[] = [];
+  let paragraphLines: string[] = [];
+  let listItems: string[] = [];
+  let blockIndex = 0;
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) return;
+    blocks.push(
+      <p key={`p-${blockIndex++}`} className="whitespace-pre-wrap">
+        {paragraphLines.join('\n')}
+      </p>
+    );
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${blockIndex++}`} className="list-disc space-y-1 pl-4">
+        {listItems.map((item, index) => (
+          <li key={`li-${blockIndex}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const listMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+    if (listMatch) {
+      flushParagraph();
+      listItems.push(listMatch[1]);
+      continue;
+    }
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    if (listItems.length) {
+      flushList();
+    }
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+
+  if (blocks.length === 0) {
+    return [notes];
+  }
+  return blocks;
 }

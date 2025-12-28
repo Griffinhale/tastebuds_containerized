@@ -22,12 +22,26 @@ export type MediaSearchItem = {
   source_id?: string | null;
   preview_id?: string | null;
   preview_expires_at?: string | null;
+  in_collection?: boolean;
+};
+
+export type SearchMetadata = {
+  paging?: {
+    page?: number;
+    per_page?: number;
+    offset?: number;
+    total_internal?: number;
+  };
+  counts?: Record<string, number>;
+  source_counts?: Record<string, number>;
+  source_metrics?: Record<string, Record<string, unknown>>;
+  dedupe_reasons?: Record<string, number>;
 };
 
 export type MediaSearchResponse = {
   results: MediaSearchItem[];
   source: string;
-  metadata?: Record<string, unknown> | null;
+  metadata?: SearchMetadata | null;
 };
 
 type SearchParams = {

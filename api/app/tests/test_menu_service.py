@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from fastapi import HTTPException, status
 
+from app.models.media import MediaItem, MediaType
 from app.models.user import User
-from app.schema.menu import CourseCreate, CourseUpdate, MenuCreate, MenuUpdate
+from app.schema.menu import CourseCreate, CourseItemCreate, CourseItemUpdate, CourseUpdate, MenuCreate, MenuUpdate
 from app.services import menu_service
 
 
@@ -71,3 +73,83 @@ async def test_course_intent_updates(session):
 
     assert updated.intent == "Raise the stakes"
     assert updated.description == "Updated"
+
+
+@pytest.mark.asyncio
+async def test_course_update_rejects_stale_timestamp(session):
+    user = User(email="course-stale@test", hashed_password="x")
+    session.add(user)
+    await session.flush()
+
+    menu = await menu_service.create_menu(
+        session,
+        user.id,
+        MenuCreate(title="Timewarp Menu", description=None, is_public=False),
+    )
+
+    course = await menu_service.add_course(
+        session,
+        menu,
+        CourseCreate(title="Course One", description=None, intent=None, position=1),
+    )
+
+    stale_updated_at = course.updated_at
+    updated = await menu_service.update_course(
+        session,
+        course,
+        CourseUpdate(title="Fresh Title", expected_updated_at=stale_updated_at),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await menu_service.update_course(
+            session,
+            updated,
+            CourseUpdate(title="Stale Attempt", expected_updated_at=stale_updated_at),
+        )
+
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
+
+
+@pytest.mark.asyncio
+async def test_course_item_update_rejects_stale_timestamp(session):
+    user = User(email="item-stale@test", hashed_password="x")
+    session.add(user)
+    await session.flush()
+
+    menu = await menu_service.create_menu(
+        session,
+        user.id,
+        MenuCreate(title="Item Timewarp", description=None, is_public=False),
+    )
+
+    course = await menu_service.add_course(
+        session,
+        menu,
+        CourseCreate(title="Course One", description=None, intent=None, position=1),
+    )
+
+    media = MediaItem(media_type=MediaType.BOOK, title="Stale Book")
+    session.add(media)
+    await session.flush()
+
+    course_item = await menu_service.add_course_item(
+        session,
+        course,
+        CourseItemCreate(media_item_id=media.id, position=1, notes="First"),
+    )
+
+    stale_updated_at = course_item.updated_at
+    updated = await menu_service.update_course_item(
+        session,
+        course_item,
+        CourseItemUpdate(notes="Updated", expected_updated_at=stale_updated_at),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await menu_service.update_course_item(
+            session,
+            updated,
+            CourseItemUpdate(notes="Stale update", expected_updated_at=stale_updated_at),
+        )
+
+    assert exc.value.status_code == status.HTTP_409_CONFLICT

@@ -51,9 +51,21 @@ export function MediaSearchExplorer() {
     .filter(Boolean) as string[];
 
   const metadataEntries = useMemo(() => {
-    if (!metadata) return [] as [string, string][];
-    return Object.entries(metadata).map(([key, value]) => [key, String(value)]);
+    if (!metadata?.counts) return [] as [string, string][];
+    return Object.entries(metadata.counts).map(([key, value]) => [key, String(value)]);
   }, [metadata]);
+  const dedupeEntries = useMemo(() => {
+    const reasons = metadata?.dedupe_reasons;
+    if (!reasons) return [] as [string, number][];
+    return Object.entries(reasons).map(([key, value]) => [key, Number(value)]);
+  }, [metadata]);
+
+  const dedupeLabel = (key: string) => {
+    if (key === 'canonical_url') return 'Canonical URL';
+    if (key === 'title_release_date') return 'Title + date';
+    if (key === 'title_only') return 'Title only';
+    return key;
+  };
 
   const connectorBadgeClass = (state: ConnectorHealth['state']) => {
     if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
@@ -245,6 +257,21 @@ export function MediaSearchExplorer() {
             value={includeExternal ? 'Enabled' : 'Internal only'}
             tone={includeExternal ? 'accent' : 'muted'}
           />
+          {dedupeEntries.length > 0 && (
+            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
+              <p className="uppercase tracking-wide text-slate-400">Dedupe notes</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {dedupeEntries.map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+                  >
+                    {dedupeLabel(key)}: {value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-xs text-slate-300">
             <p className="font-semibold text-white">Tip</p>
             <p className="mt-1 leading-relaxed">
@@ -320,7 +347,16 @@ function MediaResultCard({ item }: { item: MediaSearchItem }) {
           )}
         </div>
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-wide text-emerald-200">{item.media_type}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[11px] uppercase tracking-wide text-emerald-200">
+              {item.media_type}
+            </p>
+            {item.in_collection && (
+              <span className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                In collection
+              </span>
+            )}
+          </div>
           <p className="text-sm font-semibold text-white">{item.title}</p>
           {item.subtitle && <p className="text-xs text-slate-300">{item.subtitle}</p>}
           {item.release_date && (

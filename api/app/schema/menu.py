@@ -21,6 +21,7 @@ class CourseItemCreate(BaseModel):
 class CourseItemUpdate(BaseModel):
     """Payload for updating a course item annotation."""
     notes: str | None = None
+    expected_updated_at: datetime | None = None
 
 
 class CourseItemReorder(BaseModel):
@@ -34,6 +35,7 @@ class CourseItemRead(ORMModel):
     media_item_id: UUID
     notes: str | None = None
     position: int
+    updated_at: datetime
     media_item: MediaItemBase | None = None
 
 
@@ -51,6 +53,7 @@ class CourseUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     intent: str | None = None
+    expected_updated_at: datetime | None = None
 
 
 class CourseRead(ORMModel):
@@ -60,6 +63,7 @@ class CourseRead(ORMModel):
     description: str | None = None
     intent: str | None = None
     position: int
+    updated_at: datetime
     items: list[CourseItemRead] = Field(default_factory=list)
 
 

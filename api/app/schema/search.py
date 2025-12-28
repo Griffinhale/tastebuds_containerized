@@ -25,6 +25,7 @@ class SearchResultItem(MediaItemBase):
     source_name: str | None = None
     source_id: str | None = None
     preview_expires_at: datetime | None = None
+    in_collection: bool = False
 
 
 class SearchResult(BaseModel):
