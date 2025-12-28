@@ -21,3 +21,9 @@ export async function fetchQueueHealth() {
   // Fetch queue health for the ops panel.
   return apiFetch<QueueSnapshot>('/ops/queues', {}, { isServer: false });
 }
+
+export function filterQueues(snapshot: QueueSnapshot | null, names: string[]) {
+  if (!snapshot?.queues?.length) return [];
+  const allowlist = new Set(names);
+  return snapshot.queues.filter((queue) => allowlist.has(queue.name));
+}

@@ -19,8 +19,9 @@ export default function LibraryPage() {
         <p className="text-sm uppercase tracking-wide text-emerald-300">Library + Log</p>
         <h1 className="text-3xl font-semibold text-white">Track your media diet.</h1>
         <p className="text-base text-slate-200">
-          Log progress, capture goals, and keep status tracking in one place. Your next-up queue is
-          assembled from active items so you always know what to consume next.
+          Log progress, capture goals, and keep status tracking in one place. The next-up queue
+          surfaces quick actions so you can start, log progress, or finish items without leaving the
+          hub.
         </p>
       </header>
 

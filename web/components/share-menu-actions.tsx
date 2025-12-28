@@ -3,13 +3,16 @@
 // Share actions with clipboard fallback for public menus.
 
 import { useCallback, useState } from 'react';
+import Link from 'next/link';
 
 type ShareMenuActionsProps = {
   title: string;
   shareUrl: string;
+  ctaLabel?: string;
+  ctaHref?: string;
 };
 
-export function ShareMenuActions({ title, shareUrl }: ShareMenuActionsProps) {
+export function ShareMenuActions({ title, shareUrl, ctaLabel, ctaHref }: ShareMenuActionsProps) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +74,14 @@ export function ShareMenuActions({ title, shareUrl }: ShareMenuActionsProps) {
         <p className="text-xs text-slate-400">Copy or natively share the public link.</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {ctaHref && ctaLabel && (
+          <Link
+            href={ctaHref}
+            className="rounded-lg border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300"
+          >
+            {ctaLabel}
+          </Link>
+        )}
         <button
           type="button"
           onClick={shareNative}

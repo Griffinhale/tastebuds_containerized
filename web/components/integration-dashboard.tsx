@@ -1,9 +1,10 @@
 // Integration management dashboard with provider status and actions.
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { apiFetch, ApiError } from '../lib/api';
+import { fetchQueueHealth, filterQueues, QueueSnapshot } from '../lib/ops';
 
 type IntegrationCapabilities = {
   supports_webhooks: boolean;
@@ -38,6 +39,12 @@ type IntegrationEvent = {
   source_name?: string | null;
   status: string;
   created_at: string;
+};
+
+type SyncStatus = {
+  status: 'idle' | 'working' | 'success' | 'error';
+  lastTriggeredAt?: string;
+  message?: string;
 };
 
 const providerFields: Record<
@@ -85,11 +92,15 @@ const providerFields: Record<
 export function IntegrationDashboard() {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [arrQueue, setArrQueue] = useState<IntegrationEvent[]>([]);
+  const [queueSnapshot, setQueueSnapshot] = useState<QueueSnapshot | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const [webhookPrefix, setWebhookPrefix] = useState<string | null>(null);
   const [formState, setFormState] = useState<Record<string, Record<string, string>>>({});
+  const [syncState, setSyncState] = useState<Record<string, SyncStatus>>({});
 
   const refreshIntegrations = useCallback(async () => {
     setLoading(true);
@@ -119,10 +130,26 @@ export function IntegrationDashboard() {
     }
   }, []);
 
+  const refreshQueueHealth = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const data = await fetchQueueHealth();
+      setQueueSnapshot(data);
+      setQueueError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to load queue health.';
+      setQueueError(message);
+      setQueueSnapshot(null);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshIntegrations();
     void refreshArrQueue();
-  }, [refreshIntegrations, refreshArrQueue]);
+    void refreshQueueHealth();
+  }, [refreshIntegrations, refreshArrQueue, refreshQueueHealth]);
 
   const handleOAuthConnect = async () => {
     try {
@@ -194,15 +221,72 @@ export function IntegrationDashboard() {
   };
 
   const handleSync = async (provider: string) => {
+    setSyncState((prev) => ({
+      ...prev,
+      [provider]: {
+        status: 'working',
+        lastTriggeredAt: new Date().toISOString(),
+      },
+    }));
     try {
       await apiFetch(`/integrations/${provider}/sync`, {
         method: 'POST',
         body: JSON.stringify({ external_id: 'library', action: 'sync', force_refresh: false }),
       });
+      setSyncState((prev) => ({
+        ...prev,
+        [provider]: {
+          status: 'success',
+          lastTriggeredAt: prev[provider]?.lastTriggeredAt,
+          message: 'Sync queued.',
+        },
+      }));
+      await refreshQueueHealth();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `Unable to sync ${provider}.`);
+      const message = err instanceof ApiError ? err.message : `Unable to sync ${provider}.`;
+      setSyncState((prev) => ({
+        ...prev,
+        [provider]: {
+          status: 'error',
+          lastTriggeredAt: prev[provider]?.lastTriggeredAt,
+          message,
+        },
+      }));
+      setError(message);
     }
   };
+
+  const queueStats = useMemo(
+    () =>
+      filterQueues(queueSnapshot, [
+        'integrations',
+        'webhooks',
+        'sync',
+        'ingestion',
+        'maintenance',
+        'default',
+      ]),
+    [queueSnapshot]
+  );
+
+  const flowSteps = [
+    {
+      title: 'Connect credentials',
+      description: 'Link Spotify or paste API keys to unlock imports/exports.',
+    },
+    {
+      title: 'Configure webhooks',
+      description: 'Generate Arr webhooks to send new downloads into Tastebuds.',
+    },
+    {
+      title: 'Trigger syncs',
+      description: 'Kick off Jellyfin/Plex syncs or Spotify exports when ready.',
+    },
+    {
+      title: 'Monitor queue health',
+      description: 'Watch ingestion + sync queues to confirm background work.',
+    },
+  ];
 
   if (loading) {
     return (
@@ -215,15 +299,87 @@ export function IntegrationDashboard() {
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/5">
       <header className="space-y-2">
-        <p className="text-sm uppercase tracking-wide text-emerald-300">Integrations</p>
+        <p className="text-sm uppercase tracking-wide text-emerald-300">Connect & flow</p>
         <h1 className="text-2xl font-semibold text-white">
           Connect Spotify, Arr, Jellyfin, and Plex.
         </h1>
         <p className="text-sm text-slate-300">
-          Manage OAuth linking, headless API keys, webhook endpoints, and sync triggers from one
-          place.
+          Link accounts, set up webhooks, and watch the queues that power background syncs.
         </p>
       </header>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <p className="text-xs uppercase tracking-wide text-emerald-200">Connect & flow steps</p>
+          <ol className="mt-3 space-y-3 text-xs text-slate-300">
+            {flowSteps.map((step, index) => (
+              <li key={step.title} className="flex gap-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/10 text-[11px] font-semibold text-emerald-100">
+                  {index + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-white">{step.title}</p>
+                  <p className="text-xs text-slate-300">{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-emerald-200">Queue health</p>
+              <p className="text-xs text-slate-300">
+                {queueLoading
+                  ? 'Checking background workers...'
+                  : queueError
+                    ? normalizeQueueError(queueError)
+                    : `Status: ${queueSnapshot?.status ?? 'unknown'}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={refreshQueueHealth}
+              className="rounded-lg border border-slate-700 px-3 py-1 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+            >
+              Refresh
+            </button>
+          </div>
+          {queueSnapshot?.checked_at && (
+            <p className="mt-2 text-[11px] text-slate-400">
+              Checked {formatTimestamp(queueSnapshot.checked_at)}
+            </p>
+          )}
+          {queueStats.length > 0 ? (
+            <div className="mt-3 grid gap-2 text-[11px] text-slate-300 sm:grid-cols-2">
+              {queueStats.map((queue) => (
+                <div
+                  key={queue.name}
+                  className="rounded-lg border border-slate-800 bg-slate-950/70 p-2"
+                >
+                  <p className="text-xs font-semibold text-white">{queue.name}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {queue.size} queued · {queue.failed} failed · {queue.scheduled} scheduled
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {queueSnapshot?.warnings?.length ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-amber-100">
+              {queueSnapshot.warnings.map((warning) => (
+                <span
+                  key={warning}
+                  className="rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1"
+                >
+                  {warning.replace(/_/g, ' ')}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </div>
 
       {error ? (
         <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm">{error}</p>
@@ -258,6 +414,43 @@ export function IntegrationDashboard() {
                 {integration.last_error}
               </p>
             ) : null}
+
+            <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+              <StatusLine
+                label="Connection"
+                value={integration.connected ? 'Linked' : 'Not linked'}
+              />
+              <StatusLine
+                label="Token"
+                value={
+                  integration.expires_at
+                    ? `Expires ${formatTimestamp(integration.expires_at)}`
+                    : 'No expiry'
+                }
+              />
+              <StatusLine
+                label="Last rotation"
+                value={
+                  integration.rotated_at ? formatTimestamp(integration.rotated_at) : 'Not rotated'
+                }
+              />
+              {(() => {
+                const lastTriggeredAt = syncState[integration.provider]?.lastTriggeredAt;
+                if (!lastTriggeredAt) return null;
+                return (
+                  <StatusLine
+                    label="Last sync"
+                    value={formatTimestamp(lastTriggeredAt)}
+                    tone={syncState[integration.provider]?.status === 'error' ? 'error' : 'default'}
+                  />
+                );
+              })()}
+              {(() => {
+                const message = syncState[integration.provider]?.message;
+                if (!message) return null;
+                return <StatusLine label="Sync status" value={message} />;
+              })()}
+            </div>
 
             {integration.provider === 'spotify' ? (
               <div className="flex flex-wrap gap-2">
@@ -413,4 +606,36 @@ export function IntegrationDashboard() {
       </section>
     </section>
   );
+}
+
+function StatusLine({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'error';
+}) {
+  const valueClass = tone === 'error' ? 'text-amber-200' : 'text-white';
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`text-xs font-semibold ${valueClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function formatTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function normalizeQueueError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('unauthorized') || normalized.includes('token')) {
+    return 'Sign in to view queue health.';
+  }
+  return message;
 }

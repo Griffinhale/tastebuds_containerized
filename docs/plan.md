@@ -57,11 +57,12 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 - Hardening updates: ingested payloads are now size-capped at write time and redacted on expiry; IGDB tokens refresh ahead of expiry and clear cached secrets on 401s; proxy profiles tightened with admin-only diagnostics; credential vault + integrations queue are online so Spotify/Arr/Jellyfin work can land without backtracking.
 
 ### 7.2 Experience Fit & Finish (after 7.1)
-- Menu editor improvements (implemented): inline note formatting, drag handles with keyboard moves, and autosave with conflict detection.
-- Search workspace trust signals (implemented): “in collection” badges, surfaced dedupe reasons, and connector health callouts.
-- Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
+- Menu editor improvements (implemented): inline note formatting, drag handles with keyboard moves, autosave/conflict indicators, and a guided search/add workflow inside courses.
+- Search workspace trust signals (implemented): “in library” badges, surfaced dedupe reasons, source counts/timings, and connector health callouts.
+- Public menu page upgrades (implemented): availability chips, fork/lineage clarity, and share/export CTAs.
 - Collaboration preview: draft share links now ship with temporary tokens before full multi-user editing.
-- Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, and an auto-built "Next up" queue.
+- Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, progress feedback, and next-up quick actions.
+- Integrations hub (implemented): guided Connect & Flow steps with queue health and sync/export CTAs.
 - Narrative menus: course intents + item annotations are now stored and editable; pairings across media types now ship in the menu payloads.
 - Taste Profile: initial preference view powered by logs, tags, and menu signals.
 - Availability awareness: provider/format/region entries now surface in UI summaries with refresh jobs marking stale data.

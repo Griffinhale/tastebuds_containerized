@@ -3,7 +3,12 @@
 // API health card with connector status badges.
 
 import { useEffect, useState } from 'react';
-import { fetchHealth, normalizeConnectorHealth, ConnectorHealth } from '../lib/health';
+import {
+  fetchHealth,
+  normalizeConnectorHealth,
+  ConnectorHealth,
+  formatConnectorSource,
+} from '../lib/health';
 
 export function ApiStatus() {
   const [status, setStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -71,7 +76,7 @@ export function ApiStatus() {
                     : 'Healthy'
               }
             >
-              {connector.source}: {connector.state}
+              {formatConnectorSource(connector.source)}: {connector.state}
             </span>
           ))}
         </div>

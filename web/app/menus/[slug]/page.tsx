@@ -107,7 +107,36 @@ export default async function PublicMenuPage({ params }: PageProps) {
         {lineage && <LineagePanel lineage={lineage} />}
       </header>
 
-      <ForkMenuActions menuId={menu.id} menuTitle={menu.title} />
+      <section className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+        <div className="rounded-2xl border border-emerald-500/30 bg-slate-950/60 p-6">
+          <p className="text-xs uppercase tracking-wide text-emerald-200">Share & export</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">
+            Share the menu or make it yours.
+          </h2>
+          <p className="mt-2 text-sm text-slate-200">
+            Copy the public link, open it in Tastebuds, or connect integrations to export.
+          </p>
+          <div className="mt-4">
+            <ShareMenuActions
+              title={menu.title}
+              shareUrl={shareUrl}
+              ctaLabel="Open in Tastebuds"
+              ctaHref="/menus"
+            />
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            Want Spotify export or Jellyfin sync?{' '}
+            <Link
+              href="/integrations"
+              className="text-emerald-300 underline decoration-emerald-300/60"
+            >
+              Connect integrations
+            </Link>
+            .
+          </p>
+        </div>
+        <ForkMenuActions menuId={menu.id} menuTitle={menu.title} />
+      </section>
 
       <section className="space-y-4">
         {menu.courses.length === 0 ? (
@@ -124,14 +153,14 @@ export default async function PublicMenuPage({ params }: PageProps) {
 
       {menu.pairings && menu.pairings.length > 0 && <PairingsSection pairings={menu.pairings} />}
 
-      <ShareablePreview menu={menu} shareUrl={shareUrl} />
+      <ShareablePreview menu={menu} />
     </main>
   );
 }
 
 type PreviewItem = CourseItem & { coursePosition: number };
 
-function ShareablePreview({ menu, shareUrl }: { menu: Menu; shareUrl: string }) {
+function ShareablePreview({ menu }: { menu: Menu }) {
   const previewItems = getPreviewItems(menu);
   return (
     <section className="space-y-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-950/80 via-slate-900/50 to-emerald-900/30 p-6 shadow-lg shadow-emerald-500/10">
@@ -179,8 +208,6 @@ function ShareablePreview({ menu, shareUrl }: { menu: Menu; shareUrl: string }) 
           Items appear here once you add content to any course.
         </p>
       )}
-
-      <ShareMenuActions title={menu.title} shareUrl={shareUrl} />
     </section>
   );
 }
@@ -263,14 +290,9 @@ function CourseItemCard({
                 })}
               </p>
             )}
-            {availability && availability.providers.length > 0 && (
-              <p className="text-xs text-emerald-200">
-                Available via {availability.providers.slice(0, 2).join(', ')}
-                {availability.providers.length > 2 ? ` +${availability.providers.length - 2}` : ''}
-              </p>
-            )}
+            <AvailabilityChips availability={availability} />
             {item.notes && (
-              <p className="mt-2 text-xs text-emerald-200">Annotation: {item.notes}</p>
+              <p className="mt-2 text-xs text-emerald-200 whitespace-pre-wrap">{item.notes}</p>
             )}
             {media?.description && (
               <p className="mt-2 text-xs leading-relaxed text-slate-300">{media.description}</p>
@@ -292,7 +314,7 @@ function CourseItemCard({
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
@@ -336,14 +358,75 @@ function LineagePanel({ lineage }: { lineage: Awaited<ReturnType<typeof loadLine
   if (!lineage) return null;
   return (
     <div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-950/50 p-4 text-sm text-slate-200">
+      <p className="text-xs uppercase tracking-wide text-emerald-200">Lineage</p>
       {lineage.source_menu?.menu && (
-        <p>
+        <p className="mt-2">
           Forked from{' '}
-          <span className="font-semibold text-emerald-200">{lineage.source_menu.menu.title}</span>
+          {lineage.source_menu.menu.is_public ? (
+            <Link
+              href={`/menus/${lineage.source_menu.menu.slug}`}
+              className="font-semibold text-emerald-200 underline decoration-emerald-300/60"
+            >
+              {lineage.source_menu.menu.title}
+            </Link>
+          ) : (
+            <span className="font-semibold text-emerald-200">{lineage.source_menu.menu.title}</span>
+          )}
           {lineage.source_menu.note ? ` - ${lineage.source_menu.note}` : ''}
         </p>
       )}
       <p className="mt-2 text-xs text-slate-300">Forks: {lineage.fork_count}</p>
+      {lineage.forked_menus?.length ? (
+        <div className="mt-3 space-y-1 text-xs text-slate-300">
+          <p className="uppercase tracking-wide text-slate-400">Recent forks</p>
+          <div className="flex flex-wrap gap-2">
+            {lineage.forked_menus.slice(0, 4).map((fork) =>
+              fork.is_public ? (
+                <Link
+                  key={fork.id}
+                  href={`/menus/${fork.slug}`}
+                  className="rounded-full border border-slate-800 px-3 py-1 text-[11px] text-emerald-200"
+                >
+                  {fork.title}
+                </Link>
+              ) : (
+                <span
+                  key={fork.id}
+                  className="rounded-full border border-slate-800 px-3 py-1 text-[11px]"
+                >
+                  {fork.title}
+                </span>
+              )
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AvailabilityChips({ availability }: { availability?: AvailabilitySummaryItem }) {
+  if (!availability) return null;
+  const providers = availability.providers ?? [];
+  const availableCount = availability.status_counts?.available ?? 0;
+  const providerLabel =
+    providers.slice(0, 3).join(', ') + (providers.length > 3 ? ` +${providers.length - 3}` : '');
+  const statusLabel = availableCount > 0 ? `${availableCount} available` : 'Availability unknown';
+  return (
+    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-emerald-100">
+      <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5">
+        {statusLabel}
+      </span>
+      {providerLabel && (
+        <span className="rounded-full border border-slate-800 px-2 py-0.5 text-slate-300">
+          {providerLabel}
+        </span>
+      )}
+      {availability.last_checked_at && (
+        <span className="text-slate-500">
+          Checked {new Date(availability.last_checked_at).toLocaleDateString()}
+        </span>
+      )}
     </div>
   );
 }

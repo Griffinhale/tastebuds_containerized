@@ -349,3 +349,7 @@ export async function getPublicMenuLineage(slug: string) {
     withCredentials: false,
   });
 }
+
+export function getMenuItemCount(menu: Menu) {
+  return menu.courses.reduce((total, course) => total + course.items.length, 0);
+}

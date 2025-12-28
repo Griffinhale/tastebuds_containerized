@@ -2,7 +2,8 @@
 
 // Library dashboard with status tracking, logs, and quick actions.
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CreateLogInput,
@@ -60,6 +61,9 @@ export function LibraryDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [logFilter, setLogFilter] = useState<UserItemLogType | 'all'>('all');
+  const [quickActionId, setQuickActionId] = useState<string | null>(null);
+  const [quickActionType, setQuickActionType] = useState<UserItemLogType | null>(null);
+  const logFormRef = useRef<HTMLDivElement | null>(null);
 
   const [logDraft, setLogDraft] = useState<LogDraft>({
     media_item_id: '',
@@ -80,6 +84,12 @@ export function LibraryDashboard() {
   });
 
   const libraryItems = library?.items ?? [];
+  const summary = library?.summary;
+  const totalCount = summary?.total ?? 0;
+  const consumedCount = summary?.consumed ?? 0;
+  const activeCount = summary?.currently_consuming ?? 0;
+  const consumedPercent = totalCount ? Math.round((consumedCount / totalCount) * 100) : 0;
+  const activePercent = totalCount ? Math.round((activeCount / totalCount) * 100) : 0;
 
   const loadData = async () => {
     setLoading(true);
@@ -147,6 +157,31 @@ export function LibraryDashboard() {
   const goalLogs = useMemo(() => logs.filter((log) => log.log_type === 'goal'), [logs]);
 
   const selectedLogType = logTypeOptions.find((option) => option.value === logDraft.log_type);
+
+  const jumpToLogForm = (mediaItemId: string, logType: UserItemLogType) => {
+    setLogDraft((draft) => ({
+      ...draft,
+      media_item_id: mediaItemId,
+      log_type: logType,
+    }));
+    logFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleQuickLog = async (mediaItemId: string, logType: UserItemLogType) => {
+    setQuickActionId(mediaItemId);
+    setQuickActionType(logType);
+    setError(null);
+    try {
+      await createLog({ media_item_id: mediaItemId, log_type: logType });
+      await loadData();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create log entry.';
+      setError(message);
+    } finally {
+      setQuickActionId(null);
+      setQuickActionType(null);
+    }
+  };
 
   async function handleCreateLog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -238,14 +273,44 @@ export function LibraryDashboard() {
           </p>
         )}
 
+        {error && error.toLowerCase().includes('log in') && (
+          <p className="mt-2 text-xs text-slate-400">
+            <Link href="/login" className="text-emerald-300 underline decoration-emerald-300/60">
+              Sign in
+            </Link>{' '}
+            to unlock your library and next-up queue.
+          </p>
+        )}
+
         {library && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <SummaryCard label="Total" value={library.summary.total} />
-            <SummaryCard label="Consuming" value={library.summary.currently_consuming} />
-            <SummaryCard label="Want" value={library.summary.want_to_consume} />
-            <SummaryCard label="Consumed" value={library.summary.consumed} />
-            <SummaryCard label="Paused" value={library.summary.paused} />
-            <SummaryCard label="Dropped" value={library.summary.dropped} />
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span className="uppercase tracking-wide text-slate-400">Progress</span>
+                <span>
+                  {consumedCount} consumed · {activeCount} in progress
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-300"
+                  style={{ width: `${Math.min(consumedPercent + activePercent, 100)}%` }}
+                />
+              </div>
+              <div className="mt-2 flex justify-between text-[11px] text-slate-400">
+                <span>{consumedPercent}% finished</span>
+                <span>{activePercent}% active</span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SummaryCard label="Total" value={library.summary.total} />
+              <SummaryCard label="Consuming" value={library.summary.currently_consuming} />
+              <SummaryCard label="Want" value={library.summary.want_to_consume} />
+              <SummaryCard label="Consumed" value={library.summary.consumed} />
+              <SummaryCard label="Paused" value={library.summary.paused} />
+              <SummaryCard label="Dropped" value={library.summary.dropped} />
+            </div>
           </div>
         )}
       </section>
@@ -283,6 +348,41 @@ export function LibraryDashboard() {
                         Active {formatDate(entry.last_activity_at)}
                       </span>
                     )}
+                    {entry.last_log?.progress_percent !== null &&
+                      entry.last_log?.progress_percent !== undefined && (
+                        <span className="rounded-full border border-slate-800 px-2 py-1">
+                          {entry.last_log.progress_percent}% done
+                        </span>
+                      )}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLog(entry.media_item.id, 'started')}
+                      disabled={quickActionId === entry.media_item.id}
+                      className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-white transition hover:border-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {quickActionId === entry.media_item.id && quickActionType === 'started'
+                        ? 'Starting…'
+                        : 'Start'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => jumpToLogForm(entry.media_item.id, 'progress')}
+                      className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-emerald-200 transition hover:border-emerald-400/60"
+                    >
+                      Log progress
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLog(entry.media_item.id, 'finished')}
+                      disabled={quickActionId === entry.media_item.id}
+                      className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-100 transition hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {quickActionId === entry.media_item.id && quickActionType === 'finished'
+                        ? 'Finishing…'
+                        : 'Finish'}
+                    </button>
                   </div>
                 </li>
               ))}
@@ -317,7 +417,10 @@ export function LibraryDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
-        <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+        <section
+          className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+          ref={logFormRef}
+        >
           <header className="space-y-1">
             <p className="text-sm font-semibold text-emerald-300">Quick log</p>
             <p className="text-xs text-slate-300">Capture progress, notes, or goals in seconds.</p>

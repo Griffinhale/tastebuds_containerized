@@ -9,6 +9,14 @@ export type ConnectorHealth = {
   remaining_cooldown?: number;
 };
 
+export const CONNECTOR_LABELS: Record<string, string> = {
+  internal: 'Internal',
+  google_books: 'Google Books',
+  tmdb: 'TMDB',
+  igdb: 'IGDB',
+  lastfm: 'Last.fm',
+};
+
 export type HealthIssue = {
   source: string;
   reason: string;
@@ -55,4 +63,8 @@ export function normalizeConnectorHealth(payload: HealthResponse): ConnectorHeal
       remaining_cooldown: data.circuit?.remaining_cooldown ?? matchingIssue?.remaining_cooldown,
     };
   });
+}
+
+export function formatConnectorSource(source: string) {
+  return CONNECTOR_LABELS[source] ?? source;
 }

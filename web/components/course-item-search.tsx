@@ -13,8 +13,13 @@ import {
   forwardRef,
 } from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
-import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
-import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
+import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
+import {
+  ConnectorHealth,
+  fetchHealth,
+  formatConnectorSource,
+  normalizeConnectorHealth,
+} from '../lib/health';
 
 type CourseItemSearchProps = {
   menuId: string;
@@ -117,6 +122,19 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     });
   }, [metadata]);
 
+  const sourceCounts = useMemo(() => {
+    const counts = (metadata as { source_counts?: Record<string, number> } | null)?.source_counts;
+    if (!counts) return [];
+    return Object.entries(counts).map(([key, value]) => [key, value] as [string, number]);
+  }, [metadata]);
+
+  const dedupeEntries = useMemo<[string, number][]>(() => {
+    const reasons = (metadata as { dedupe_reasons?: Record<string, number> } | null)
+      ?.dedupe_reasons;
+    if (!reasons) return [];
+    return Object.entries(reasons).map(([key, value]) => [String(key), Number(value)]);
+  }, [metadata]);
+
   const connectorBadgeClass = (state: ConnectorHealth['state']) => {
     if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
     if (state === 'circuit_open') return 'border-amber-400/40 bg-amber-500/10 text-amber-100';
@@ -136,9 +154,8 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     const paging = metadata?.paging as { page?: number } | undefined;
     const pageNumber = paging?.page ?? currentPage;
     const pageSuffix = pageNumber && pageNumber > 1 ? ` (page ${pageNumber})` : '';
-    return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${pageSuffix} (${
-      source ?? 'internal'
-    })`;
+    const sourceLabel = formatSearchSource(source ?? 'internal');
+    return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${pageSuffix} (${sourceLabel})`;
   }, [currentPage, hasSearched, metadata, results.length, searching, source]);
 
   const toggleType = (value: MediaType) => {
@@ -335,7 +352,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
                     : 'Healthy'
               }
             >
-              {connector.source}: {connector.state}
+              {formatConnectorSource(connector.source)}: {connector.state}
             </span>
           ))}
           {connectorMessage && (
@@ -388,6 +405,30 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
           When you add an item from the results below it will use this position and notes.
         </p>
       </div>
+
+      {(sourceCounts.length > 0 || dedupeEntries.length > 0) && (
+        <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Search trust signals</p>
+          {sourceCounts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {sourceCounts.map(([key, value]) => (
+                <span key={key} className="rounded-full border border-slate-800 px-3 py-1">
+                  {formatSearchSource(key)}: {value}
+                </span>
+              ))}
+            </div>
+          )}
+          {dedupeEntries.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {dedupeEntries.map(([key, value]) => (
+                <span key={key} className="rounded-full border border-slate-800 px-3 py-1">
+                  Dedupe {key.replace(/_/g, ' ')}: {value}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div
         className="space-y-2"
@@ -492,13 +533,30 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
                     )}
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-400">
-                      {item.media_type}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        {item.media_type}
+                      </p>
+                      {item.in_collection && (
+                        <span className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                          In library
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm font-semibold text-white">{item.title}</p>
                     {item.subtitle && <p className="text-xs text-slate-300">{item.subtitle}</p>}
                     {item.release_date && (
                       <p className="text-xs text-slate-400">Released {item.release_date}</p>
+                    )}
+                    {item.source_name && (
+                      <p className="text-[11px] text-slate-400">
+                        Source: {formatSearchSource(item.source_name)}
+                      </p>
+                    )}
+                    {item.preview_expires_at && (
+                      <p className="text-[11px] text-amber-200">
+                        Preview expires {formatTimestamp(item.preview_expires_at)}
+                      </p>
                     )}
                     {item.description && (
                       <p className="mt-2 text-xs leading-relaxed text-slate-300">
@@ -600,3 +658,9 @@ const DrawerStateCard = forwardRef<HTMLDivElement, DrawerStateCardProps>(functio
     </div>
   );
 });
+
+function formatTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}

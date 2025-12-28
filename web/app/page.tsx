@@ -5,6 +5,7 @@ import { ApiStatus } from '../components/api-status';
 import { CurrentUser } from '../components/current-user';
 import { QueueStatus } from '../components/queue-status';
 import { MediaSearchExplorer } from '../components/media-search-explorer';
+import { LibraryDashboard } from '../components/library-dashboard';
 
 export default function Home() {
   return (
@@ -12,40 +13,86 @@ export default function Home() {
       <header className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/10">
         <p className="text-sm uppercase tracking-wide text-emerald-300">Tastebuds</p>
         <h1 className="text-3xl font-semibold text-white">
-          Build menus and search media without leaving home.
+          Welcome back—your library is the home base.
         </h1>
         <p className="text-base leading-relaxed text-slate-200">
-          The FastAPI backend is wired up—use search to explore books, movies, games, music, and TV,
-          then ingest results directly into your menus.
+          Jump into your Library + Log hub to keep momentum, then move into search and menu edits
+          without losing context.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/menus"
+            href="/library"
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+          >
+            Open library
+          </Link>
+          <Link
+            href="/menus"
+            className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
           >
             Open menus
           </Link>
           <Link
-            href="/login"
+            href="/integrations"
             className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
           >
-            Log in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-400/60 hover:text-emerald-200"
-          >
-            Create account
+            Connect integrations
           </Link>
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ApiStatus />
-        <QueueStatus />
-      </div>
-
-      <CurrentUser />
+      <section className="grid gap-6 lg:grid-cols-[1.3fr,0.7fr]">
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-emerald-500/20 bg-slate-950/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-emerald-200">Returning home</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Library + Log hub</h2>
+            <p className="text-sm text-slate-200">
+              Capture your latest progress, queue what’s next, and keep your media diet moving.
+            </p>
+          </div>
+          <LibraryDashboard />
+        </div>
+        <div className="space-y-4">
+          <CurrentUser />
+          <ApiStatus />
+          <QueueStatus />
+          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
+            <p className="text-sm font-semibold text-emerald-300">Quick jumps</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/menus"
+                className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Menus dashboard
+              </Link>
+              <Link
+                href="/integrations"
+                className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Integrations
+              </Link>
+              <Link
+                href="/taste-profile"
+                className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Taste profile
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Create account
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <MediaSearchExplorer />
 

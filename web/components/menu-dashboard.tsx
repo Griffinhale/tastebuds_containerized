@@ -23,6 +23,7 @@ import {
   deleteCourse,
   deleteCourseItem,
   deleteMenuPairing,
+  getMenuItemCount,
   getMenuLineage,
   getMenu,
   listMenus,
@@ -215,11 +216,25 @@ function MenuCard({
           )}
         </div>
       </div>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+      <dl className="mt-4 grid gap-4 sm:grid-cols-4">
         <InfoItem label="Courses" value={menu.courses.length || 0} />
+        <InfoItem label="Items" value={getMenuItemCount(menu)} />
         <InfoItem label="Created" value={new Date(menu.created_at).toLocaleDateString()} />
         <InfoItem label="Updated" value={new Date(menu.updated_at).toLocaleDateString()} />
       </dl>
+
+      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <p className="text-xs uppercase tracking-wide text-emerald-200">Menu workflow</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
+          <span className="rounded-full border border-slate-800 px-3 py-1">1. Search & ingest</span>
+          <span className="rounded-full border border-slate-800 px-3 py-1">2. Add & annotate</span>
+          <span className="rounded-full border border-slate-800 px-3 py-1">3. Reorder</span>
+          <span className="rounded-full border border-slate-800 px-3 py-1">4. Share</span>
+        </div>
+        <p className="mt-2 text-xs text-slate-400">
+          Use the course panels below to search, add notes, and reorder items before sharing.
+        </p>
+      </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <DraftSharePanel menuId={menu.id} menuSlug={menu.slug} isPublic={menu.is_public} />
@@ -700,6 +715,7 @@ function CourseEditor({
     'idle' | 'saving' | 'saved' | 'error' | 'conflict'
   >('idle');
   const [autoSaveMessage, setAutoSaveMessage] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState<'search' | 'id'>('search');
   const [lastSaved, setLastSaved] = useState({
     title: course.title,
     description: course.description ?? '',
@@ -940,6 +956,7 @@ function CourseEditor({
           {course.intent && <p className="text-sm text-emerald-200">{course.intent}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {editing && <AutoSaveBadge state={autoSaveState} message={autoSaveMessage} />}
           <button
             onClick={() => setEditing((prev) => !prev)}
             className="text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
@@ -1089,8 +1106,45 @@ function CourseEditor({
       </div>
 
       <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-        <AddCourseItemForm course={course} menuId={menuId} onItemAdded={handleItemAdded} />
-        <CourseItemSearch menuId={menuId} course={course} onAdded={handleItemAdded} />
+        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-emerald-300">Add items</p>
+              <p className="text-xs text-slate-300">
+                Search, add annotations, then reorder without leaving this panel.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAddMode('search')}
+                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                  addMode === 'search'
+                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                    : 'border-slate-800 text-slate-300'
+                }`}
+              >
+                Search & ingest
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('id')}
+                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                  addMode === 'id'
+                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                    : 'border-slate-800 text-slate-300'
+                }`}
+              >
+                Quick add ID
+              </button>
+            </div>
+          </div>
+        </div>
+        {addMode === 'id' ? (
+          <AddCourseItemForm course={course} menuId={menuId} onItemAdded={handleItemAdded} />
+        ) : (
+          <CourseItemSearch menuId={menuId} course={course} onAdded={handleItemAdded} />
+        )}
       </div>
 
       {reordering && <p className="mt-3 text-xs text-emerald-300">Saving new order…</p>}
@@ -1313,6 +1367,7 @@ function CourseItemRow({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {editing && <AutoSaveBadge state={autoSaveState} message={autoSaveMessage} />}
           <button
             onClick={() => setEditing((prev) => !prev)}
             className="text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
@@ -1411,6 +1466,39 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
       }`}
     >
       {copy}
+    </span>
+  );
+}
+
+function AutoSaveBadge({
+  state,
+  message,
+}: {
+  state: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+  message?: string | null;
+}) {
+  const label =
+    state === 'saving'
+      ? 'Autosaving...'
+      : state === 'saved'
+        ? 'Saved'
+        : state === 'conflict'
+          ? 'Conflict'
+          : state === 'error'
+            ? 'Save failed'
+            : 'Autosave';
+  const toneClass =
+    state === 'conflict' || state === 'error'
+      ? 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+      : state === 'saved'
+        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+        : 'border-slate-800 bg-slate-900 text-slate-300';
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${toneClass}`}
+      title={message || label}
+    >
+      {label}
     </span>
   );
 }

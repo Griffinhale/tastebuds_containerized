@@ -4,8 +4,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { MediaSearchItem, MediaType, searchMedia } from '../lib/search';
-import { ConnectorHealth, fetchHealth, normalizeConnectorHealth } from '../lib/health';
+import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
+import {
+  ConnectorHealth,
+  fetchHealth,
+  formatConnectorSource,
+  normalizeConnectorHealth,
+} from '../lib/health';
 
 const typeOptions: { label: string; value: MediaType }[] = [
   { label: 'Books', value: 'book' },
@@ -43,7 +48,8 @@ export function MediaSearchExplorer() {
     const paging = metadata?.paging as { page?: number } | undefined;
     const pageNumber = paging?.page ?? 1;
     const suffix = pageNumber > 1 ? ` (page ${pageNumber})` : '';
-    return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${suffix} (${source ?? 'internal'})`;
+    const sourceLabel = formatSearchSource(source ?? 'internal');
+    return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${suffix} (${sourceLabel})`;
   }, [metadata, results.length, searching, hasSearched, source]);
 
   const selectedTypeLabels = selectedTypes
@@ -53,6 +59,16 @@ export function MediaSearchExplorer() {
   const metadataEntries = useMemo(() => {
     if (!metadata?.counts) return [] as [string, string][];
     return Object.entries(metadata.counts).map(([key, value]) => [key, String(value)]);
+  }, [metadata]);
+  const sourceCounts = useMemo((): [string, number][] => {
+    if (!metadata?.source_counts) return [];
+    return Object.entries(metadata.source_counts).map(
+      ([key, value]) => [key, Number(value)] as [string, number]
+    );
+  }, [metadata]);
+  const sourceMetrics = useMemo(() => {
+    if (!metadata?.source_metrics) return [] as [string, Record<string, unknown>][];
+    return Object.entries(metadata.source_metrics);
   }, [metadata]);
   const dedupeEntries = useMemo((): [string, number][] => {
     const reasons = metadata?.dedupe_reasons;
@@ -237,7 +253,7 @@ export function MediaSearchExplorer() {
                         : 'Healthy'
                   }
                 >
-                  {connector.source}: {connector.state}
+                  {formatConnectorSource(connector.source)}: {connector.state}
                 </span>
               ))}
             </div>
@@ -247,7 +263,10 @@ export function MediaSearchExplorer() {
               {connectorMessage}
             </p>
           )}
-          <ContextLine label="Source" value={source ? source : 'Internal first'} />
+          <ContextLine
+            label="Source"
+            value={source ? formatSearchSource(source) : 'Internal first'}
+          />
           <ContextLine
             label="Types"
             value={selectedTypeLabels.length ? selectedTypeLabels.join(', ') : 'Any media type'}
@@ -269,6 +288,52 @@ export function MediaSearchExplorer() {
                     {dedupeLabel(key)}: {value}
                   </span>
                 ))}
+              </div>
+            </div>
+          )}
+          {sourceCounts.length > 0 && (
+            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
+              <p className="uppercase tracking-wide text-slate-400">Source counts</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {sourceCounts.map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+                  >
+                    {formatSearchSource(key)}: {value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {sourceMetrics.length > 0 && (
+            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
+              <p className="uppercase tracking-wide text-slate-400">Connector timings</p>
+              <div className="mt-2 space-y-2">
+                {sourceMetrics.map(([key, metrics]) =>
+                  (() => {
+                    const entries = Object.entries(metrics).flatMap(([metricKey, value]) => {
+                      if (!metricKey.endsWith('_ms') || typeof value !== 'number') return [];
+                      return [[metricKey, value] as [string, number]];
+                    });
+                    if (entries.length === 0) return null;
+                    return (
+                      <div key={key} className="flex flex-wrap gap-2">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                          {formatSearchSource(key)}
+                        </span>
+                        {entries.map(([metricKey, value]) => (
+                          <span
+                            key={`${key}-${metricKey}`}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+                          >
+                            {metricKey.replace(/_/g, ' ')}: {value}ms
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()
+                )}
               </div>
             </div>
           )}
@@ -353,7 +418,7 @@ function MediaResultCard({ item }: { item: MediaSearchItem }) {
             </p>
             {item.in_collection && (
               <span className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
-                In collection
+                In library
               </span>
             )}
           </div>
