@@ -37,6 +37,11 @@ Tastebuds locks down most CRUD routes behind auth. The items below capture remai
 - **Status:** Proxy now rate-limits and IP-allows `/api/ops/`, validates `Host` for localhost-only use, and the API/web services are exposed only through the proxy by default. The API requires an admin email allowlist for diagnostics, and health includes queue + vault status.
 - **Residual:** Move to role-based admin claims once user roles exist; consider mutual TLS for production ops endpoints.
 
+## 8. Draft share tokens
+- **Where:** `api/app/models/menu.py`, `api/app/api/routes/public.py`
+- **Status:** Draft share tokens are random, revocable, and optionally expiring; public draft access is token-only.
+- **Residual:** Treat tokens as secrets (avoid logging), add rate limits and optional IP allowlists before public exposure.
+
 ---
 
 **Next Steps**

@@ -58,6 +58,13 @@ class UserItemLogType(str, enum.Enum):
     GOAL = "goal"
 
 
+class AvailabilityStatus(str, enum.Enum):
+    """Availability states for media provider listings."""
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    UNKNOWN = "unknown"
+
+
 class MediaItem(Base):
     """Canonical media record shared across sources and menus."""
     __tablename__ = "media_items"
@@ -85,6 +92,9 @@ class MediaItem(Base):
     game: Mapped["GameItem | None"] = relationship(back_populates="media_item", uselist=False)
     music: Mapped["MusicItem | None"] = relationship(back_populates="media_item", uselist=False)
     sources: Mapped[list["MediaSource"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
+    availability: Mapped[list["MediaItemAvailability"]] = relationship(
+        back_populates="media_item", cascade="all, delete-orphan"
+    )
     tag_links: Mapped[list["MediaItemTag"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
     course_items: Mapped[list["CourseItem"]] = relationship(back_populates="media_item")
     user_states: Mapped[list["UserItemState"]] = relationship(back_populates="media_item", cascade="all, delete-orphan")
@@ -169,6 +179,39 @@ class MediaSource(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     media_item: Mapped[MediaItem] = relationship(back_populates="sources")
+
+
+class MediaItemAvailability(Base):
+    """Availability details by provider, region, and format."""
+    __tablename__ = "media_item_availability"
+    __table_args__ = (
+        UniqueConstraint("media_item_id", "provider", "region", "format", name="uq_media_availability"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    media_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(120), nullable=False)
+    region: Mapped[str] = mapped_column(String(32), nullable=False)
+    format: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[AvailabilityStatus] = mapped_column(
+        Enum(
+            AvailabilityStatus,
+            name="availability_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=AvailabilityStatus.UNKNOWN,
+    )
+    deeplink_url: Mapped[str | None] = mapped_column(String(1024))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    media_item: Mapped[MediaItem] = relationship(back_populates="availability")
 
 
 class UserItemState(Base):

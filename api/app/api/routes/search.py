@@ -16,7 +16,7 @@ from app.jobs.search import deserialize_external_outcome, fanout_external_search
 from app.models.media import MediaType, UserItemLog, UserItemState
 from app.models.user import User
 from app.schema.search import SearchResult, SearchResultItem
-from app.services import media_service, search_preview_service
+from app.services import availability_service, media_service, search_preview_service
 from app.services.task_queue import task_queue
 
 
@@ -143,6 +143,18 @@ async def search(
             in_collection_ids = set(state_ids.scalars().all()) | set(log_ids.scalars().all())
             internal_items = [
                 item.model_copy(update={"in_collection": item.id in in_collection_ids})
+                for item in internal_items
+            ]
+        if internal_items:
+            summaries = await availability_service.get_availability_summary(
+                session, [item.id for item in internal_items]
+            )
+            internal_items = [
+                item.model_copy(
+                    update={
+                        "availability_summary": summaries.get(item.id),
+                    }
+                )
                 for item in internal_items
             ]
         dedupe_keys = {

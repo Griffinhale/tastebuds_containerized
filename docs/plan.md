@@ -30,7 +30,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **The Enthusiast (friends swapping recs):** Needs lightweight search + ingest, delightful share cards, Spotify/Jellyfin hand-offs, and safety around private drafts.
 
 ## 5. Product Surface Map
-- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/public/menus/{slug}`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`, `/api/me/library`, `/api/me/logs`. Forthcoming: `/api/automations`, `/api/integrations/*`. TODO: define endpoints for taste profile, availability, and menu lineage.
+- **APIs:** `/api/search`, `/api/ingest/{source}`, `/api/menus`, `/api/menus/{id}/fork`, `/api/menus/{id}/pairings`, `/api/menus/{id}/share-tokens`, `/api/public/menus/{slug}`, `/api/public/menus/draft/{token}`, `/api/public/menus/{slug}/lineage`, `/api/media/availability/*`, `/api/me/taste-profile`, `/api/health`, `/api/auth/*`, `/api/auth/sessions`, `/api/me/library`, `/api/me/logs`. Forthcoming: `/api/automations`, `/api/integrations/*`.
 - **Connectors (shipping):** Google Books, TMDB, IGDB, Last.fm.
 - **Connectors (planned):** Spotify (playlist + track metadata), Discogs, MusicBrainz, StoryGraph export/import, Arr suite webhooks, Jellyfin/Plex library sync, Notion two-way sync, RSS/ActivityPub feeds.
 - **Interfaces:** Next.js workspace (auth, search, menu editor, share view, Library + Log hub, Taste Profile dashboard, availability overlays, community exchange), CLI/automation scripts, optional mobile-friendly PWA.
@@ -60,13 +60,13 @@ _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the
 - Menu editor improvements (implemented): inline note formatting, drag handles with keyboard moves, and autosave with conflict detection.
 - Search workspace trust signals (implemented): “in collection” badges, surfaced dedupe reasons, and connector health callouts.
 - Public menu page upgrades: OG-rich cards, embed mode, call-to-action for copying into Spotify/Jellyfin.
-- Collaboration preview: share draft links with temporary tokens before full multi-user editing.
+- Collaboration preview: draft share links now ship with temporary tokens before full multi-user editing.
 - Library + Log hub (implemented): status tracking, timeline view, goals, quick log capture, and an auto-built "Next up" queue.
-- Narrative menus: course intents + item annotations are now stored and editable; pairings across media types and story-mode views remain pending.
-- Taste Profile: evolving preference view powered by logs, tags, and menu signals with "balance" prompts.
-- Availability awareness: show provider/format access, region flags, and alternates when availability is missing.
-- Community exchange: fork/remix menus with lineage, attribution, and delta notes.
-TODO: draft RFCs for Library + Log, narrative menus (pairings/story mode), taste profile, availability, and community exchange.
+- Narrative menus: course intents + item annotations are now stored and editable; pairings across media types now ship in the menu payloads.
+- Taste Profile: initial preference view powered by logs, tags, and menu signals.
+- Availability awareness: provider/format/region entries now surface in UI summaries with refresh jobs marking stale data.
+- Community exchange: fork/remix menus now track lineage and attribution notes.
+TODO: draft RFCs for Library + Log, deeper narrative menus (story mode), taste profile refinements, availability providers, and community exchange governance.
 
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
 - Spotify linking screen + backend credential vault (per-user encrypted store and token rotation).

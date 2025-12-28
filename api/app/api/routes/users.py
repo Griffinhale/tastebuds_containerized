@@ -16,8 +16,9 @@ from app.schema.media import (
     UserItemStateRead,
     UserItemStateUpdate,
 )
+from app.schema.taste_profile import TasteProfileRead, TasteProfileRefresh
 from app.schema.user import UserRead
-from app.services import library_service, user_log_service, user_state_service
+from app.services import library_service, taste_profile_service, user_log_service, user_state_service
 
 router = APIRouter()
 
@@ -116,3 +117,27 @@ async def delete_log(
     """Delete a log entry for the current user."""
     log = await user_log_service.get_log(session, current_user.id, log_id)
     await user_log_service.delete_log(session, log)
+
+
+@router.get("/me/taste-profile", response_model=TasteProfileRead)
+async def read_taste_profile(
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> TasteProfileRead:
+    """Return the current user's taste profile summary."""
+    return await taste_profile_service.get_or_build_profile(
+        session, current_user.id, force_refresh=refresh
+    )
+
+
+@router.post("/me/taste-profile/refresh", response_model=TasteProfileRead)
+async def refresh_taste_profile(
+    payload: TasteProfileRefresh,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> TasteProfileRead:
+    """Rebuild the taste profile for the current user."""
+    return await taste_profile_service.get_or_build_profile(
+        session, current_user.id, force_refresh=payload.force
+    )

@@ -1,119 +1,75 @@
-// Public menu page with share metadata and preview tiles.
+// Draft menu page rendered from a share token.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { cache } from 'react';
 
-import type { Course, CourseItem, Menu } from '../../../lib/menus';
-import { getPublicMenuBySlug, getPublicMenuLineage } from '../../../lib/menus';
-import type { AvailabilitySummaryItem } from '../../../lib/availability';
-import { getAvailabilitySummary } from '../../../lib/availability';
-import { ForkMenuActions } from '@/components/fork-menu-actions';
+import type { Course, CourseItem, Menu } from '../../../../lib/menus';
+import { getDraftMenuByToken } from '../../../../lib/menus';
+import { getAvailabilitySummary } from '../../../../lib/availability';
+import type { AvailabilitySummaryItem } from '../../../../lib/availability';
 import { ShareMenuActions } from '@/components/share-menu-actions';
 
 type PageProps = {
-  params: { slug: string };
+  params: { token: string };
 };
 
-const notFoundCopy = 'menu not found';
 const appBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'http://localhost:3000';
 
-// Cache the fetch to reuse in metadata + page rendering.
-const getMenuBySlug = cache(async (slug: string) => getPublicMenuBySlug(slug));
-
-async function loadMenu(slug: string): Promise<Menu> {
-  // Translate 404-style errors into Next.js notFound responses.
+async function loadDraft(token: string) {
   try {
-    return await getMenuBySlug(slug);
-  } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : '';
-    if (message.includes(notFoundCopy) || message.includes('404')) {
-      notFound();
-    }
-    throw err;
+    return await getDraftMenuByToken(token);
+  } catch {
+    notFound();
   }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  try {
-    const menu = await getMenuBySlug(params.slug);
-    const totalItems = menu.courses.reduce((count, course) => count + course.items.length, 0);
-    const shareUrl = buildShareUrl(menu.slug);
-    const description =
+  const response = await loadDraft(params.token);
+  const menu = response.menu;
+  const totalItems = menu.courses.reduce((count, course) => count + course.items.length, 0);
+  return {
+    title: `${menu.title} · Tastebuds draft`,
+    description:
       menu.description ||
-      `A ${menu.courses.length}-course menu with ${totalItems} featured picks on Tastebuds.`;
-    const imageCandidates = collectPreviewImages(menu);
-
-    return {
-      title: `${menu.title} · Tastebuds`,
-      description,
-      alternates: {
-        canonical: shareUrl,
-      },
-      openGraph: {
-        type: 'article',
-        url: shareUrl,
-        title: `${menu.title} · Tastebuds`,
-        description,
-        images: imageCandidates.length
-          ? imageCandidates.map((url) => ({
-              url,
-              alt: menu.title,
-            }))
-          : undefined,
-      },
-      twitter: {
-        card: imageCandidates.length ? 'summary_large_image' : 'summary',
-        title: `${menu.title} · Tastebuds`,
-        description,
-        images: imageCandidates.length ? imageCandidates : undefined,
-      },
-    };
-  } catch {
-    return {
-      title: 'Menu not found · Tastebuds',
-      description: 'This menu is not published or no longer exists.',
-      alternates: {
-        canonical: buildShareUrl(params.slug),
-      },
-    };
-  }
+      `A draft menu with ${menu.courses.length} courses and ${totalItems} featured picks.`,
+  };
 }
 
-export default async function PublicMenuPage({ params }: PageProps) {
-  const menu = await loadMenu(params.slug);
+export default async function DraftMenuPage({ params }: PageProps) {
+  const response = await loadDraft(params.token);
+  const menu = response.menu;
   const totalItems = menu.courses.reduce((count, course) => count + course.items.length, 0);
-  const shareUrl = buildShareUrl(menu.slug);
+  const shareUrl = buildShareUrl(params.token);
   const availability = await loadAvailability(menu);
-  const lineage = await loadLineage(menu.slug);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
-      <Link href="/" className="text-sm text-emerald-300 underline decoration-emerald-300/60">
-        {'<- Back home'}
+      <Link href="/menus" className="text-sm text-emerald-300 underline decoration-emerald-300/60">
+        {'<- Back to menus'}
       </Link>
 
       <header className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/10">
-        <p className="text-xs uppercase tracking-wide text-emerald-300">Public menu</p>
+        <p className="text-xs uppercase tracking-wide text-emerald-300">Draft menu</p>
         <h1 className="text-3xl font-semibold text-white">{menu.title}</h1>
         {menu.description && (
           <p className="text-base leading-relaxed text-slate-200">{menu.description}</p>
         )}
         <dl className="grid gap-4 border-t border-slate-800 pt-4 text-sm sm:grid-cols-3">
-          <InfoItem label="Slug" value={menu.slug} />
+          <InfoItem label="Token" value={response.share_token_id.slice(0, 8)} />
           <InfoItem label="Courses" value={`${menu.courses.length}`} />
           <InfoItem label="Items" value={`${totalItems}`} />
         </dl>
-        {lineage && <LineagePanel lineage={lineage} />}
+        {response.share_token_expires_at && (
+          <p className="text-xs text-slate-300">
+            Expires {new Date(response.share_token_expires_at).toLocaleString()}
+          </p>
+        )}
       </header>
-
-      <ForkMenuActions menuId={menu.id} menuTitle={menu.title} />
 
       <section className="space-y-4">
         {menu.courses.length === 0 ? (
           <p className="rounded-xl border border-slate-800 bg-slate-950/40 p-6 text-sm text-slate-300">
-            This menu is published but has no courses yet. Add courses via the dashboard to fill it
-            out.
+            This draft has no courses yet.
           </p>
         ) : (
           menu.courses.map((course) => (
@@ -124,64 +80,8 @@ export default async function PublicMenuPage({ params }: PageProps) {
 
       {menu.pairings && menu.pairings.length > 0 && <PairingsSection pairings={menu.pairings} />}
 
-      <ShareablePreview menu={menu} shareUrl={shareUrl} />
-    </main>
-  );
-}
-
-type PreviewItem = CourseItem & { coursePosition: number };
-
-function ShareablePreview({ menu, shareUrl }: { menu: Menu; shareUrl: string }) {
-  const previewItems = getPreviewItems(menu);
-  return (
-    <section className="space-y-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-950/80 via-slate-900/50 to-emerald-900/30 p-6 shadow-lg shadow-emerald-500/10">
-      <div className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-emerald-200">Share-ready preview</p>
-        <h2 className="text-2xl font-semibold text-white">Invite someone to browse this menu.</h2>
-        <p className="text-sm text-emerald-100/80">
-          We surface a preview of recent additions below and include metadata for social networks,
-          so shared links look polished everywhere.
-        </p>
-      </div>
-
-      {previewItems.length > 0 ? (
-        <ul className="grid gap-3 sm:grid-cols-3">
-          {previewItems.map((item) => (
-            <li key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-              {item.media_item?.cover_image_url ? (
-                <img
-                  src={item.media_item.cover_image_url}
-                  alt={item.media_item.title || 'Menu item'}
-                  className="h-32 w-full rounded-lg object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="flex h-32 w-full items-center justify-center rounded-lg border border-dashed border-white/20 text-xs uppercase tracking-wide text-white/50">
-                  No artwork yet
-                </div>
-              )}
-              <div className="mt-3 space-y-1">
-                <p className="text-[10px] uppercase tracking-wide text-white/70">
-                  Course {item.coursePosition}
-                </p>
-                <p className="text-sm font-semibold text-white">
-                  {item.media_item?.title || 'Untitled media'}
-                </p>
-                {item.media_item?.subtitle && (
-                  <p className="text-xs text-white/70">{item.media_item.subtitle}</p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="rounded-lg border border-dashed border-white/20 bg-slate-950/40 p-4 text-sm text-white/80">
-          Items appear here once you add content to any course.
-        </p>
-      )}
-
       <ShareMenuActions title={menu.title} shareUrl={shareUrl} />
-    </section>
+    </main>
   );
 }
 
@@ -308,9 +208,6 @@ function PairingsSection({ pairings }: { pairings: Menu['pairings'] }) {
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wide text-emerald-200">Story pairings</p>
         <h2 className="text-2xl font-semibold text-white">Narrative links across courses.</h2>
-        <p className="text-sm text-emerald-100/80">
-          These pairings highlight why two items belong together.
-        </p>
       </div>
       <ul className="space-y-3">
         {pairings.map((pairing) => (
@@ -332,22 +229,6 @@ function PairingsSection({ pairings }: { pairings: Menu['pairings'] }) {
   );
 }
 
-function LineagePanel({ lineage }: { lineage: Awaited<ReturnType<typeof loadLineage>> }) {
-  if (!lineage) return null;
-  return (
-    <div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-950/50 p-4 text-sm text-slate-200">
-      {lineage.source_menu?.menu && (
-        <p>
-          Forked from{' '}
-          <span className="font-semibold text-emerald-200">{lineage.source_menu.menu.title}</span>
-          {lineage.source_menu.note ? ` - ${lineage.source_menu.note}` : ''}
-        </p>
-      )}
-      <p className="mt-2 text-xs text-slate-300">Forks: {lineage.fork_count}</p>
-    </div>
-  );
-}
-
 async function loadAvailability(menu: Menu) {
   const mediaItemIds = Array.from(
     new Set(menu.courses.flatMap((course) => course.items.map((item) => item.media_item_id)))
@@ -364,39 +245,7 @@ async function loadAvailability(menu: Menu) {
   }
 }
 
-async function loadLineage(slug: string) {
-  try {
-    return await getPublicMenuLineage(slug);
-  } catch {
-    return null;
-  }
-}
-
-function collectPreviewImages(menu: Menu) {
-  const covers: string[] = [];
-  menu.courses.forEach((course) => {
-    course.items.forEach((item) => {
-      if (item.media_item?.cover_image_url) {
-        covers.push(item.media_item.cover_image_url);
-      }
-    });
-  });
-  return covers.slice(0, 4);
-}
-
-function buildShareUrl(slug: string) {
-  // Normalize base URL to avoid accidental double slashes.
+function buildShareUrl(token: string) {
   const normalizedBase = appBaseUrl.endsWith('/') ? appBaseUrl.slice(0, -1) : appBaseUrl;
-  return `${normalizedBase}/menus/${slug}`;
-}
-
-function getPreviewItems(menu: Menu): PreviewItem[] {
-  return menu.courses
-    .flatMap((course) =>
-      course.items.map((item) => ({
-        ...item,
-        coursePosition: course.position,
-      }))
-    )
-    .slice(0, 3);
+  return `${normalizedBase}/menus/draft/${token}`;
 }

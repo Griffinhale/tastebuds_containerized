@@ -2,6 +2,7 @@
 
 // Client-side search helpers for internal/external media queries.
 
+import { AvailabilitySummary } from './availability';
 import { apiFetch } from './api';
 
 export type MediaType = 'book' | 'movie' | 'tv' | 'game' | 'music';
@@ -23,6 +24,7 @@ export type MediaSearchItem = {
   preview_id?: string | null;
   preview_expires_at?: string | null;
   in_collection?: boolean;
+  availability_summary?: AvailabilitySummary | null;
 };
 
 export type SearchMetadata = {

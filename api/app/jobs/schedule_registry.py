@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from rq_scheduler import Scheduler
 
 from app.core.config import settings
+from app.jobs.availability import refresh_availability_job
 from app.jobs.maintenance import prune_external_search_previews_job, prune_ingestion_payloads_job
 from app.services.task_queue import task_queue
 
@@ -50,6 +51,17 @@ def _schedule_entries() -> list[dict]:
                 "id": "maintenance:prune_ingestion_payloads",
                 "func": prune_ingestion_payloads_job,
                 "interval": payload_interval,
+                "repeat": None,
+                "queue_name": "maintenance" if "maintenance" in task_queue.queue_names else queue_name,
+            }
+        )
+    if settings.availability_refresh_days > 0:
+        availability_interval = max(3600, settings.availability_refresh_days * 86400)
+        entries.append(
+            {
+                "id": "maintenance:refresh_availability",
+                "func": refresh_availability_job,
+                "interval": availability_interval,
                 "repeat": None,
                 "queue_name": "maintenance" if "maintenance" in task_queue.queue_names else queue_name,
             }

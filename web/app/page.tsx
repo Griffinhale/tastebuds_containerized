@@ -66,6 +66,11 @@ export default function Home() {
           href="/library"
         />
         <Card
+          title="Taste profile"
+          description="See your media balance, tags, and log-derived signals."
+          href="/taste-profile"
+        />
+        <Card
           title="Search & ingestion"
           description="Hit /api/search with include_external=true and import results inline."
           href="https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations"

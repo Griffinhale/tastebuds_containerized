@@ -54,10 +54,10 @@ export function MediaSearchExplorer() {
     if (!metadata?.counts) return [] as [string, string][];
     return Object.entries(metadata.counts).map(([key, value]) => [key, String(value)]);
   }, [metadata]);
-  const dedupeEntries = useMemo(() => {
+  const dedupeEntries = useMemo((): [string, number][] => {
     const reasons = metadata?.dedupe_reasons;
-    if (!reasons) return [] as [string, number][];
-    return Object.entries(reasons).map(([key, value]) => [key, Number(value)]);
+    if (!reasons) return [];
+    return Object.entries(reasons).map(([key, value]) => [String(key), Number(value)]);
   }, [metadata]);
 
   const dedupeLabel = (key: string) => {
@@ -362,6 +362,7 @@ function MediaResultCard({ item }: { item: MediaSearchItem }) {
           {item.release_date && (
             <p className="text-[11px] text-slate-400">Released {item.release_date}</p>
           )}
+          {item.availability_summary && <AvailabilityBadge summary={item.availability_summary} />}
         </div>
       </div>
       {item.description && (
@@ -380,6 +381,27 @@ function MediaResultCard({ item }: { item: MediaSearchItem }) {
         </a>
       )}
     </li>
+  );
+}
+
+function AvailabilityBadge({
+  summary,
+}: {
+  summary: NonNullable<MediaSearchItem['availability_summary']>;
+}) {
+  const providers = summary.providers ?? [];
+  const availableCount = summary.status_counts?.available ?? 0;
+  const providerLabel = providers.length
+    ? providers.slice(0, 2).join(', ') + (providers.length > 2 ? ` +${providers.length - 2}` : '')
+    : 'Unknown providers';
+  const statusLabel = availableCount > 0 ? `${availableCount} available` : 'Availability unknown';
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11px] text-emerald-100">
+      <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5">
+        {statusLabel}
+      </span>
+      <span className="text-slate-400">{providerLabel}</span>
+    </div>
   );
 }
 

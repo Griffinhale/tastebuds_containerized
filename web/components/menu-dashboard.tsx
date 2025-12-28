@@ -11,11 +11,19 @@ import {
   Course,
   CourseItem,
   Menu,
+  MenuItemPairing,
+  MenuLineage,
+  MenuPairingInput,
+  MenuShareToken,
   createCourse,
   createCourseItem,
   createMenu,
+  createMenuPairing,
+  createMenuShareToken,
   deleteCourse,
   deleteCourseItem,
+  deleteMenuPairing,
+  getMenuLineage,
   getMenu,
   listMenus,
   reorderCourseItems,
@@ -204,6 +212,11 @@ function MenuCard({
         <InfoItem label="Updated" value={new Date(menu.updated_at).toLocaleDateString()} />
       </dl>
 
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <DraftSharePanel menuId={menu.id} menuSlug={menu.slug} isPublic={menu.is_public} />
+        <LineageSummary menuId={menu.id} />
+      </div>
+
       <div className="mt-6 space-y-4">
         <p className="text-sm font-semibold text-emerald-300">Courses</p>
         {menu.courses.length === 0 && (
@@ -224,8 +237,326 @@ function MenuCard({
           nextPosition={menu.courses.length + 1}
           onCourseAdded={handleCourseAdded}
         />
+        <PairingsPanel menu={menu} onMenuMutate={onMenuMutate} />
       </div>
     </li>
+  );
+}
+
+function DraftSharePanel({
+  menuId,
+  menuSlug,
+  isPublic,
+}: {
+  menuId: string;
+  menuSlug: string;
+  isPublic: boolean;
+}) {
+  const [token, setToken] = useState<MenuShareToken | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const shareBase =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_BASE_URL || 'http://localhost:3000';
+
+  const shareUrl = token ? `${shareBase.replace(/\/$/, '')}/menus/draft/${token.token}` : '';
+
+  async function handleCreateToken() {
+    if (creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await createMenuShareToken(menuId);
+      setToken(created);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create share link.';
+      setError(message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Copy failed.';
+      setError(message);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-emerald-300">Draft share link</p>
+          <p className="text-xs text-slate-300">
+            Generate a private preview link before publishing.
+          </p>
+        </div>
+        <button
+          onClick={handleCreateToken}
+          className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+          disabled={creating}
+        >
+          {creating ? 'Creating...' : 'Create link'}
+        </button>
+      </div>
+      {token && (
+        <div className="mt-3 space-y-2 text-xs text-slate-200">
+          <p className="break-all">{shareUrl}</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleCopy}
+              className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-100"
+            >
+              {copied ? 'Copied!' : 'Copy link'}
+            </button>
+            {isPublic && menuSlug && (
+              <Link
+                href={`/menus/${menuSlug}`}
+                className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-100"
+              >
+                View public page
+              </Link>
+            )}
+          </div>
+          {token.expires_at && (
+            <p className="text-[11px] text-slate-400">
+              Expires {new Date(token.expires_at).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+function LineageSummary({ menuId }: { menuId: string }) {
+  const [lineage, setLineage] = useState<MenuLineage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getMenuLineage(menuId)
+      .then((data) => {
+        if (!mounted) return;
+        setLineage(data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        const message = err instanceof Error ? err.message : 'Failed to load lineage.';
+        setError(message);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [menuId]);
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-200">
+      <p className="text-sm font-semibold text-emerald-300">Lineage</p>
+      {error && <p className="mt-2 text-red-300">{error}</p>}
+      {!error && lineage?.source_menu?.menu && (
+        <p className="mt-2">
+          Forked from{' '}
+          <span className="font-semibold text-emerald-200">{lineage.source_menu.menu.title}</span>
+        </p>
+      )}
+      {!error && (
+        <p className="mt-2 text-[11px] text-slate-400">Forks: {lineage?.fork_count ?? 0}</p>
+      )}
+    </div>
+  );
+}
+
+function PairingsPanel({
+  menu,
+  onMenuMutate,
+}: {
+  menu: Menu;
+  onMenuMutate: (updater: (menu: Menu) => Menu) => void;
+}) {
+  const items = useMemo(
+    () =>
+      menu.courses.flatMap((course) =>
+        course.items.map((item) => ({
+          id: item.id,
+          label: `Course ${course.position}: ${item.media_item?.title || 'Untitled'}`,
+        }))
+      ),
+    [menu.courses]
+  );
+
+  const [draft, setDraft] = useState<MenuPairingInput>({
+    primary_course_item_id: items[0]?.id ?? '',
+    paired_course_item_id: items[1]?.id ?? '',
+    relationship: '',
+    note: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!items.length) return;
+    setDraft((current) => ({
+      ...current,
+      primary_course_item_id: current.primary_course_item_id || items[0]?.id || '',
+      paired_course_item_id: current.paired_course_item_id || items[1]?.id || '',
+    }));
+  }, [items]);
+
+  async function handleCreatePairing(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!draft.primary_course_item_id || !draft.paired_course_item_id) {
+      setError('Select two items to pair.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const pairing = await createMenuPairing(menu.id, draft);
+      onMenuMutate((current) => ({
+        ...current,
+        pairings: [...(current.pairings ?? []), pairing],
+      }));
+      setDraft((current) => ({ ...current, relationship: '', note: '' }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create pairing.';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeletePairing(pairing: MenuItemPairing) {
+    setError(null);
+    try {
+      await deleteMenuPairing(menu.id, pairing.id);
+      onMenuMutate((current) => ({
+        ...current,
+        pairings: (current.pairings ?? []).filter((item) => item.id !== pairing.id),
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete pairing.';
+      setError(message);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-emerald-300">Narrative pairings</p>
+          <p className="text-xs text-slate-300">Link items to reinforce a story arc.</p>
+        </div>
+      </div>
+      {menu.pairings && menu.pairings.length > 0 && (
+        <ul className="mt-3 space-y-2 text-xs text-slate-200">
+          {menu.pairings.map((pairing) => (
+            <li key={pairing.id} className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-white">
+                  {pairing.primary_item?.media_item?.title || 'Untitled'} {' <-> '}
+                  {pairing.paired_item?.media_item?.title || 'Untitled'}
+                </p>
+                {pairing.relationship && (
+                  <p className="text-[11px] uppercase tracking-wide text-emerald-200">
+                    {pairing.relationship}
+                  </p>
+                )}
+                {pairing.note && <p className="text-[11px] text-slate-300">{pairing.note}</p>}
+              </div>
+              <button
+                onClick={() => handleDeletePairing(pairing)}
+                className="text-[11px] font-semibold text-red-300 hover:text-red-200"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form onSubmit={handleCreatePairing} className="mt-4 grid gap-3 text-xs text-slate-200">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wide text-slate-400">Primary item</span>
+            <select
+              value={draft.primary_course_item_id}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, primary_course_item_id: event.target.value }))
+              }
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
+            >
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wide text-slate-400">Paired item</span>
+            <select
+              value={draft.paired_course_item_id}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, paired_course_item_id: event.target.value }))
+              }
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
+            >
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wide text-slate-400">Relationship</span>
+            <input
+              value={draft.relationship ?? ''}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, relationship: event.target.value }))
+              }
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
+              placeholder="Contrast, echo, bridge..."
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wide text-slate-400">Note</span>
+            <input
+              value={draft.note ?? ''}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, note: event.target.value }))
+              }
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
+              placeholder="Why they pair"
+            />
+          </label>
+        </div>
+        <div className="flex items-center justify-between">
+          <button
+            type="submit"
+            disabled={saving || items.length < 2}
+            className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {saving ? 'Saving...' : 'Add pairing'}
+          </button>
+          {error && <p className="text-xs text-red-300">{error}</p>}
+        </div>
+      </form>
+    </div>
   );
 }
 

@@ -9,22 +9,26 @@
 - **user_item_states**: per-user status/rating/favorite/notes with timestamps and a rating check constraint.
 - **user_item_logs**: per-user timeline entries (started/finished/progress/notes/goals) with optional minutes, progress %, and goal targets.
 - **menus / courses / course_items**: ordered menu structure with public slug on `menus` plus narrative intent on courses and item annotations.
-
-## Planned Extensions (TODO)
-- TODO: add `menu_item_pairings` for cross-media links and narrative relationship hints.
-- TODO: add `media_item_availability` (provider, region, format, last_checked_at) plus source metadata.
-- TODO: add `user_taste_profiles` snapshots derived from logs, tags, and menu signals.
-- TODO: add `menu_lineage` or `menu_forks` to track remix provenance and attribution.
+- **menu_item_pairings**: narrative links between course items for story mode.
+- **menu_lineage**: fork/lineage attribution between menus.
+- **menu_share_tokens**: temporary tokens for draft share links.
+- **media_item_availability**: provider/region/format availability entries with status + last checked.
+- **user_taste_profiles**: cached preference summaries derived from logs/tags/menus.
 
 ## Relationships
 ```
 users --> menus --> courses --> course_items --> media_items
       \-> user_item_states -------------/
       \-> user_item_logs ---------------/
+      \-> user_taste_profiles
 
 media_items --> media_sources
 media_items --> book_items | movie_items | game_items | music_items
 media_items <--> media_item_tags <--> tags
+media_items --> media_item_availability
+menus --> menu_share_tokens
+menus --> menu_lineage
+course_items --> menu_item_pairings
 ```
 
 ## Constraints & Indexes

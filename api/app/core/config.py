@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     ingestion_payload_retention_days: int = 90
     ingestion_payload_max_bytes: int = 250_000
     ingestion_metadata_max_bytes: int = 50_000
+    availability_refresh_days: int = 7
+    taste_profile_refresh_hours: int = 24
+    draft_share_token_ttl_days: int = 7
     credential_vault_key: Optional[str] = None
     ops_admin_emails: list[str] | str = Field(default_factory=list)
     redis_url: str = "redis://redis:6379/0"

@@ -2,20 +2,44 @@
 
 from __future__ import annotations
 
+import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.models.media import MediaItem
-from app.models.menu import Course, CourseItem, Menu
+from app.models.menu import Course, CourseItem, Menu, MenuItemPairing, MenuLineage, MenuShareToken
 from app.models.search_preview import ExternalSearchPreview
-from app.schema.menu import CourseCreate, CourseItemCreate, CourseItemUpdate, CourseUpdate, MenuCreate, MenuUpdate
+from app.schema.menu import (
+    CourseCreate,
+    CourseItemCreate,
+    CourseItemUpdate,
+    CourseUpdate,
+    MenuCreate,
+    MenuForkCreate,
+    MenuItemPairingCreate,
+    MenuUpdate,
+)
 from app.services import media_service
 from app.utils.slugify import menu_slug
+
+
+def _menu_load_options():
+    """Return common eager-loading options for menu reads."""
+    return (
+        selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item),
+        selectinload(Menu.pairings)
+        .selectinload(MenuItemPairing.primary_item)
+        .selectinload(CourseItem.media_item),
+        selectinload(Menu.pairings)
+        .selectinload(MenuItemPairing.paired_item)
+        .selectinload(CourseItem.media_item),
+    )
 
 
 async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Menu]:
@@ -23,7 +47,7 @@ async def list_menus_for_user(session: AsyncSession, user_id: uuid.UUID) -> list
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
+        .options(*_menu_load_options())
         .where(Menu.owner_id == user_id)
     )
     return result.scalars().all()
@@ -34,7 +58,7 @@ async def get_menu(session: AsyncSession, menu_id: uuid.UUID, *, owner_id: uuid.
     query = (
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
+        .options(*_menu_load_options())
         .where(Menu.id == menu_id)
     )
     if owner_id:
@@ -51,7 +75,7 @@ async def get_menu_by_slug(session: AsyncSession, slug: str) -> Menu | None:
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
+        .options(*_menu_load_options())
         .where(Menu.slug == slug, Menu.is_public.is_(True))
     )
     return result.scalar_one_or_none()
@@ -233,6 +257,296 @@ async def reorder_course_items(
     return await _load_course_with_items(session, course.id)
 
 
+async def get_menu_for_fork(session: AsyncSession, menu_id: uuid.UUID, user_id: uuid.UUID) -> Menu:
+    """Fetch a menu for forking if it is public or owned by the user."""
+    result = await session.execute(
+        select(Menu)
+        .execution_options(populate_existing=True)
+        .options(*_menu_load_options())
+        .where(Menu.id == menu_id)
+    )
+    menu = result.scalar_one_or_none()
+    if not menu:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Menu not found")
+    if menu.owner_id != user_id and not menu.is_public:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Menu not found")
+    return menu
+
+
+async def fork_menu(
+    session: AsyncSession,
+    source_menu: Menu,
+    owner_id: uuid.UUID,
+    payload: MenuForkCreate,
+) -> Menu:
+    """Fork a menu into a new draft menu with lineage tracking."""
+    title = payload.title or f"{source_menu.title} (Fork)"
+    description = payload.description if payload.description is not None else source_menu.description
+    is_public = payload.is_public if payload.is_public is not None else False
+    slug = await _generate_unique_slug(session, title)
+
+    menu = Menu(
+        owner_id=owner_id,
+        title=title,
+        description=description,
+        is_public=is_public,
+        slug=slug,
+    )
+    session.add(menu)
+    await session.flush()
+
+    item_map: dict[uuid.UUID, uuid.UUID] = {}
+    for course in source_menu.courses:
+        new_course = Course(
+            menu_id=menu.id,
+            title=course.title,
+            description=course.description,
+            intent=course.intent,
+            position=course.position,
+        )
+        session.add(new_course)
+        await session.flush()
+        for item in course.items:
+            new_item = CourseItem(
+                course_id=new_course.id,
+                media_item_id=item.media_item_id,
+                notes=item.notes,
+                position=item.position,
+            )
+            session.add(new_item)
+            await session.flush()
+            item_map[item.id] = new_item.id
+
+    for pairing in source_menu.pairings:
+        primary_id = item_map.get(pairing.primary_course_item_id)
+        paired_id = item_map.get(pairing.paired_course_item_id)
+        if not primary_id or not paired_id:
+            continue
+        session.add(
+            MenuItemPairing(
+                menu_id=menu.id,
+                primary_course_item_id=primary_id,
+                paired_course_item_id=paired_id,
+                relationship=pairing.relationship,
+                note=pairing.note,
+            )
+        )
+
+    session.add(
+        MenuLineage(
+            source_menu_id=source_menu.id,
+            forked_menu_id=menu.id,
+            created_by=owner_id,
+            note=payload.note,
+        )
+    )
+    await session.commit()
+    return await _load_menu_with_children(session, menu.id)
+
+
+async def list_pairings(
+    session: AsyncSession,
+    menu_id: uuid.UUID,
+    owner_id: uuid.UUID,
+) -> list[MenuItemPairing]:
+    """List narrative pairings for a menu."""
+    result = await session.execute(
+        select(MenuItemPairing)
+        .join(Menu)
+        .options(
+            selectinload(MenuItemPairing.primary_item).selectinload(CourseItem.media_item),
+            selectinload(MenuItemPairing.paired_item).selectinload(CourseItem.media_item),
+        )
+        .where(Menu.id == menu_id, Menu.owner_id == owner_id)
+        .order_by(MenuItemPairing.created_at)
+    )
+    return result.scalars().all()
+
+
+async def create_pairing(
+    session: AsyncSession,
+    menu: Menu,
+    payload: MenuItemPairingCreate,
+) -> MenuItemPairing:
+    """Create a pairing between two course items in the same menu."""
+    if payload.primary_course_item_id == payload.paired_course_item_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pairing must reference two items.")
+
+    result = await session.execute(
+        select(CourseItem)
+        .join(Course)
+        .where(
+            CourseItem.id.in_([payload.primary_course_item_id, payload.paired_course_item_id]),
+            Course.menu_id == menu.id,
+        )
+    )
+    items = result.scalars().all()
+    if len(items) != 2:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course item not found in menu")
+
+    existing = await session.execute(
+        select(MenuItemPairing).where(
+            MenuItemPairing.menu_id == menu.id,
+            MenuItemPairing.primary_course_item_id == payload.primary_course_item_id,
+            MenuItemPairing.paired_course_item_id == payload.paired_course_item_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pairing already exists")
+
+    pairing = MenuItemPairing(
+        menu_id=menu.id,
+        primary_course_item_id=payload.primary_course_item_id,
+        paired_course_item_id=payload.paired_course_item_id,
+        relationship=payload.relationship,
+        note=payload.note,
+    )
+    session.add(pairing)
+    await session.commit()
+    return await _load_pairing_with_items(session, pairing.id)
+
+
+async def get_pairing(
+    session: AsyncSession,
+    pairing_id: uuid.UUID,
+    owner_id: uuid.UUID,
+) -> MenuItemPairing:
+    """Fetch a pairing scoped to the menu owner."""
+    result = await session.execute(
+        select(MenuItemPairing)
+        .join(Menu)
+        .where(MenuItemPairing.id == pairing_id, Menu.owner_id == owner_id)
+    )
+    pairing = result.scalar_one_or_none()
+    if not pairing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing not found")
+    return pairing
+
+
+async def delete_pairing(session: AsyncSession, pairing: MenuItemPairing) -> None:
+    """Delete a pairing."""
+    await session.delete(pairing)
+    await session.commit()
+
+
+async def list_share_tokens(
+    session: AsyncSession,
+    menu_id: uuid.UUID,
+    owner_id: uuid.UUID,
+) -> list[MenuShareToken]:
+    """List draft share tokens for a menu."""
+    result = await session.execute(
+        select(MenuShareToken)
+        .join(Menu)
+        .where(MenuShareToken.menu_id == menu_id, Menu.owner_id == owner_id)
+        .order_by(MenuShareToken.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+async def create_share_token(
+    session: AsyncSession,
+    menu: Menu,
+    *,
+    created_by: uuid.UUID,
+    expires_at: datetime | None = None,
+) -> MenuShareToken:
+    """Create a draft share token for a menu."""
+    token = await _generate_share_token(session)
+    ttl_days = getattr(settings, "draft_share_token_ttl_days", 7)
+    default_expires = datetime.utcnow() + timedelta(days=ttl_days) if ttl_days > 0 else None
+    share_token = MenuShareToken(
+        menu_id=menu.id,
+        created_by=created_by,
+        token=token,
+        expires_at=expires_at or default_expires,
+    )
+    session.add(share_token)
+    await session.commit()
+    await session.refresh(share_token)
+    return share_token
+
+
+async def revoke_share_token(
+    session: AsyncSession,
+    token_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    *,
+    menu_id: uuid.UUID | None = None,
+) -> MenuShareToken:
+    """Revoke a share token owned by the current user."""
+    query = select(MenuShareToken).join(Menu).where(
+        MenuShareToken.id == token_id, Menu.owner_id == owner_id
+    )
+    if menu_id:
+        query = query.where(MenuShareToken.menu_id == menu_id)
+    result = await session.execute(query)
+    token = result.scalar_one_or_none()
+    if not token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share token not found")
+    if token.revoked_at is None:
+        token.revoked_at = datetime.utcnow()
+        await session.commit()
+        await session.refresh(token)
+    return token
+
+
+async def get_menu_by_share_token(
+    session: AsyncSession, token: str
+) -> tuple[Menu, MenuShareToken]:
+    """Resolve a menu from a draft share token."""
+    result = await session.execute(
+        select(MenuShareToken).where(MenuShareToken.token == token)
+    )
+    share_token = result.scalar_one_or_none()
+    if not share_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
+    now = datetime.utcnow()
+    if share_token.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
+    if share_token.expires_at and share_token.expires_at < now:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link expired")
+
+    share_token.last_accessed_at = now
+    share_token.access_count = (share_token.access_count or 0) + 1
+    await session.commit()
+
+    menu = await _load_menu_with_children(session, share_token.menu_id)
+    return menu, share_token
+
+
+async def get_menu_lineage_summary(
+    session: AsyncSession,
+    menu_id: uuid.UUID,
+    *,
+    include_private: bool,
+) -> tuple[Menu | None, str | None, list[Menu]]:
+    """Return lineage menus and attribution note."""
+    result = await session.execute(
+        select(MenuLineage).where(MenuLineage.forked_menu_id == menu_id)
+    )
+    source_link = result.scalar_one_or_none()
+    source_menu = None
+    source_note = None
+    if source_link:
+        source_menu = await session.get(Menu, source_link.source_menu_id)
+        if source_menu and (include_private or source_menu.is_public):
+            source_note = source_link.note
+        else:
+            source_menu = None
+
+    forks_query = (
+        select(Menu)
+        .join(MenuLineage, MenuLineage.forked_menu_id == Menu.id)
+        .where(MenuLineage.source_menu_id == menu_id)
+        .order_by(Menu.created_at.desc())
+    )
+    if not include_private:
+        forks_query = forks_query.where(Menu.is_public.is_(True))
+    forks = (await session.execute(forks_query)).scalars().all()
+    return source_menu, source_note, forks
+
+
 async def _create_course(session: AsyncSession, menu: Menu, payload: CourseCreate) -> Course:
     """Create a course and its items without committing."""
     course = Course(
@@ -283,6 +597,15 @@ async def _generate_unique_slug(session: AsyncSession, title: str) -> str:
         counter += 1
         slug = f"{base}-{counter}"
     return slug
+
+
+async def _generate_share_token(session: AsyncSession) -> str:
+    """Generate a unique share token."""
+    while True:
+        token = secrets.token_urlsafe(24)
+        result = await session.execute(select(MenuShareToken).where(MenuShareToken.token == token))
+        if result.scalar_one_or_none() is None:
+            return token
 
 
 async def _slug_exists(session: AsyncSession, slug: str) -> bool:
@@ -343,12 +666,26 @@ async def _load_course_item_with_media(session: AsyncSession, course_item_id: uu
     return result.scalar_one()
 
 
+async def _load_pairing_with_items(session: AsyncSession, pairing_id: uuid.UUID) -> MenuItemPairing:
+    """Fetch a pairing with course items and media preloaded."""
+    result = await session.execute(
+        select(MenuItemPairing)
+        .execution_options(populate_existing=True)
+        .options(
+            selectinload(MenuItemPairing.primary_item).selectinload(CourseItem.media_item),
+            selectinload(MenuItemPairing.paired_item).selectinload(CourseItem.media_item),
+        )
+        .where(MenuItemPairing.id == pairing_id)
+    )
+    return result.scalar_one()
+
+
 async def _load_menu_with_children(session: AsyncSession, menu_id: uuid.UUID) -> Menu:
     """Fetch a menu with courses and items preloaded."""
     result = await session.execute(
         select(Menu)
         .execution_options(populate_existing=True)
-        .options(selectinload(Menu.courses).selectinload(Course.items).selectinload(CourseItem.media_item))
+        .options(*_menu_load_options())
         .where(Menu.id == menu_id)
     )
     return result.scalar_one()

@@ -58,6 +58,8 @@ Revoke a specific session by ID. Returns `204 No Content` or `404` if the sessio
     -H 'Content-Type: application/json' \
     -d '{"status":"consumed","rating":9,"favorite":true}'
   ```
+- `GET /api/me/taste-profile` - aggregated taste profile (use `?refresh=true` to rebuild).
+- `POST /api/me/taste-profile/refresh` - force a taste profile refresh.
 
 ## Library + Logs
 ### GET /api/me/library
@@ -90,7 +92,12 @@ Remove a log entry.
 - Persistence policy: external search responses stay in a short-TTL preview cache (`external_search_preview_ttl_seconds`) and are fully ingested into `media_items`/`media_sources` only after an authenticated user explicitly ingests or interacts (opens details or saves to a menu/library). Cached payloads should be size-capped and garbage-collected.
 - Allowed `sources`: `internal`, `external`, `google_books`, `tmdb`, `igdb`, `lastfm`. Explicit external sources still include internal results when `include_external=true`; omit both `include_external` and `internal` to skip internal search.
 - Dedupe and ordering: merged results are deterministic—internal first, then external in the order requested (`sources`), then normalized title and release date. Cross-connector duplicates are suppressed using canonical URL or normalized title + release date keys.
-- Response: `{ source: "internal"|"external"|"internal+external", metadata: { paging: {page, per_page, offset, total_internal}, counts: { internal, external_ingested?, external_returned?, external_deduped? }, source_counts: { internal, external?, google_books?, tmdb?, igdb?, lastfm? }, source_metrics: { internal: { returned }, tmdb?: { returned, ingested, deduped, search_ms, fetch_ms, dedupe_reasons? }, ... }, dedupe_reasons?: { canonical_url?, title_release_date?, title_only? } }, results: [{ ...media_item, source_name?, source_id?, preview_id?, preview_expires_at?, in_collection? }, ...] }`.
+- Response: `{ source: "internal"|"external"|"internal+external", metadata: { paging: {page, per_page, offset, total_internal}, counts: { internal, external_ingested?, external_returned?, external_deduped? }, source_counts: { internal, external?, google_books?, tmdb?, igdb?, lastfm? }, source_metrics: { internal: { returned }, tmdb?: { returned, ingested, deduped, search_ms, fetch_ms, dedupe_reasons? }, ... }, dedupe_reasons?: { canonical_url?, title_release_date?, title_only? } }, results: [{ ...media_item, source_name?, source_id?, preview_id?, preview_expires_at?, in_collection?, availability_summary? }, ...] }`.
+
+## Availability
+- `GET /api/media/{media_item_id}/availability` - list availability entries by provider/region/format.
+- `PUT /api/media/{media_item_id}/availability` - upsert availability entries (auth required).
+- `POST /api/media/availability/summary` - return summary rows for a list of media IDs (public).
 
 ## Ingestion
 `POST /api/ingest/{source}` - Supported sources: `google_books`, `tmdb`, `igdb`, `lastfm`.
@@ -106,6 +113,8 @@ Remove a log entry.
 - `GET /api/menus/{id}` - fetch one menu (owner only).
 - `PATCH /api/menus/{id}` - update title/description/visibility.
 - `DELETE /api/menus/{id}` - delete a menu and cascade children.
+- `POST /api/menus/{id}/fork` - fork a menu into a new draft (public menus or owner only).
+- `GET /api/menus/{id}/lineage` - lineage summary for a menu.
 - `POST /api/menus/{id}/courses` - add a course (optionally with items).
 - `PATCH /api/menus/{id}/courses/{course_id}` - update a course title/description/intent (optional `expected_updated_at` for conflict detection).
 - `DELETE /api/menus/{id}/courses/{course_id}` - remove a course.
@@ -113,6 +122,12 @@ Remove a log entry.
 - `PATCH /api/menus/{id}/course-items/{item_id}` - update course item annotations (optional `expected_updated_at` for conflict detection).
 - `DELETE /api/menus/{id}/course-items/{item_id}` - remove a course item.
 - `POST /api/menus/{id}/courses/{course_id}/reorder-items` - persist a new item order via an array of course item IDs.
+- `GET /api/menus/{id}/pairings` - list narrative pairings.
+- `POST /api/menus/{id}/pairings` - create a pairing between two course items.
+- `DELETE /api/menus/{id}/pairings/{pairing_id}` - delete a pairing.
+- `GET /api/menus/{id}/share-tokens` - list draft share tokens for a menu.
+- `POST /api/menus/{id}/share-tokens` - create a draft share token.
+- `DELETE /api/menus/{id}/share-tokens/{token_id}` - revoke a draft share token.
 
 Ordering is enforced via unique `(menu_id, position)` for courses and `(course_id, position)` for items, so responses always reflect the intended chronology. Courses now return `updated_at` for conflict-aware edits, support an optional `intent` field, and course items accept `notes` as narrative annotations with their own `updated_at`.
 When `expected_updated_at` is supplied and stale, the API responds with `409 Conflict` and includes `current_updated_at` in the error detail payload so clients can resolve the mismatch.
@@ -127,6 +142,8 @@ When `expected_updated_at` is supplied and stale, the API responds with `409 Con
 
 ## Public Sharing
 `GET /api/public/menus/{slug}` - anonymous read-only access to a published menu. Returns 404 when `is_public=false`, even if the slug exists. Courses and items are returned sorted by their `position` fields to preserve chronology.
+`GET /api/public/menus/draft/{token}` - anonymous access to a draft menu by share token (expires/revocable).
+`GET /api/public/menus/{slug}/lineage` - public lineage summary (public forks + visible source menu).
 
 ## Short Example Flow
 1. Register/login to obtain `access_token`.

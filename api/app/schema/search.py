@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from app.models.media import MediaType
-from app.schema.media import MediaItemBase
+from app.schema.media import AvailabilitySummary, MediaItemBase
 
 
 class SearchQuery(BaseModel):
@@ -26,6 +26,7 @@ class SearchResultItem(MediaItemBase):
     source_id: str | None = None
     preview_expires_at: datetime | None = None
     in_collection: bool = False
+    availability_summary: AvailabilitySummary | None = None
 
 
 class SearchResult(BaseModel):

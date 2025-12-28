@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.media import MediaType, UserItemLogType, UserItemStatus
+from app.models.media import AvailabilityStatus, MediaType, UserItemLogType, UserItemStatus
 from app.schema.base import ORMModel
 
 
@@ -36,6 +36,49 @@ class MediaItemBase(ORMModel):
 class MediaItemDetail(MediaItemBase):
     """Media item response with attached sources."""
     sources: list[MediaSourceRead] = []
+
+
+class MediaAvailabilityRead(ORMModel):
+    """Availability entry for a media item."""
+    id: UUID
+    media_item_id: UUID
+    provider: str
+    region: str
+    format: str
+    status: AvailabilityStatus
+    deeplink_url: str | None = None
+    last_checked_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MediaAvailabilityUpsert(BaseModel):
+    """Payload for upserting availability entries."""
+    provider: str
+    region: str
+    format: str
+    status: AvailabilityStatus = AvailabilityStatus.UNKNOWN
+    deeplink_url: str | None = None
+    last_checked_at: datetime | None = None
+
+
+class AvailabilitySummary(ORMModel):
+    """Aggregated availability summary for a media item."""
+    providers: list[str] = Field(default_factory=list)
+    regions: list[str] = Field(default_factory=list)
+    formats: list[str] = Field(default_factory=list)
+    status_counts: dict[str, int] = Field(default_factory=dict)
+    last_checked_at: datetime | None = None
+
+
+class AvailabilitySummaryItem(AvailabilitySummary):
+    """Availability summary annotated with the media item ID."""
+    media_item_id: UUID
+
+
+class AvailabilitySummaryRequest(BaseModel):
+    """Request payload for availability summary lookups."""
+    media_item_ids: list[UUID] = Field(default_factory=list)
 
 
 class MediaItemUpsert(BaseModel):

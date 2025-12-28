@@ -39,6 +39,28 @@ class CourseItemRead(ORMModel):
     media_item: MediaItemBase | None = None
 
 
+class MenuItemPairingCreate(BaseModel):
+    """Payload for creating a narrative pairing between two course items."""
+    primary_course_item_id: UUID
+    paired_course_item_id: UUID
+    relationship: str | None = None
+    note: str | None = None
+
+
+class MenuItemPairingRead(ORMModel):
+    """Narrative pairing representation for a menu."""
+    id: UUID
+    menu_id: UUID
+    primary_course_item_id: UUID
+    paired_course_item_id: UUID
+    relationship: str | None = None
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    primary_item: CourseItemRead | None = None
+    paired_item: CourseItemRead | None = None
+
+
 class CourseCreate(BaseModel):
     """Payload for creating a menu course."""
     title: str
@@ -82,6 +104,53 @@ class MenuUpdate(BaseModel):
     is_public: bool | None = None
 
 
+class MenuForkCreate(BaseModel):
+    """Payload for forking a menu into a new draft."""
+    title: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
+    note: str | None = None
+
+
+class MenuLineageMenuRead(ORMModel):
+    """Summary fields for lineage menus."""
+    id: UUID
+    title: str
+    slug: str
+    is_public: bool
+    created_at: datetime
+
+
+class MenuLineageSourceRead(BaseModel):
+    """Source menu info plus optional attribution note."""
+    menu: MenuLineageMenuRead
+    note: str | None = None
+
+
+class MenuLineageRead(BaseModel):
+    """Lineage summary for forks and provenance."""
+    source_menu: MenuLineageSourceRead | None = None
+    forked_menus: list[MenuLineageMenuRead] = Field(default_factory=list)
+    fork_count: int = 0
+
+
+class MenuShareTokenCreate(BaseModel):
+    """Payload for creating a draft share token."""
+    expires_at: datetime | None = None
+
+
+class MenuShareTokenRead(ORMModel):
+    """Draft share token details for a menu."""
+    id: UUID
+    menu_id: UUID
+    token: str
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_accessed_at: datetime | None = None
+    access_count: int
+    created_at: datetime
+
+
 class MenuRead(ORMModel):
     """Menu representation returned to authenticated users."""
     id: UUID
@@ -93,6 +162,7 @@ class MenuRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     courses: list[CourseRead] = Field(default_factory=list)
+    pairings: list[MenuItemPairingRead] = Field(default_factory=list)
 
 
 class PublicMenuRead(ORMModel):
@@ -105,3 +175,11 @@ class PublicMenuRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     courses: list[CourseRead] = Field(default_factory=list)
+    pairings: list[MenuItemPairingRead] = Field(default_factory=list)
+
+
+class DraftMenuRead(BaseModel):
+    """Public draft menu response with token metadata."""
+    menu: PublicMenuRead
+    share_token_id: UUID
+    share_token_expires_at: datetime | None = None

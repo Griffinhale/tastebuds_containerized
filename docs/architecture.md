@@ -15,10 +15,10 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Search:** `GET /api/search` queries Postgres first, optionally fans out to external connectors, and requires auth for any external sources. External results are stored in a short-TTL preview cache (with payload/metadata caps) and fully ingested only when an authenticated user opens details or saves to a menu/library.
 - **Menus & sharing:** Authenticated owners manage menus/courses/items; `GET /api/public/menus/{slug}` serves published menus anonymously using a public DTO that omits `owner_id`.
 - **Library + Log:** `/api/me/library` aggregates user states + log events into a status snapshot, while `/api/me/logs` captures timeline entries (progress, minutes, goals) without mutating menu data.
-- **Menu narrative (in progress):** course intents + item annotations are now stored on `courses`/`course_items`; pairings remain pending with minimal additional joins.
-- **Taste Profile (planned):** TODO: define aggregation pipeline and caching for preference insights derived from logs/tags/menus.
-- **Availability awareness (planned):** TODO: ingest provider data, schedule refresh jobs, and map region-specific availability to items.
-- **Community exchange (planned):** TODO: model menu lineage, attribution, and fork/remix notifications.
+- **Menu narrative:** course intents + item annotations live on `courses`/`course_items`; pairings now live in `menu_item_pairings` and are returned with menu payloads for story mode.
+- **Taste Profile:** `/api/me/taste-profile` aggregates logs/tags/menus into `user_taste_profiles` with refresh-on-demand caching.
+- **Availability awareness:** provider/region/format entries live in `media_item_availability`; a scheduled job marks stale entries and UI overlays consume summaries.
+- **Community exchange:** menu forks are tracked in `menu_lineage`; draft share links are powered by `menu_share_tokens` and public draft access.
 - **Health/telemetry:** `/health` and `/api/health` return only `{status}` to anonymous callers; authenticated or allowlisted callers also see connector status, repeated failure alerts, and open circuits for ingestion/search fan-out.
 - **Ops/queues:** `/api/ops/queues` (auth + admin allowlist) surfaces Redis/RQ queue sizes, worker presence, scheduler health, and vault encryption status for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
 
@@ -26,6 +26,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Migrations:** `alembic upgrade head` is part of boot; initial revision `20240602_000001` creates the full schema.
 - **Tests/fixtures:** Pytest uses async fixtures and sample ingestion payloads; CI runs Ruff + pytest (SQLite) + frontend lint/typecheck plus proxy routing smokes.
 - **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners and long-running sync jobs now have dedicated RQ jobs + queues (`webhooks`, `sync`) and share the same worker pool.
+- **Availability refresh:** rq-scheduler also runs availability refresh to mark stale provider entries until provider connectors are wired.
 - **Security controls:** Route-specific rate limits live at the proxy, session inventory/audit APIs are present, and external payloads now have retention/TTL enforcement (preview cache TTL + raw payload GC); see `docs/security.md` for current risks.
 
 ## Known Gaps to Align With Delivery Plan
