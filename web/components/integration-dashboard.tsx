@@ -91,6 +91,7 @@ const providerFields: Record<
 
 export function IntegrationDashboard() {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [arrQueue, setArrQueue] = useState<IntegrationEvent[]>([]);
   const [queueSnapshot, setQueueSnapshot] = useState<QueueSnapshot | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -150,6 +151,16 @@ export function IntegrationDashboard() {
     void refreshArrQueue();
     void refreshQueueHealth();
   }, [refreshIntegrations, refreshArrQueue, refreshQueueHealth]);
+
+  useEffect(() => {
+    setActiveProvider((current) => {
+      if (integrations.length === 0) return null;
+      if (current && integrations.some((integration) => integration.provider === current)) {
+        return current;
+      }
+      return integrations[0].provider;
+    });
+  }, [integrations]);
 
   const handleOAuthConnect = async () => {
     try {
@@ -296,13 +307,14 @@ export function IntegrationDashboard() {
     );
   }
 
+  const activeIntegration =
+    integrations.find((integration) => integration.provider === activeProvider) ?? integrations[0];
+
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-lg shadow-emerald-500/5">
       <header className="space-y-2">
-        <p className="text-sm uppercase tracking-wide text-emerald-300">Connect & flow</p>
-        <h1 className="text-2xl font-semibold text-white">
-          Connect Spotify, Arr, Jellyfin, and Plex.
-        </h1>
+        <p className="text-sm uppercase tracking-wide text-emerald-300">External integrations</p>
+        <h1 className="text-2xl font-semibold text-white">Connect external services.</h1>
         <p className="text-sm text-slate-300">
           Link accounts, set up webhooks, and watch the queues that power background syncs.
         </p>
@@ -310,7 +322,9 @@ export function IntegrationDashboard() {
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <p className="text-xs uppercase tracking-wide text-emerald-200">Connect & flow steps</p>
+          <p className="text-xs uppercase tracking-wide text-emerald-200">
+            Integration setup steps
+          </p>
           <ol className="mt-3 space-y-3 text-xs text-slate-300">
             {flowSteps.map((step, index) => (
               <li key={step.title} className="flex gap-3">
@@ -385,181 +399,216 @@ export function IntegrationDashboard() {
         <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm">{error}</p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {integrations.map((integration) => (
-          <div
-            key={integration.provider}
-            className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">{integration.display_name}</h2>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  {integration.status} · {integration.auth_type}
-                </p>
-              </div>
-              {integration.connected ? (
-                <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  Connected
-                </span>
-              ) : (
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                  Not linked
-                </span>
-              )}
-            </div>
-
-            {integration.last_error ? (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-                {integration.last_error}
-              </p>
-            ) : null}
-
-            <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
-              <StatusLine
-                label="Connection"
-                value={integration.connected ? 'Linked' : 'Not linked'}
-              />
-              <StatusLine
-                label="Token"
-                value={
-                  integration.expires_at
-                    ? `Expires ${formatTimestamp(integration.expires_at)}`
-                    : 'No expiry'
-                }
-              />
-              <StatusLine
-                label="Last rotation"
-                value={
-                  integration.rotated_at ? formatTimestamp(integration.rotated_at) : 'Not rotated'
-                }
-              />
-              {(() => {
-                const lastTriggeredAt = syncState[integration.provider]?.lastTriggeredAt;
-                if (!lastTriggeredAt) return null;
-                return (
-                  <StatusLine
-                    label="Last sync"
-                    value={formatTimestamp(lastTriggeredAt)}
-                    tone={syncState[integration.provider]?.status === 'error' ? 'error' : 'default'}
-                  />
-                );
-              })()}
-              {(() => {
-                const message = syncState[integration.provider]?.message;
-                if (!message) return null;
-                return <StatusLine label="Sync status" value={message} />;
-              })()}
-            </div>
-
-            {integration.provider === 'spotify' ? (
-              <div className="flex flex-wrap gap-2">
-                {!integration.connected ? (
-                  <button
-                    type="button"
-                    onClick={handleOAuthConnect}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
-                  >
-                    Connect Spotify
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleRotate('spotify')}
-                      className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
-                    >
-                      Refresh token
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnect('spotify')}
-                      className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400"
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(providerFields[integration.provider]?.fields || []).map((field) => (
-                    <label key={field.name} className="space-y-1 text-xs text-slate-300">
-                      <span>{field.label}</span>
-                      <input
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={formState[integration.provider]?.[field.name] || ''}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            [integration.provider]: {
-                              ...(prev[integration.provider] || {}),
-                              [field.name]: event.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white"
-                      />
-                    </label>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCredentialsSave(integration.provider)}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
-                  >
-                    Save credentials
-                  </button>
-                  {integration.connected ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnect(integration.provider)}
-                      className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400"
-                    >
-                      Disconnect
-                    </button>
-                  ) : null}
-                  {integration.capabilities?.supports_sync ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSync(integration.provider)}
-                      className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
-                    >
-                      Trigger sync
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            )}
-
-            {integration.provider === 'arr' ? (
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
-                <p className="text-xs uppercase tracking-wide text-slate-400">Webhook</p>
-                <p className="mt-2">
-                  Token prefix:{' '}
-                  <span className="font-semibold text-emerald-200">
-                    {webhookPrefix || integration.webhook_token_prefix || 'Not generated'}
+      {integrations.length === 0 ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <p className="text-sm text-slate-300">No integrations available yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {integrations.map((integration) => {
+              const isActive = integration.provider === activeIntegration?.provider;
+              return (
+                <button
+                  key={integration.provider}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => setActiveProvider(integration.provider)}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    isActive
+                      ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-100'
+                      : 'border-slate-800 bg-slate-900/60 text-slate-300 hover:border-emerald-400/40'
+                  }`}
+                >
+                  <span>{integration.display_name}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                    {integration.connected ? 'Connected' : 'Not linked'}
                   </span>
-                </p>
-                {webhookUrl ? (
-                  <p className="mt-2 break-all text-emerald-200">{webhookUrl}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeIntegration ? (
+            <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    {activeIntegration.display_name}
+                  </h2>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    {activeIntegration.status} · {activeIntegration.auth_type}
+                  </p>
+                </div>
+                {activeIntegration.connected ? (
+                  <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    Connected
+                  </span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleWebhookToken}
-                    className="mt-2 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
-                  >
-                    Generate webhook URL
-                  </button>
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                    Not linked
+                  </span>
                 )}
               </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
+
+              {activeIntegration.last_error ? (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
+                  {activeIntegration.last_error}
+                </p>
+              ) : null}
+
+              <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+                <StatusLine
+                  label="Connection"
+                  value={activeIntegration.connected ? 'Linked' : 'Not linked'}
+                />
+                <StatusLine
+                  label="Token"
+                  value={
+                    activeIntegration.expires_at
+                      ? `Expires ${formatTimestamp(activeIntegration.expires_at)}`
+                      : 'No expiry'
+                  }
+                />
+                <StatusLine
+                  label="Last rotation"
+                  value={
+                    activeIntegration.rotated_at
+                      ? formatTimestamp(activeIntegration.rotated_at)
+                      : 'Not rotated'
+                  }
+                />
+                {(() => {
+                  const lastTriggeredAt = syncState[activeIntegration.provider]?.lastTriggeredAt;
+                  if (!lastTriggeredAt) return null;
+                  return (
+                    <StatusLine
+                      label="Last sync"
+                      value={formatTimestamp(lastTriggeredAt)}
+                      tone={
+                        syncState[activeIntegration.provider]?.status === 'error'
+                          ? 'error'
+                          : 'default'
+                      }
+                    />
+                  );
+                })()}
+                {(() => {
+                  const message = syncState[activeIntegration.provider]?.message;
+                  if (!message) return null;
+                  return <StatusLine label="Sync status" value={message} />;
+                })()}
+              </div>
+
+              {activeIntegration.provider === 'spotify' ? (
+                <div className="flex flex-wrap gap-2">
+                  {!activeIntegration.connected ? (
+                    <button
+                      type="button"
+                      onClick={handleOAuthConnect}
+                      className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+                    >
+                      Connect Spotify
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRotate('spotify')}
+                        className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+                      >
+                        Refresh token
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDisconnect('spotify')}
+                        className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(providerFields[activeIntegration.provider]?.fields || []).map((field) => (
+                      <label key={field.name} className="space-y-1 text-xs text-slate-300">
+                        <span>{field.label}</span>
+                        <input
+                          type={field.type}
+                          placeholder={field.placeholder}
+                          value={formState[activeIntegration.provider]?.[field.name] || ''}
+                          onChange={(event) =>
+                            setFormState((prev) => ({
+                              ...prev,
+                              [activeIntegration.provider]: {
+                                ...(prev[activeIntegration.provider] || {}),
+                                [field.name]: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCredentialsSave(activeIntegration.provider)}
+                      className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+                    >
+                      Save credentials
+                    </button>
+                    {activeIntegration.connected ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDisconnect(activeIntegration.provider)}
+                        className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-400"
+                      >
+                        Disconnect
+                      </button>
+                    ) : null}
+                    {activeIntegration.capabilities?.supports_sync ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSync(activeIntegration.provider)}
+                        className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+                      >
+                        Trigger sync
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {activeIntegration.provider === 'arr' ? (
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Webhook</p>
+                  <p className="mt-2">
+                    Token prefix:{' '}
+                    <span className="font-semibold text-emerald-200">
+                      {webhookPrefix || activeIntegration.webhook_token_prefix || 'Not generated'}
+                    </span>
+                  </p>
+                  {webhookUrl ? (
+                    <p className="mt-2 break-all text-emerald-200">{webhookUrl}</p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleWebhookToken}
+                      className="mt-2 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+                    >
+                      Generate webhook URL
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <div className="flex items-center justify-between">

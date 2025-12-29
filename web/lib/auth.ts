@@ -34,7 +34,8 @@ function broadcastSessionState(hasSession: boolean) {
 export type User = {
   id: string;
   email: string;
-  display_name: string;
+  display_name: string | null;
+  created_at?: string | null;
 };
 
 export type AuthResponse = {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -27,3 +28,4 @@ class UserRead(ORMModel):
     id: UUID
     email: EmailStr
     display_name: str | None = None
+    created_at: datetime
