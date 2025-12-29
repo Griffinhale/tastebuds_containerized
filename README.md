@@ -10,14 +10,14 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
 - Session inventory: `/api/auth/sessions` lists active/expired refresh tokens for the current user and supports revocation per session; cookies continue to mirror new tokens on rotate/login.
 - Search is paginated, supports `types` filtering, and can target specific external connectors or internal-only lookups while returning paging/source counts in `metadata`. Merged results are deterministic (internal first, then external by requested order, then title/release), with cross-connector dedupe keyed off canonical URLs or normalized title + release date.
-- External search is auth-only; per-user quotas guard external traffic. External hits stay in short-TTL previews with payload/metadata byte caps and GC, and full ingest happens only after user interaction or explicit ingest.
+- External search is auth-only; per-user quotas guard external traffic. External hits stay in short-TTL previews with payload/metadata byte caps and GC, and full ingest happens only after explicit ingest/save actions; preview detail views are read-only.
 - Initial Alembic migration `20240602_000001` creates the full schema (users, media, menus, tags, user states); `alembic upgrade head` is part of the normal boot path.
 - Ingestion connectors for Google Books, TMDB (movie/tv), IGDB, and Last.fm power `/api/ingest/{source}` and `/api/search?include_external=true`; ingestion dedupe is enforced on `(source_name, external_id)` while search-level dedupe additionally suppresses cross-source duplicates.
 - Seed script and pytest fixtures share sample ingestion payloads to keep mapping regressions covered.
 - Next.js frontend now includes login/register, session status, a Library + Log home hub with next-up actions and progress feedback, a home search workspace with connector health + dedupe/library signals, a menus dashboard with autosave + conflict-aware course/item editors (inline note formatting, drag handles, keyboard reorder) and a guided add/search workflow, narrative pairings + draft share links for menu collaboration, a taste profile dashboard, an integrations "Connect & Flow" hub with queue health, and slug-based public menu pages rendered at `/menus/[slug]` (with availability chips, fork/lineage clarity, and share/export CTAs).
 - Integrations are now manageable via `/api/integrations` and the `/integrations` UI: Spotify OAuth linking with menu export, Arr webhook intake with an ingest queue, and Jellyfin/Plex sync stubs backed by the integrations queue.
 - Known security gaps: review `docs/security.md` for remaining risks (production ACME/cert pipeline, connector credential refresh). Public menu DTO is now owner-safe, external search is auth+quota gated with preview caching + payload caps, and `/health` hides telemetry unless the caller is authenticated or allowlisted.
-- Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache with payload caps until a signed-in user opens details or saves to a menu/library, which then triggers full ingest.
+- Search/auth policy: anonymous search returns internal results only. External fan-out requires auth and uses per-user quotas; external hits live in a short-TTL preview cache with payload caps until a signed-in user explicitly ingests or saves to a menu/library, while preview detail views remain read-only.
 
 ## Architecture & Data Model
 - FastAPI + SQLAlchemy 2 + Alembic, async DB access everywhere.
@@ -153,7 +153,7 @@ curl -k -X POST https://localhost/api/tags/$TAG_ID/media \
   -H 'Content-Type: application/json' \
   -d "{\"media_item_id\":\"$MEDIA_ID\"}"
 ```
-Search with optional external fan-out (ingests results before returning them):
+Search with optional external fan-out (returns preview results before ingest):
 ```bash
 curl -k "https://localhost/api/search?q=blade%20runner&include_external=true" \
   -H "Authorization: Bearer $TOKEN"
@@ -178,7 +178,7 @@ GitHub Actions run on push/PR:
 - Frontend: `npm ci` then `npm run lint`, `npm run prettier:check`, `npm run typecheck`.
 
 ## Security status
-- External search fan-out is auth-only with per-user quotas and preview-only persistence; cached payload/metadata are size-capped and GC’d. Full ingest requires user interaction.
+- External search fan-out is auth-only with per-user quotas and preview-only persistence; cached payload/metadata are size-capped and GC’d. Full ingest requires explicit ingest/save actions.
 - Public menus use a safe DTO with no `owner_id`.
 - `/health` and `/api/health` return only `{status}` for anonymous callers; telemetry is returned to authenticated or allowlisted hosts defined via `HEALTH_ALLOWLIST`.
 - Full list of remaining risks and fixes: `docs/security.md`.

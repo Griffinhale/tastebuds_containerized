@@ -89,10 +89,14 @@ Remove a log entry.
 - Always searches Postgres first. Accepts `types` to filter media types and `page`/`per_page` for internal pagination.
 - External fan-out is opt-in via `include_external=true` or explicitly enumerating `sources` (e.g., `sources=igdb&sources=tmdb`). `external_per_source` limits per-connector ingestion; defaults to 1 (max 5).
 - Auth policy: anonymous callers only receive internal results. When unauthenticated, `include_external=true` or external `sources` are rejected (401/403) or ignored per deployment policy. Authenticated callers may request external sources subject to per-user quotas/rate limits (see `external_search_quota_max_requests` / `external_search_quota_window_seconds`).
-- Persistence policy: external search responses stay in a short-TTL preview cache (`external_search_preview_ttl_seconds`) and are fully ingested into `media_items`/`media_sources` only after an authenticated user explicitly ingests or interacts (opens details or saves to a menu/library). Cached payloads should be size-capped and garbage-collected.
+- Persistence policy: external search responses stay in a short-TTL preview cache (`external_search_preview_ttl_seconds`) and are fully ingested into `media_items`/`media_sources` only after an authenticated user explicitly ingests or saves to a menu/library. Preview detail views are read-only. Cached payloads should be size-capped and garbage-collected.
 - Allowed `sources`: `internal`, `external`, `google_books`, `tmdb`, `igdb`, `lastfm`. Explicit external sources still include internal results when `include_external=true`; omit both `include_external` and `internal` to skip internal search.
 - Dedupe and ordering: merged results are deterministic—internal first, then external in the order requested (`sources`), then normalized title and release date. Cross-connector duplicates are suppressed using canonical URL or normalized title + release date keys.
 - Response: `{ source: "internal"|"external"|"internal+external", metadata: { paging: {page, per_page, offset, total_internal}, counts: { internal, external_ingested?, external_returned?, external_deduped? }, source_counts: { internal, external?, google_books?, tmdb?, igdb?, lastfm? }, source_metrics: { internal: { returned }, tmdb?: { returned, ingested, deduped, search_ms, fetch_ms, dedupe_reasons? }, ... }, dedupe_reasons?: { canonical_url?, title_release_date?, title_only? } }, results: [{ ...media_item, source_name?, source_id?, preview_id?, preview_expires_at?, in_collection?, availability_summary? }, ...] }`.
+
+## Media Details & Previews
+- `GET /api/media/{media_item_id}` - return a media item with sources plus media-type specific fields (`book`, `movie`, `game`, `music`).
+- `GET /api/previews/{preview_id}` - auth required; return a preview detail snapshot for external search results, including `preview_expires_at`, source identifiers, and media-type specific fields without ingesting.
 
 ## Availability
 - `GET /api/media/{media_item_id}/availability` - list availability entries by provider/region/format.

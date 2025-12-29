@@ -2,8 +2,11 @@
 
 // Search explorer for the homepage hero panel.
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
+import { ingestMedia } from '../lib/media';
+import { upsertState } from '../lib/library';
 import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
 import {
   ConnectorHealth,
@@ -28,11 +31,15 @@ const promptSuggestions = [
   { label: 'New to play', value: 'co-op puzzle games' },
 ];
 
+type SearchResultItem = MediaSearchItem & {
+  resolved_media_id?: string;
+};
+
 export function MediaSearchExplorer() {
   const [query, setQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
   const [includeExternal, setIncludeExternal] = useState(true);
-  const [results, setResults] = useState<MediaSearchItem[]>([]);
+  const [results, setResults] = useState<SearchResultItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
@@ -40,6 +47,9 @@ export function MediaSearchExplorer() {
   const [error, setError] = useState<string | null>(null);
   const [connectorHealth, setConnectorHealth] = useState<ConnectorHealth[]>([]);
   const [connectorMessage, setConnectorMessage] = useState<string | null>(null);
+  const [addingToLibraryId, setAddingToLibraryId] = useState<string | null>(null);
+  const [libraryMessage, setLibraryMessage] = useState<string | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
 
   const resultSummary = useMemo(() => {
     if (searching) return 'Searching...';
@@ -129,6 +139,8 @@ export function MediaSearchExplorer() {
     }
     setSearching(true);
     setError(null);
+    setLibraryError(null);
+    setLibraryMessage(null);
     setHasSearched(true);
     try {
       const response = await searchMedia({
@@ -138,7 +150,11 @@ export function MediaSearchExplorer() {
         perPage: 9,
         externalPerSource: 2,
       });
-      setResults(response.results);
+      const normalized = response.results.map((item) => ({
+        ...item,
+        resolved_media_id: item.preview_id ? undefined : item.id,
+      }));
+      setResults(normalized);
       setMetadata(response.metadata ?? null);
       setSource(response.source);
     } catch (err) {
@@ -155,6 +171,39 @@ export function MediaSearchExplorer() {
   function applyPrompt(value: string) {
     setQuery(value);
     setHasSearched(false);
+  }
+
+  async function handleAddToLibrary(item: SearchResultItem) {
+    if (addingToLibraryId || item.in_collection) return;
+    setAddingToLibraryId(item.id);
+    setLibraryError(null);
+    setLibraryMessage(null);
+    try {
+      let resolvedMediaId = item.resolved_media_id ?? (item.preview_id ? undefined : item.id);
+      if (!resolvedMediaId) {
+        if (!item.source_name || !item.source_id) {
+          throw new Error('Missing source details for ingestion.');
+        }
+        const ingestResponse = await ingestMedia(item.source_name, {
+          external_id: item.source_id,
+        });
+        resolvedMediaId = ingestResponse.media_item.id;
+      }
+      await upsertState(resolvedMediaId, { status: 'want_to_consume', favorite: false });
+      setResults((prev) =>
+        prev.map((entry) =>
+          entry.id === item.id
+            ? { ...entry, in_collection: true, resolved_media_id: resolvedMediaId }
+            : entry
+        )
+      );
+      setLibraryMessage(`Added "${item.title}" to your library.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to add to library.';
+      setLibraryError(message);
+    } finally {
+      setAddingToLibraryId(null);
+    }
   }
 
   return (
@@ -368,6 +417,12 @@ export function MediaSearchExplorer() {
         </div>
 
         {error && <StateCard tone="error" title="Search failed" description={error} />}
+        {libraryError && (
+          <StateCard tone="error" title="Unable to add to library" description={libraryError} />
+        )}
+        {libraryMessage && (
+          <StateCard tone="success" title="Added to library" description={libraryMessage} />
+        )}
         {!error && !hasSearched && (
           <StateCard
             title="No query yet"
@@ -384,7 +439,19 @@ export function MediaSearchExplorer() {
         {results.length > 0 && (
           <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {results.map((item) => (
-              <MediaResultCard key={item.id} item={item} />
+              <MediaResultCard
+                key={item.id}
+                item={item}
+                adding={addingToLibraryId === item.id}
+                onAdd={handleAddToLibrary}
+                detailsHref={
+                  item.resolved_media_id
+                    ? `/media/${item.resolved_media_id}`
+                    : item.preview_id
+                      ? `/previews/${item.preview_id}`
+                      : null
+                }
+              />
             ))}
           </ul>
         )}
@@ -393,7 +460,18 @@ export function MediaSearchExplorer() {
   );
 }
 
-function MediaResultCard({ item }: { item: MediaSearchItem }) {
+function MediaResultCard({
+  item,
+  onAdd,
+  adding,
+  detailsHref,
+}: {
+  item: SearchResultItem;
+  onAdd: (item: SearchResultItem) => void;
+  adding: boolean;
+  detailsHref: string | null;
+}) {
+  const addLabel = item.in_collection ? 'In library' : adding ? 'Adding...' : 'Add to library';
   return (
     <li className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
       <div className="flex items-start gap-3">
@@ -435,16 +513,34 @@ function MediaResultCard({ item }: { item: MediaSearchItem }) {
           {item.description}
         </p>
       )}
-      {item.canonical_url && (
-        <a
-          href={item.canonical_url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex text-[11px] font-semibold text-emerald-200 underline decoration-emerald-200/60"
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px]">
+        <button
+          type="button"
+          onClick={() => onAdd(item)}
+          disabled={item.in_collection || adding}
+          className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-100 transition hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          View source
-        </a>
-      )}
+          {addLabel}
+        </button>
+        {detailsHref && (
+          <Link
+            href={detailsHref}
+            className="font-semibold text-emerald-200 underline decoration-emerald-200/60"
+          >
+            View details
+          </Link>
+        )}
+        {item.canonical_url && (
+          <a
+            href={item.canonical_url}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-slate-300 underline decoration-slate-500/60"
+          >
+            View source
+          </a>
+        )}
+      </div>
     </li>
   );
 }
@@ -496,12 +592,14 @@ function StateCard({
 }: {
   title: string;
   description: string;
-  tone?: 'default' | 'error';
+  tone?: 'default' | 'error' | 'success';
 }) {
   const toneClasses =
     tone === 'error'
       ? 'border-red-500/40 bg-red-500/10 text-red-100'
-      : 'border-white/10 bg-white/5 text-white/80';
+      : tone === 'success'
+        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+        : 'border-white/10 bg-white/5 text-white/80';
   return (
     <div className={`rounded-xl border p-4 ${toneClasses}`}>
       <p className="text-sm font-semibold">{title}</p>

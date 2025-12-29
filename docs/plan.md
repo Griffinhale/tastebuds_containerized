@@ -48,7 +48,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 _Phase gates: 7.1 shipped; 7.3 depends on the queue/broker, rate limits, and the credential vault from 7.1._
 
 ### 7.1 Security & Foundation (complete)
-- External search is auth+quota gated; anonymous callers only search internal. External hits live in short-TTL previews with payload/metadata caps and GC; full ingest follows user interaction.
+- External search is auth+quota gated; anonymous callers only search internal. External hits live in short-TTL previews with payload/metadata caps and GC; preview detail views are read-only and full ingest follows explicit ingest/save actions.
 - Public surfaces: public menu DTO omits `owner_id`; `/health` returns telemetry only for authenticated/allowlisted callers; session inventory/revoke lives at `/api/auth/sessions` (UI pending).
 - Delivery plumbing: the local proxy now runs TLS with auto dev-cert rotation, enforces per-route rate limits, and fronts ingestion/search fan-out enqueued through Redis-backed RQ queues. Webhook + sync jobs have dedicated queues ready.
 - Connector observability: `/health` now reports circuits, repeated failures, and last errors; the ingest/search UI surfaces connector badges when degraded.

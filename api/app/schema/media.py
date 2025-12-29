@@ -33,9 +33,47 @@ class MediaItemBase(ORMModel):
     metadata: dict | None = None
 
 
+class BookDetail(ORMModel):
+    """Book-specific detail fields."""
+    authors: list[str] | None = None
+    page_count: int | None = None
+    publisher: str | None = None
+    language: str | None = None
+    isbn_10: str | None = None
+    isbn_13: str | None = None
+
+
+class MovieDetail(ORMModel):
+    """Movie-specific detail fields."""
+    runtime_minutes: int | None = None
+    directors: list[str] | None = None
+    producers: list[str] | None = None
+    tmdb_type: str | None = None
+
+
+class GameDetail(ORMModel):
+    """Game-specific detail fields."""
+    platforms: list[str] | None = None
+    developers: list[str] | None = None
+    publishers: list[str] | None = None
+    genres: list[str] | None = None
+
+
+class MusicDetail(ORMModel):
+    """Music-specific detail fields."""
+    artist_name: str | None = None
+    album_name: str | None = None
+    track_number: int | None = None
+    duration_ms: int | None = None
+
+
 class MediaItemDetail(MediaItemBase):
     """Media item response with attached sources."""
     sources: list[MediaSourceRead] = []
+    book: BookDetail | None = None
+    movie: MovieDetail | None = None
+    game: GameDetail | None = None
+    music: MusicDetail | None = None
 
 
 class MediaAvailabilityRead(ORMModel):

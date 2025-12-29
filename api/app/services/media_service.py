@@ -168,7 +168,15 @@ async def get_media_by_id(session: AsyncSession, media_id: uuid.UUID) -> MediaIt
 async def get_media_with_sources(session: AsyncSession, media_id: uuid.UUID) -> MediaItem | None:
     """Fetch a media item and preload its sources."""
     result = await session.execute(
-        select(MediaItem).options(selectinload(MediaItem.sources)).where(MediaItem.id == media_id)
+        select(MediaItem)
+        .options(
+            selectinload(MediaItem.sources),
+            selectinload(MediaItem.book),
+            selectinload(MediaItem.movie),
+            selectinload(MediaItem.game),
+            selectinload(MediaItem.music),
+        )
+        .where(MediaItem.id == media_id)
     )
     return result.scalar_one_or_none()
 

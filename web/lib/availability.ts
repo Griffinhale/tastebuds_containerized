@@ -14,6 +14,19 @@ export type AvailabilitySummaryItem = AvailabilitySummary & {
   media_item_id: string;
 };
 
+export type MediaAvailability = {
+  id: string;
+  media_item_id: string;
+  provider: string;
+  region: string;
+  format: string;
+  status: string;
+  deeplink_url?: string | null;
+  last_checked_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export async function getAvailabilitySummary(
   mediaItemIds: string[],
   options?: { isServer?: boolean }
@@ -26,4 +39,11 @@ export async function getAvailabilitySummary(
     },
     { isServer: options?.isServer ?? false, withCredentials: false }
   );
+}
+
+export async function getMediaAvailability(mediaItemId: string, options?: { isServer?: boolean }) {
+  return apiFetch<MediaAvailability[]>(`/media/${mediaItemId}/availability`, undefined, {
+    isServer: options?.isServer ?? false,
+    withCredentials: false,
+  });
 }
