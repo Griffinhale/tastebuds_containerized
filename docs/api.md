@@ -3,7 +3,7 @@
 Base path is `API_PREFIX` (default `/api`). Authenticated routes expect `Authorization: Bearer <access_token>`. Register/login/refresh return both access and refresh tokens and also set httpOnly cookies for browser clients. When using the proxy, base URL is `https://localhost` and the dev cert is self-signed (use `curl -k` or trust the cert).
 
 ## Health & Docs
-- `GET /health` and `GET /api/health` return `{"status":"ok","ingestion":{"sources":{},"issues":[]}}`. When a connector circuit is open or a connector's last call failed, `status` flips to `degraded` and `ingestion.issues` lists the affected sources/operations along with the last error or remaining cooldown.
+- `GET /health` and `GET /api/health` return `{"status":"ok"}` for anonymous callers. Authenticated or allowlisted hosts also receive ingestion telemetry (`{"ingestion":{"sources":{},"issues":[]}}`), and `status` flips to `degraded` when circuits open or repeated connector failures occur.
 - `GET /api/ops/queues` (auth required) reports Redis/RQ health: queue sizes, worker presence, scheduler counts, and Redis server info. Useful for spotting stalled jobs or empty workers.
 - OpenAPI/Swagger UI: `/docs` (proxied to the API service).
 
@@ -88,9 +88,9 @@ Remove a log entry.
 `GET /api/search?q=...&types=book&types=movie&include_external=true`
 - Always searches Postgres first. Accepts `types` to filter media types and `page`/`per_page` for internal pagination.
 - External fan-out is opt-in via `include_external=true` or explicitly enumerating `sources` (e.g., `sources=igdb&sources=tmdb`). `external_per_source` limits per-connector ingestion; defaults to 1 (max 5).
-- Auth policy: anonymous callers only receive internal results. When unauthenticated, `include_external=true` or external `sources` are rejected (401/403) or ignored per deployment policy. Authenticated callers may request external sources subject to per-user quotas/rate limits (see `external_search_quota_max_requests` / `external_search_quota_window_seconds`).
+- Auth policy: anonymous callers only receive internal results. When unauthenticated, `include_external=true` or external `sources` return `401`. Authenticated callers may request external sources subject to per-user quotas/rate limits (see `external_search_quota_max_requests` / `external_search_quota_window_seconds`).
 - Persistence policy: external search responses stay in a short-TTL preview cache (`external_search_preview_ttl_seconds`) and are fully ingested into `media_items`/`media_sources` only after an authenticated user explicitly ingests or saves to a menu/library. Preview detail views are read-only. Cached payloads should be size-capped and garbage-collected.
-- Allowed `sources`: `internal`, `external`, `google_books`, `tmdb`, `igdb`, `lastfm`. Explicit external sources still include internal results when `include_external=true`; omit both `include_external` and `internal` to skip internal search.
+- Allowed `sources`: `internal`, `external`, `google_books`, `tmdb`, `igdb`, `lastfm`. To run external-only, pass only external sources (omit `internal`); to include internal + external, set `include_external=true` or include `internal` alongside specific sources.
 - Dedupe and ordering: merged results are deterministic—internal first, then external in the order requested (`sources`), then normalized title and release date. Cross-connector duplicates are suppressed using canonical URL or normalized title + release date keys.
 - Response: `{ source: "internal"|"external"|"internal+external", metadata: { paging: {page, per_page, offset, total_internal}, counts: { internal, external_ingested?, external_returned?, external_deduped? }, source_counts: { internal, external?, google_books?, tmdb?, igdb?, lastfm? }, source_metrics: { internal: { returned }, tmdb?: { returned, ingested, deduped, search_ms, fetch_ms, dedupe_reasons? }, ... }, dedupe_reasons?: { canonical_url?, title_release_date?, title_only? } }, results: [{ ...media_item, source_name?, source_id?, preview_id?, preview_expires_at?, in_collection?, availability_summary? }, ...] }`.
 
@@ -149,14 +149,14 @@ When `expected_updated_at` is supplied and stale, the API responds with `409 Con
 - `GET /api/integrations/arr/queue` - list Arr ingest queue events (auth required, optional `status_filter`).
 - `POST /api/integrations/arr/queue/{event_id}/ingest` - ingest a queued Arr event.
 - `POST /api/integrations/arr/queue/{event_id}/dismiss` - dismiss a queued Arr event.
-- `POST /api/integrations/{provider}/sync` - trigger Jellyfin/Plex sync (provider = `jellyfin` or `plex`).
+- `POST /api/integrations/{provider}/sync` - trigger Jellyfin/Plex sync (provider = `jellyfin` or `plex`). Current sync tasks return a placeholder `pending` status until provider adapters are implemented.
 
 ## Automations
 - `GET /api/automations` - list automation rules.
 - `POST /api/automations` - create a rule.
 - `PATCH /api/automations/{rule_id}` - update a rule.
 - `DELETE /api/automations/{rule_id}` - delete a rule.
-- `POST /api/automations/{rule_id}/run` - trigger a rule run immediately.
+- `POST /api/automations/{rule_id}/run` - trigger a rule run immediately (currently queues a placeholder no-op execution).
 
 ## Tags
 - `GET /api/tags` - list your tags plus global ones.

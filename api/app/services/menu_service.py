@@ -457,12 +457,13 @@ async def create_share_token(
     """Create a draft share token for a menu."""
     token = await _generate_share_token(session)
     ttl_days = getattr(settings, "draft_share_token_ttl_days", 7)
-    default_expires = datetime.utcnow() + timedelta(days=ttl_days) if ttl_days > 0 else None
+    default_expires = datetime.now(timezone.utc) + timedelta(days=ttl_days) if ttl_days > 0 else None
+    normalized_expires = _to_utc(expires_at) if expires_at else default_expires
     share_token = MenuShareToken(
         menu_id=menu.id,
         created_by=created_by,
         token=token,
-        expires_at=expires_at or default_expires,
+        expires_at=normalized_expires,
     )
     session.add(share_token)
     await session.commit()
@@ -488,7 +489,7 @@ async def revoke_share_token(
     if not token:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share token not found")
     if token.revoked_at is None:
-        token.revoked_at = datetime.utcnow()
+        token.revoked_at = datetime.now(timezone.utc)
         await session.commit()
         await session.refresh(token)
     return token
@@ -504,10 +505,10 @@ async def get_menu_by_share_token(
     share_token = result.scalar_one_or_none()
     if not share_token:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if share_token.revoked_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
-    if share_token.expires_at and share_token.expires_at < now:
+    if share_token.expires_at and _to_utc(share_token.expires_at) < now:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link expired")
 
     share_token.last_accessed_at = now

@@ -8,6 +8,11 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - **Composable automations:** Anything you can do manually should be automatable via API/webhooks, enabling “if Jellyfin imports new film, stage a suggested pairing course”.
 - **Privacy-first collaboration:** Logged-in collaboration works without forcing public sharing; revocable session awareness and per-menu visibility are mandatory.
 
+### Plan Adjustments (Dec 2025)
+- Automation rules are stored and runnable via the API, but execution is still a placeholder (queued no-op) while real action adapters are built.
+- Jellyfin/Plex sync requests enqueue successfully, yet provider-specific sync handlers currently return `pending` until connectors are implemented.
+- Availability tracking supports manual upserts and stale marking; automated provider connectors are still planned work.
+
 ## 2. Experience Principles
 1. **Menus over media dumps:** Every workflow reinforces curation—courses, pacing, annotations, share cards.
 2. **Context-rich ingestion:** Show provenance, raw metadata, connector health, and dedupe explanations so trust remains high.
@@ -72,8 +77,8 @@ TODO: draft RFCs for Library + Log, deeper narrative menus (story mode), taste p
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
 - Spotify linking screen + backend credential vault (per-user encrypted store and token rotation). (initial API + UI now in place)
 - Arr suite integration kit: sample docker-compose w/ webhook forwarding, event schemas, automation recipes backed by the worker queue. (webhook intake + ingest queue now available)
-- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers. (sync queue stubs now live)
-- Automation hooks: webhooks + scheduled rules (“When IGDB releases follow list, propose menu update”). (automation rule CRUD now live)
+- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers. (sync queue stubs now live; provider adapters still pending)
+- Automation hooks: webhooks + scheduled rules (“When IGDB releases follow list, propose menu update”). (automation rule CRUD now live; execution adapters still pending)
 
 ### 7.4 Ecosystem & Monetization Experiments (after moderation/abuse controls are defined)
 - ActivityPub/RSS outbox for public menus (Mastodon/WriteFreely friendly).

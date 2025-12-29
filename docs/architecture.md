@@ -7,7 +7,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Edge routing:** The `proxy` service listens on 80/443 with a generated dev certificate, redirects HTTP to HTTPS, auto-rotates self-signed certs via `docker/proxy/entrypoint.sh`, validates `Host` for localhost-only dev use, applies per-route rate limits (auth, ingest, search, public), funnels `/api`/`/docs`/`/health` to `api:8000`, and hands the remaining traffic to `web:3000`.
 - **State:** Postgres owns canonical media (`media_items` + extensions), provenance (`media_sources`), menus/courses/items, tags, per-user states + logs, refresh tokens for session inventory, encrypted integration secrets in `user_credentials`, webhook tokens (`integration_webhook_tokens`), ingest queue entries (`integration_ingest_events`), and automation rules (`automation_rules`). Redis now holds the queue state for ingestion retries, webhook/sync jobs, integrations, and scheduled maintenance while UUIDs remain generated in the API.
 - **Env & secrets:** `.env` is consumed by API, worker, and web; external API keys (Google Books, TMDB v4 bearer, IGDB client/secret, Last.fm) are required for live ingestion.
-- **Not yet present:** ACME/production cert issuance and webhook payload persistence beyond the current stateless handlers.
+- **Not yet present:** ACME/production cert issuance and provider-specific adapters for webhook and sync processing beyond the current queue/persistence scaffolding.
 
 ## Request & Data Flows
 - **Auth:** JWT access/refresh tokens issued at login/register; refresh rotates server-side tokens. Cookies are httpOnly; most CRUD routes depend on `get_current_user`. Session inventory lives at `/api/auth/sessions` with per-session revoke.
@@ -19,18 +19,18 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Taste Profile:** `/api/me/taste-profile` aggregates logs/tags/menus into `user_taste_profiles` with refresh-on-demand caching.
 - **Availability awareness:** provider/region/format entries live in `media_item_availability`; a scheduled job marks stale entries and UI overlays consume summaries.
 - **Community exchange:** menu forks are tracked in `menu_lineage`; draft share links are powered by `menu_share_tokens` and public draft access.
-- **Integrations:** `/api/integrations` manages OAuth and headless tokens, Arr webhooks enqueue ingest events, and manual sync tasks enqueue into the `sync` queue.
+- **Integrations:** `/api/integrations` manages OAuth and headless tokens, Arr webhooks persist payloads into `integration_ingest_events`, and manual sync tasks enqueue into the `sync` queue (provider adapters still pending).
 - **Health/telemetry:** `/health` and `/api/health` return only `{status}` to anonymous callers; authenticated or allowlisted callers also see connector status, repeated failure alerts, and open circuits for ingestion/search fan-out.
 - **Ops/queues:** `/api/ops/queues` (auth + admin allowlist) surfaces Redis/RQ queue sizes, worker presence, scheduler health, and vault encryption status for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
 
 ## Delivery & Ops Dependencies
 - **Migrations:** `alembic upgrade head` is part of boot; initial revision `20240602_000001` creates the full schema.
 - **Tests/fixtures:** Pytest uses async fixtures and sample ingestion payloads; CI runs Ruff + pytest (SQLite) + frontend lint/typecheck plus proxy routing smokes.
-- **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners and long-running sync jobs now have dedicated RQ jobs + queues (`webhooks`, `sync`) and share the same worker pool.
+- **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners and long-running sync jobs now have dedicated RQ jobs + queues (`webhooks`, `sync`) and share the same worker pool (automation runs currently enqueue a placeholder no-op job).
 - **Availability refresh:** rq-scheduler also runs availability refresh to mark stale provider entries until provider connectors are wired.
 - **Security controls:** Route-specific rate limits live at the proxy, session inventory/audit APIs are present, and external payloads now have retention/TTL enforcement (preview cache TTL + raw payload GC); see `docs/security.md` for current risks.
 
 ## Known Gaps to Align With Delivery Plan
 - Finalize production TLS (ACME/managed certs) and continue tuning rate-limit profiles before any public exposure.
-- Expand the Arr/Jellyfin/Spotify webhook listeners and scheduled sync adapters beyond the current scaffolding (webhook intake + queue entries exist) to include real connector logic, retries, and scheduling.
+- Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, but Jellyfin/Plex sync and automation runs are still placeholder responses without provider-specific execution.
 - Validate data-retention defaults (preview TTL + raw payload GC) against licensing policies once external payload sizes are better understood.

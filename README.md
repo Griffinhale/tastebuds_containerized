@@ -5,7 +5,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 ---
 
 ## Current Status (Dec 2025)
-- Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), Redis plus an RQ worker and scheduler (`redis`/`worker`/`scheduler`), the optional Next.js app (`web`), optional PgAdmin, and a local Nginx proxy that fronts the API and UI on port 80/443.
+- Docker Compose runs FastAPI (`api`), Postgres with a seeded test database (`db`), Redis plus an RQ worker and scheduler (`redis`/`worker`/`scheduler`), Next.js (`web`), PgAdmin, and a local Nginx proxy that fronts the API and UI on port 80/443 (omit optional services by selecting targets when you `docker compose up`).
 - The local proxy terminates TLS with a generated dev certificate (auto-rotated via `docker/proxy/entrypoint.sh`, swap for a real cert in prod), enforces route-specific rate limits, redirects HTTP to HTTPS, and surfaces queue/redis health via `/api/ops/queues` (auth required).
 - Auth now stores refresh tokens server-side, rotates them on every `/api/auth/refresh`, and revokes tokens that are reused or logged out so expired sessions are surfaced cleanly.
 - Session inventory: `/api/auth/sessions` lists active/expired refresh tokens for the current user and supports revocation per session; cookies continue to mirror new tokens on rotate/login.
@@ -27,7 +27,7 @@ Tastebuds is a database-first "media diet" curator. Users ingest books, films, g
 
 ## Configure your environment
 ```bash
-cp .env.example .env
+cp example.env .env
 ```
 Set at minimum:
 - `DATABASE_URL` / `TEST_DATABASE_URL` (Compose defaults target `db`)

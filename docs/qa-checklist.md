@@ -3,7 +3,7 @@
 Tastebuds ships Docker-first. Use this checklist for release candidates to confirm the Compose stack, migrations, ingestion layer, and public surfaces stay healthy.
 
 ## 1) Environment & Containers
-- [ ] Copy `.env.example` to `.env` and populate secrets/API keys (Google Books, TMDB via `TMDB_API_AUTH_HEADER` or `TMDB_API_KEY`, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
+- [ ] Copy `example.env` to `.env` and populate secrets/API keys (Google Books, TMDB via `TMDB_API_AUTH_HEADER` or `TMDB_API_KEY`, IGDB, Last.fm) plus `JWT_SECRET_KEY`.
 - [ ] `./scripts/dev.sh up` builds/starts services; `docker compose ps` shows `db` as healthy.
 - [ ] `./scripts/dev.sh migrate` succeeds and reports the latest Alembic revision.
 - [ ] (Optional) `./scripts/dev.sh seed` loads demo data without errors.
@@ -32,6 +32,10 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `/api/auth/refresh` rotates the refresh cookie and rejects the previous cookie (expect 401 if you reuse it); `/api/auth/logout` revokes the most recent refresh token.
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
+- [ ] Availability lifecycle: `PUT /api/media/{media_item_id}/availability` upserts provider entries and `POST /api/media/availability/summary` returns expected counts.
+- [ ] Preview details: authenticated `GET /api/previews/{preview_id}` returns metadata and expires when `preview_expires_at` passes.
+- [ ] Integrations: `POST /api/integrations/arr/webhook-token` returns a URL + prefix, `GET /api/integrations` shows it, and `POST /api/integrations/jellyfin/sync` returns a placeholder `pending` status.
+- [ ] Automations: create a rule and `POST /api/automations/{rule_id}/run` returns `queued` with a placeholder detail payload.
 
 ## 5) Frontend App
 - [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `https://localhost` and reads `.env`.

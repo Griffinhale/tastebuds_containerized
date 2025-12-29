@@ -13,7 +13,13 @@ This document summarizes the current test suites and what each test checks.
 - `session`: creates an isolated async database schema per test, creates tables, and drops everything on teardown.
 - `client`: overrides `get_db` and provides an async HTTP client bound to the FastAPI app.
 
+### `api/app/tests/utils.py`
+- `register_and_login`: helper for creating an authenticated session with a fresh user.
+
 ## Backend suites (pytest)
+### `api/app/tests/test_availability_routes.py`
+- `test_availability_upsert_and_summary`: availability CRUD + summary aggregation.
+
 ### `api/app/tests/test_auth_routes.py`
 - `test_register_and_login_flow`: register returns user + tokens and sets cookies; login returns user + access token cookie.
 - `test_refresh_and_logout_flow`: refresh rotates the refresh cookie, old refresh tokens fail, logout clears cookies and revokes tokens.
@@ -21,6 +27,9 @@ This document summarizes the current test suites and what each test checks.
 ### `api/app/tests/test_auth_sessions.py`
 - `test_session_inventory_and_revoke`: sessions list returns current session; revoke marks it inactive with `revoked_at`.
 - `test_session_revoke_is_scoped_to_owner`: users cannot revoke another user's session (404).
+
+### `api/app/tests/test_automations_routes.py`
+- `test_automation_rule_lifecycle`: create/list/update/run/delete automation rules.
 
 ### `api/app/tests/test_credential_vault.py`
 - `test_credential_vault_store_and_read`: secrets can be stored and retrieved for a provider.
@@ -48,6 +57,9 @@ This document summarizes the current test suites and what each test checks.
 - `test_ingestion_monitor_opens_circuit_after_repeated_failures`: repeated failures open the circuit and record skips/metrics.
 - `test_ingestion_monitor_recovers_after_cooldown_and_success`: cooldown + success resets failure streak and tracks success.
 
+### `api/app/tests/test_integrations_routes.py`
+- `test_integration_status_and_webhook_token`: credentials + webhook token lifecycle reflected in status.
+
 ### `api/app/tests/test_maintenance_jobs.py`
 - `test_prune_media_source_payloads_strips_old_rows`: old raw payloads are redacted with a retention reason.
 - `test_prune_media_source_payloads_can_be_disabled`: retention disabled leaves payloads untouched.
@@ -58,6 +70,10 @@ This document summarizes the current test suites and what each test checks.
 ### `api/app/tests/test_menu_routes_api.py`
 - `test_menu_course_item_flow`: menu/course/item create, list, delete, and final empty-course state.
 - `test_reorder_course_items`: reorder endpoint returns items in the requested order.
+
+### `api/app/tests/test_menu_collaboration.py`
+- `test_menu_share_tokens_and_public_draft`: draft share token creation and public access lifecycle.
+- `test_menu_pairings_and_lineage`: pairings CRUD plus fork lineage summaries.
 
 ### `api/app/tests/test_menu_service.py`
 - `test_menu_slug_uniqueness`: duplicate titles yield unique slugs with numeric suffixes.
@@ -70,6 +86,9 @@ This document summarizes the current test suites and what each test checks.
 ### `api/app/tests/test_ops.py`
 - `test_ops_requires_auth`: unauthenticated requests to `/api/ops/queues` are rejected.
 - `test_ops_snapshot_with_auth`: admin allowlisted user receives status, queues, and vault in the snapshot.
+
+### `api/app/tests/test_previews.py`
+- `test_preview_detail_scoped_and_expires`: preview details enforce ownership + TTL.
 
 ### `api/app/tests/test_public_menu.py`
 - `test_public_menu_lookup`: only public menus resolve by slug.
@@ -99,7 +118,13 @@ This document summarizes the current test suites and what each test checks.
 - `test_tag_lifecycle`: tag create/list/attach/remove/delete flows work.
 - `test_tag_access_control`: non-owners cannot tag media they do not own.
 
+### `api/app/tests/test_taste_profile.py`
+- `test_taste_profile_builds_from_logs_tags_and_menus`: taste profile aggregates menus, logs, and tags.
+
 ### `api/app/tests/test_tmdb_connector.py`
 - `test_tmdb_auth_prefers_bearer`: bearer auth header takes precedence over API key.
 - `test_tmdb_auth_uses_api_key_when_header_missing`: API key is used when bearer is absent.
 - `test_tmdb_auth_errors_without_credentials`: missing credentials raises an error.
+
+### `api/app/tests/test_user_states.py`
+- `test_user_state_upsert_and_list`: upserts state and lists updated values.
