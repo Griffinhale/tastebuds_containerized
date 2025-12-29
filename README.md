@@ -6,14 +6,8 @@ normalized catalog.
 
 Start here: `docs/index.md` (canonical docs map, architecture, security, tests).
 
-## Quickstart (Docker)
-```bash
-cp example.env .env
-./scripts/dev.sh up
-./scripts/dev.sh migrate
-# optional demo data
-./scripts/dev.sh seed
-```
+## Quickstart
+See `docs/index.md` for Docker and local setup steps.
 UI: `https://localhost` (proxy)  
 API: `https://localhost/api` (OpenAPI at `/docs`)
 

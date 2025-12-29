@@ -38,14 +38,19 @@ canonical contract; `docs/api.md` is a usage guide, not an endpoint catalog.
 - Architecture + flows: `architecture.md`
 - API usage guide: `api.md`
 - Schema overview: `schema.md`
+- Data lifecycle + retention: `data-lifecycle.md`
+- Configuration + env vars: `config.md`
+- Ops runbook: `ops-runbook.md`
+- Migrations: `migrations.md`
 - Security: `security/threat-model.md`
 - Production hardening checklist: `security/production-hardening.md`
 - Security backlog: `security/backlog.md`
 - Attribute mapping + manifests: `attribute-mapping.md`
+- Connector guide: `integrations/connector-guide.md`
 - Tests + suites: `tests.md`
 - Release QA checklist: `qa-checklist.md`
 - ADRs (decisions): `decisions/README.md`
-- Product plan: `plan.md`
+- Product roadmap: `product/roadmap.md`
 
 ## Decision Records
 Any cross-cutting policy change requires an ADR.
