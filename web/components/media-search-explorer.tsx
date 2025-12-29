@@ -17,6 +17,8 @@ const typeOptions: { label: string; value: MediaType }[] = [
   { label: 'Music', value: 'music' },
 ];
 
+const EXTERNAL_RESULTS_PER_SOURCE = 4;
+
 // Keyword/prompt chips are intentionally omitted until the search API supports reliable keyword filters
 // (e.g., add a `keywords` array to the search payload and map chip selections to that field).
 
@@ -24,11 +26,22 @@ type SearchResultItem = MediaSearchItem & {
   resolved_media_id?: string;
 };
 
+type SortOption = 'title-asc' | 'title-desc' | 'release-desc' | 'release-asc' | 'search';
+
+const sortOptions: { label: string; value: SortOption }[] = [
+  { label: 'Title (A-Z)', value: 'title-asc' },
+  { label: 'Title (Z-A)', value: 'title-desc' },
+  { label: 'Release date (newest)', value: 'release-desc' },
+  { label: 'Release date (oldest)', value: 'release-asc' },
+  { label: 'Search order', value: 'search' },
+];
+
 export function MediaSearchExplorer() {
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
-  const [includeExternal, setIncludeExternal] = useState(true);
+  const [includeExternal, setIncludeExternal] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOption>('title-asc');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -41,7 +54,8 @@ export function MediaSearchExplorer() {
 
   const resultSummary = useMemo(() => {
     if (searching) return 'Searching...';
-    if (!hasSearched) return 'Use the query box to explore your catalog or external feeds.';
+    if (!hasSearched)
+      return 'Use the query box to explore your catalog. Toggle external sources as needed.';
     if (results.length === 0) return 'No matches yet. Try a different phrase or toggle sources.';
     const paging = metadata?.paging as { page?: number } | undefined;
     const pageNumber = paging?.page ?? 1;
@@ -54,6 +68,43 @@ export function MediaSearchExplorer() {
     if (!metadata?.counts) return [] as [string, string][];
     return Object.entries(metadata.counts).map(([key, value]) => [key, String(value)]);
   }, [metadata]);
+
+  const sortedResults = useMemo(() => {
+    if (sortOrder === 'search') {
+      return results;
+    }
+    const items = [...results];
+    const titleCompare = (left: SearchResultItem, right: SearchResultItem) =>
+      left.title.localeCompare(right.title, undefined, { sensitivity: 'base' });
+    const releaseTimestamp = (value?: string | null) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    };
+    if (sortOrder === 'title-asc') {
+      items.sort(titleCompare);
+      return items;
+    }
+    if (sortOrder === 'title-desc') {
+      items.sort((left, right) => titleCompare(right, left));
+      return items;
+    }
+    const descending = sortOrder === 'release-desc';
+    items.sort((left, right) => {
+      const leftTime = releaseTimestamp(left.release_date);
+      const rightTime = releaseTimestamp(right.release_date);
+      if (leftTime === null && rightTime === null) {
+        return titleCompare(left, right);
+      }
+      if (leftTime === null) return 1;
+      if (rightTime === null) return -1;
+      if (leftTime === rightTime) {
+        return titleCompare(left, right);
+      }
+      return descending ? rightTime - leftTime : leftTime - rightTime;
+    });
+    return items;
+  }, [results, sortOrder]);
 
   function toggleType(value: MediaType) {
     setSelectedTypes((current) =>
@@ -78,7 +129,7 @@ export function MediaSearchExplorer() {
         includeExternal,
         types: selectedTypes.length ? selectedTypes : undefined,
         perPage: 9,
-        externalPerSource: 2,
+        externalPerSource: EXTERNAL_RESULTS_PER_SOURCE,
       });
       const normalized = response.results.map((item) => ({
         ...item,
@@ -210,9 +261,23 @@ export function MediaSearchExplorer() {
             <p className="text-sm font-semibold text-white">Results</p>
             <p className="text-xs text-slate-300">{resultSummary}</p>
           </div>
-          {metadataEntries.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-              {metadataEntries.slice(0, 3).map(([key, value]) => (
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+            <label className="flex items-center gap-2">
+              <span className="uppercase tracking-wide text-slate-400">Sort</span>
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value as SortOption)}
+                className="rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-xs text-white"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-950">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {metadataEntries.length > 0 &&
+              metadataEntries.slice(0, 3).map(([key, value]) => (
                 <span
                   key={key}
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
@@ -220,8 +285,7 @@ export function MediaSearchExplorer() {
                   {key}: {value}
                 </span>
               ))}
-            </div>
-          )}
+          </div>
         </div>
 
         {error && <StateCard tone="error" title="Search failed" description={error} />}
@@ -234,7 +298,7 @@ export function MediaSearchExplorer() {
         {!error && !hasSearched && (
           <StateCard
             title="No query yet"
-            description="Start typing above to preview matches from your catalog and external sources."
+            description="Start typing above to preview matches from your catalog. Toggle external sources to expand."
           />
         )}
         {!error && hasSearched && results.length === 0 && (
@@ -246,7 +310,7 @@ export function MediaSearchExplorer() {
 
         {results.length > 0 && (
           <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {results.map((item) => (
+            {sortedResults.map((item) => (
               <MediaResultCard
                 key={item.id}
                 item={item}

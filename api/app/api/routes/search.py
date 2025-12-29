@@ -225,6 +225,8 @@ async def search(
         source_parts.append("external")
     source_label = "+".join(source_parts) if source_parts else "none"
 
+    # TODO(search-relevance): Replace deterministic ordering with relevance scoring once query parsing is designed
+    # (e.g., weighted Postgres FTS rank + trigram similarity, with optional recency/embedding boosts).
     def _sort_key(hit: AggregatedSearchHit) -> tuple[Any, ...]:
         release_key: date | None = hit.item.release_date if isinstance(hit.item.release_date, date) else None
         return (

@@ -206,12 +206,7 @@ export function HomeDashboard() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {pinnedModules.map((module) => (
-                  <ModuleToggle
-                    key={module.id}
-                    module={module}
-                    pinned
-                    onToggle={togglePinned}
-                  />
+                  <ModuleToggle key={module.id} module={module} pinned onToggle={togglePinned} />
                 ))}
               </div>
             )}
@@ -284,7 +279,9 @@ function ModuleToggle({
           <p className="text-sm font-semibold text-white">{module.label}</p>
           <p className="mt-1 text-xs text-slate-300">{module.description}</p>
         </div>
-        <span className={`text-[10px] font-semibold ${pinned ? 'text-emerald-200' : 'text-slate-400'}`}>
+        <span
+          className={`text-[10px] font-semibold ${pinned ? 'text-emerald-200' : 'text-slate-400'}`}
+        >
           {pinned ? 'Pinned' : 'Pin'}
         </span>
       </div>

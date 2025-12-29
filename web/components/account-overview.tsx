@@ -75,9 +75,7 @@ export function AccountOverview() {
                 key={detail.label}
                 className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2"
               >
-                <p className="text-[10px] uppercase tracking-wide text-slate-500">
-                  {detail.label}
-                </p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">{detail.label}</p>
                 <p className="text-xs font-semibold text-white">{detail.value}</p>
               </div>
             ))}
@@ -115,9 +113,7 @@ export function AccountOverview() {
             Manage sessions
           </button>
         </div>
-        <p className="mt-3 text-[11px] text-slate-400">
-          Self-service updates are coming soon.
-        </p>
+        <p className="mt-3 text-[11px] text-slate-400">Self-service updates are coming soon.</p>
       </section>
     </div>
   );

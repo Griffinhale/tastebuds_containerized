@@ -43,12 +43,23 @@ const promptSuggestions = [
 ];
 
 const RESULTS_PER_PAGE = 10;
-const EXTERNAL_RESULTS_PER_SOURCE = 2;
+const EXTERNAL_RESULTS_PER_SOURCE = 4;
+
+type SortOption = 'title-asc' | 'title-desc' | 'release-desc' | 'release-asc' | 'search';
+
+const sortOptions: { label: string; value: SortOption }[] = [
+  { label: 'Title (A-Z)', value: 'title-asc' },
+  { label: 'Title (Z-A)', value: 'title-desc' },
+  { label: 'Release date (newest)', value: 'release-desc' },
+  { label: 'Release date (oldest)', value: 'release-asc' },
+  { label: 'Search order', value: 'search' },
+];
 
 export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchProps) {
   const [query, setQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
-  const [includeExternal, setIncludeExternal] = useState(true);
+  const [includeExternal, setIncludeExternal] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOption>('title-asc');
   const [results, setResults] = useState<MediaSearchItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -141,6 +152,43 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     return 'border-red-500/50 bg-red-500/10 text-red-100';
   };
 
+  const sortedResults = useMemo(() => {
+    if (sortOrder === 'search') {
+      return results;
+    }
+    const items = [...results];
+    const titleCompare = (left: MediaSearchItem, right: MediaSearchItem) =>
+      left.title.localeCompare(right.title, undefined, { sensitivity: 'base' });
+    const releaseTimestamp = (value?: string | null) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    };
+    if (sortOrder === 'title-asc') {
+      items.sort(titleCompare);
+      return items;
+    }
+    if (sortOrder === 'title-desc') {
+      items.sort((left, right) => titleCompare(right, left));
+      return items;
+    }
+    const descending = sortOrder === 'release-desc';
+    items.sort((left, right) => {
+      const leftTime = releaseTimestamp(left.release_date);
+      const rightTime = releaseTimestamp(right.release_date);
+      if (leftTime === null && rightTime === null) {
+        return titleCompare(left, right);
+      }
+      if (leftTime === null) return 1;
+      if (rightTime === null) return -1;
+      if (leftTime === rightTime) {
+        return titleCompare(left, right);
+      }
+      return descending ? rightTime - leftTime : leftTime - rightTime;
+    });
+    return items;
+  }, [results, sortOrder]);
+
   const resultSummary = useMemo(() => {
     if (searching) {
       return 'Searching...';
@@ -157,6 +205,13 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     const sourceLabel = formatSearchSource(source ?? 'internal');
     return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${pageSuffix} (${sourceLabel})`;
   }, [currentPage, hasSearched, metadata, results.length, searching, source]);
+
+  const searchingTitle = includeExternal
+    ? 'Searching catalog & connectors...'
+    : 'Searching catalog...';
+  const searchingDescription = includeExternal
+    ? 'Pulling internal matches, then fanning out to Google Books, TMDB, IGDB, and Last.fm.'
+    : 'Pulling internal matches from your catalog. Toggle external sources to fan out.';
 
   const toggleType = (value: MediaType) => {
     setSelectedTypes((prev) =>
@@ -436,20 +491,36 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         aria-labelledby={`${resultsHeadingId} ${statusRegionId}`}
         aria-busy={searching || loadingMore}
       >
-        <p
-          id={resultsHeadingId}
-          className="text-xs font-semibold uppercase tracking-wide text-slate-400"
-        >
-          Results
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p
+            id={resultsHeadingId}
+            className="text-xs font-semibold uppercase tracking-wide text-slate-400"
+          >
+            Results
+          </p>
+          <label className="flex items-center gap-2 text-[11px] text-slate-300">
+            <span className="uppercase tracking-wide text-slate-500">Sort</span>
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as SortOption)}
+              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value} className="bg-slate-950">
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <p id={statusRegionId} className="text-xs text-slate-400" role="status" aria-live="polite">
           {resultSummary}
         </p>
         {searching && !loadingMore && (
           <DrawerStateCard
             tone="info"
-            title="Searching catalog & connectors…"
-            description="Pulling internal matches, then fanning out to Google Books, TMDB, IGDB, and Last.fm."
+            title={searchingTitle}
+            description={searchingDescription}
             role="status"
             ariaLive="polite"
             showSpinner
@@ -514,7 +585,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
 
       {results.length > 0 && (
         <ul className="space-y-3" id={resultsListId} aria-live="polite" aria-label="Search results">
-          {results.map((item) => (
+          {sortedResults.map((item) => (
             <li key={item.id} className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex items-start gap-3">
