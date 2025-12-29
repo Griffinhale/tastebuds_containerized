@@ -2,8 +2,8 @@
 
 // Menu dashboard with local optimistic updates and drag-and-drop ordering.
 
-import Link from 'next/link';
 import { DragEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+
 import {
   CreateCourseInput,
   CreateCourseItemInput,
@@ -11,43 +11,29 @@ import {
   Course,
   CourseItem,
   Menu,
-  MenuItemPairing,
-  MenuLineage,
-  MenuPairingInput,
-  MenuShareToken,
   createCourse,
   createCourseItem,
   createMenu,
-  createMenuPairing,
-  createMenuShareToken,
   deleteCourse,
   deleteCourseItem,
-  deleteMenuPairing,
-  getMenuItemCount,
-  getMenuLineage,
   getMenu,
+  getMenuItemCount,
   listMenus,
   reorderCourseItems,
   updateCourse,
   updateCourseItem,
 } from '../lib/menus';
+import { ApiError } from '../lib/api';
 import { CourseItemSearch } from './course-item-search';
-import { apiFetch, ApiError } from '../lib/api';
-
-type SpotifyExportResponse = {
-  playlist_id: string;
-  playlist_url: string;
-  tracks_added: number;
-  tracks_skipped: number;
-  tracks_not_found: string[];
-  imported_tracks: number;
-};
 
 export function MenuDashboard() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState<'stacked' | 'sidebar'>('stacked');
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const replaceMenu = useCallback((menu: Menu) => {
     setMenus((current) => current.map((existing) => (existing.id === menu.id ? menu : existing)));
@@ -96,57 +82,96 @@ export function MenuDashboard() {
   );
 
   useEffect(() => {
+    if (menus.length && !activeMenuId) {
+      setActiveMenuId(menus[0].id);
+    } else if (activeMenuId && !menus.find((menu) => menu.id === activeMenuId)) {
+      setActiveMenuId(menus[0]?.id ?? null);
+    }
+  }, [activeMenuId, menus]);
+
+  useEffect(() => {
     fetchMenus();
   }, [fetchMenus]);
 
   const statusText = useMemo(() => {
     if (loading) return 'Loading menus...';
     if (error) return error;
-    if (!menus.length) return 'No menus yet. Use the form below to create your first one.';
+    if (!menus.length) return 'No menus yet. Create one to start adding courses.';
     return `Showing ${menus.length} menu${menus.length === 1 ? '' : 's'}.`;
   }, [menus, loading, error]);
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-        <div className="flex items-center justify-between">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-emerald-300">Your menus</p>
+            <p className="text-sm font-semibold text-emerald-300">Menus</p>
             <p className="text-sm text-slate-200">{statusText}</p>
+            {lastUpdated && !loading && !error && (
+              <p className="mt-1 text-xs text-slate-400">
+                Last updated {lastUpdated.toLocaleTimeString()}
+              </p>
+            )}
           </div>
-          <button
-            onClick={fetchMenus}
-            disabled={loading}
-            className="text-sm text-emerald-300 underline decoration-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Refresh
-          </button>
-        </div>
-        {lastUpdated && !loading && !error && (
-          <p className="mt-2 text-xs text-slate-400">
-            Last updated {lastUpdated.toLocaleTimeString()}
-          </p>
-        )}
-
-        {!loading && !error && menus.length > 0 && (
-          <ul className="mt-4 space-y-4">
-            {menus.map((menu) => (
-              <MenuCard
-                key={menu.id}
-                menu={menu}
-                onRefresh={() => refreshMenu(menu.id)}
-                onMenuMutate={(updater) => mutateMenu(menu.id, updater)}
+          <div className="flex flex-wrap items-center gap-2">
+            {menus.length > 0 && (
+              <ViewToggle
+                value={viewMode}
+                onChange={(mode) => {
+                  setViewMode(mode);
+                  if (mode === 'stacked') {
+                    setExpandedMenus([]);
+                  } else if (mode === 'sidebar' && menus.length) {
+                    setActiveMenuId((current) => current ?? menus[0].id);
+                  }
+                }}
               />
-            ))}
-          </ul>
-        )}
+            )}
+            <button
+              onClick={fetchMenus}
+              disabled={loading}
+              className="rounded-md border border-emerald-400/50 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
 
         {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+
+        {!loading && !error && menus.length > 0 && (
+          <>
+            {viewMode === 'sidebar' ? (
+              <SidebarMenuBrowser
+                menus={menus}
+                activeMenuId={activeMenuId}
+                onSelect={(menuId) => setActiveMenuId(menuId)}
+                onRefresh={(menuId) => refreshMenu(menuId)}
+                onMenuMutate={(menuId, updater) => mutateMenu(menuId, updater)}
+              />
+            ) : (
+              <StackedMenuList
+                menus={menus}
+                expandedMenus={expandedMenus}
+                onToggle={(menuId) =>
+                  setExpandedMenus((current) =>
+                    current.includes(menuId)
+                      ? current.filter((id) => id !== menuId)
+                      : [...current, menuId]
+                  )
+                }
+                onRefresh={(menuId) => refreshMenu(menuId)}
+                onMenuMutate={(menuId, updater) => mutateMenu(menuId, updater)}
+              />
+            )}
+          </>
+        )}
       </section>
 
       <CreateMenuForm
         onCreated={(menu) => {
           setMenus((prev) => [menu, ...prev]);
+          setActiveMenuId(menu.id);
           setError(null);
           setLastUpdated(new Date());
         }}
@@ -155,7 +180,197 @@ export function MenuDashboard() {
   );
 }
 
-function MenuCard({
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: 'stacked' | 'sidebar';
+  onChange: (mode: 'stacked' | 'sidebar') => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 p-1 text-xs">
+      <button
+        type="button"
+        onClick={() => onChange('stacked')}
+        className={`rounded-full px-3 py-1 font-semibold transition ${
+          value === 'stacked'
+            ? 'bg-emerald-500/20 text-emerald-100'
+            : 'text-slate-300 hover:text-emerald-100'
+        }`}
+      >
+        Stacked
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('sidebar')}
+        className={`rounded-full px-3 py-1 font-semibold transition ${
+          value === 'sidebar'
+            ? 'bg-emerald-500/20 text-emerald-100'
+            : 'text-slate-300 hover:text-emerald-100'
+        }`}
+      >
+        Sidebar
+      </button>
+    </div>
+  );
+}
+
+function StackedMenuList({
+  menus,
+  expandedMenus,
+  onToggle,
+  onRefresh,
+  onMenuMutate,
+}: {
+  menus: Menu[];
+  expandedMenus: string[];
+  onToggle: (menuId: string) => void;
+  onRefresh: (menuId: string) => Promise<void>;
+  onMenuMutate: (menuId: string, updater: (menu: Menu) => Menu) => void;
+}) {
+  return (
+    <ul className="mt-4 space-y-3">
+      {menus.map((menu) => (
+        <MenuAccordionCard
+          key={menu.id}
+          menu={menu}
+          expanded={expandedMenus.includes(menu.id)}
+          onToggle={() => onToggle(menu.id)}
+          onRefresh={() => onRefresh(menu.id)}
+          onMenuMutate={(updater) => onMenuMutate(menu.id, updater)}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function MenuAccordionCard({
+  menu,
+  expanded,
+  onToggle,
+  onRefresh,
+  onMenuMutate,
+}: {
+  menu: Menu;
+  expanded: boolean;
+  onToggle: () => void;
+  onRefresh: () => Promise<void>;
+  onMenuMutate: (updater: (menu: Menu) => Menu) => void;
+}) {
+  const courseCount = menu.courses.length || 0;
+  const itemCount = getMenuItemCount(menu);
+
+  return (
+    <li className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 shadow-sm shadow-emerald-500/5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start justify-between gap-3 text-left"
+        aria-expanded={expanded}
+      >
+        <div className="flex items-start gap-3">
+          <ChevronIcon expanded={expanded} />
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">Menu</p>
+            <h3 className="text-lg font-semibold text-white">{menu.title}</h3>
+            {menu.description && (
+              <p className="text-sm text-slate-300 line-clamp-2">{menu.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end text-xs text-slate-400">
+          <span>
+            {courseCount} course{courseCount === 1 ? '' : 's'}
+          </span>
+          <span>{itemCount} items</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 border-t border-slate-800 pt-4">
+          <MenuCoursesSection menu={menu} onRefresh={onRefresh} onMenuMutate={onMenuMutate} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+function SidebarMenuBrowser({
+  menus,
+  activeMenuId,
+  onSelect,
+  onRefresh,
+  onMenuMutate,
+}: {
+  menus: Menu[];
+  activeMenuId: string | null;
+  onSelect: (menuId: string) => void;
+  onRefresh: (menuId: string) => Promise<void>;
+  onMenuMutate: (menuId: string, updater: (menu: Menu) => Menu) => void;
+}) {
+  const activeMenu = menus.find((menu) => menu.id === activeMenuId);
+
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[260px,1fr]">
+      <aside className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+        <p className="text-xs uppercase tracking-wide text-slate-400">Menus</p>
+        <div className="mt-3 space-y-2">
+          {menus.map((menu) => {
+            const isActive = menu.id === activeMenuId;
+            return (
+              <button
+                key={menu.id}
+                type="button"
+                onClick={() => onSelect(menu.id)}
+                className={`flex w-full flex-col items-start rounded-lg border px-3 py-2 text-left transition ${
+                  isActive
+                    ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100'
+                    : 'border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-700'
+                }`}
+              >
+                <span className="text-sm font-semibold">{menu.title}</span>
+                <span className="text-[11px] text-slate-400">
+                  {menu.courses.length} course{menu.courses.length === 1 ? '' : 's'} ·{' '}
+                  {getMenuItemCount(menu)} items
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+        {activeMenu ? (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Menu</p>
+                <h3 className="text-xl font-semibold text-white">{activeMenu.title}</h3>
+                {activeMenu.description && (
+                  <p className="text-sm text-slate-300">{activeMenu.description}</p>
+                )}
+              </div>
+              <div className="text-xs text-slate-400">
+                {activeMenu.courses.length} course{activeMenu.courses.length === 1 ? '' : 's'} ·{' '}
+                {getMenuItemCount(activeMenu)} items
+              </div>
+            </div>
+            <div className="mt-4 border-t border-slate-800 pt-4">
+              <MenuCoursesSection
+                menu={activeMenu}
+                onRefresh={() => onRefresh(activeMenu.id)}
+                onMenuMutate={(updater) => onMenuMutate(activeMenu.id, updater)}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-slate-300">Select a menu to view its courses.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MenuCoursesSection({
   menu,
   onRefresh,
   onMenuMutate,
@@ -164,6 +379,8 @@ function MenuCard({
   onRefresh: () => Promise<void>;
   onMenuMutate: (updater: (menu: Menu) => Menu) => void;
 }) {
+  const [showAddCourse, setShowAddCourse] = useState(false);
+
   const handleCourseUpdated = useCallback(
     (updatedCourse: Course) => {
       onMenuMutate((current) => ({
@@ -192,500 +409,87 @@ function MenuCard({
         ...current,
         courses: [...current.courses, newCourse].sort((a, b) => a.position - b.position),
       }));
+      setShowAddCourse(false);
     },
     [onMenuMutate]
   );
 
   return (
-    <li className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 shadow-sm shadow-emerald-500/5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Slug: {menu.slug}</p>
-          <h3 className="text-lg font-semibold text-white">{menu.title}</h3>
-          {menu.description && <p className="text-sm text-slate-200">{menu.description}</p>}
+          <p className="text-xs uppercase tracking-wide text-emerald-300">Courses</p>
+          <p className="text-sm text-slate-300">
+            Focus on ordering and annotations without leaving this view.
+          </p>
         </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          <VisibilityBadge isPublic={menu.is_public} />
-          {menu.is_public && (
-            <Link
-              href={`/menus/${menu.slug}`}
-              className="text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
-            >
-              View public page
-            </Link>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddCourse((prev) => !prev)}
+            className="rounded-md border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/10"
+          >
+            {showAddCourse ? 'Close add course' : 'Add course'}
+          </button>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/70 hover:text-emerald-100"
+          >
+            Refresh menu
+          </button>
         </div>
       </div>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-4">
-        <InfoItem label="Courses" value={menu.courses.length || 0} />
-        <InfoItem label="Items" value={getMenuItemCount(menu)} />
-        <InfoItem label="Created" value={new Date(menu.created_at).toLocaleDateString()} />
-        <InfoItem label="Updated" value={new Date(menu.updated_at).toLocaleDateString()} />
-      </dl>
 
-      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <p className="text-xs uppercase tracking-wide text-emerald-200">Menu workflow</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
-          <span className="rounded-full border border-slate-800 px-3 py-1">1. Search & ingest</span>
-          <span className="rounded-full border border-slate-800 px-3 py-1">2. Add & annotate</span>
-          <span className="rounded-full border border-slate-800 px-3 py-1">3. Reorder</span>
-          <span className="rounded-full border border-slate-800 px-3 py-1">4. Share</span>
-        </div>
-        <p className="mt-2 text-xs text-slate-400">
-          Use the course panels below to search, add notes, and reorder items before sharing.
+      {menu.courses.length === 0 && (
+        <p className="text-sm text-slate-300">
+          No courses yet. Select &quot;Add course&quot; to start building this menu.
         </p>
-      </div>
+      )}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <DraftSharePanel menuId={menu.id} menuSlug={menu.slug} isPublic={menu.is_public} />
-        <LineageSummary menuId={menu.id} />
-      </div>
+      {menu.courses.map((course) => (
+        <CourseEditor
+          key={course.id}
+          course={course}
+          menuId={menu.id}
+          onRefresh={onRefresh}
+          onCourseUpdated={handleCourseUpdated}
+          onCourseRemoved={() => handleCourseRemoved(course.id)}
+        />
+      ))}
 
-      <SpotifyExportPanel menuId={menu.id} menuTitle={menu.title} />
-
-      <div className="mt-6 space-y-4">
-        <p className="text-sm font-semibold text-emerald-300">Courses</p>
-        {menu.courses.length === 0 && (
-          <p className="text-sm text-slate-300">No courses yet. Add one to begin ordering items.</p>
-        )}
-        {menu.courses.map((course) => (
-          <CourseEditor
-            key={course.id}
-            course={course}
-            menuId={menu.id}
-            onRefresh={onRefresh}
-            onCourseUpdated={handleCourseUpdated}
-            onCourseRemoved={() => handleCourseRemoved(course.id)}
-          />
-        ))}
+      {showAddCourse && (
         <AddCourseForm
           menuId={menu.id}
           nextPosition={menu.courses.length + 1}
           onCourseAdded={handleCourseAdded}
         />
-        <PairingsPanel menu={menu} onMenuMutate={onMenuMutate} />
-      </div>
-    </li>
-  );
-}
-
-function DraftSharePanel({
-  menuId,
-  menuSlug,
-  isPublic,
-}: {
-  menuId: string;
-  menuSlug: string;
-  isPublic: boolean;
-}) {
-  const [token, setToken] = useState<MenuShareToken | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const shareBase =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_APP_BASE_URL || 'http://localhost:3000';
-
-  const shareUrl = token ? `${shareBase.replace(/\/$/, '')}/menus/draft/${token.token}` : '';
-
-  async function handleCreateToken() {
-    if (creating) return;
-    setCreating(true);
-    setError(null);
-    try {
-      const created = await createMenuShareToken(menuId);
-      setToken(created);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create share link.';
-      setError(message);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleCopy() {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Copy failed.';
-      setError(message);
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-300">Draft share link</p>
-          <p className="text-xs text-slate-300">
-            Generate a private preview link before publishing.
-          </p>
-        </div>
-        <button
-          onClick={handleCreateToken}
-          className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
-          disabled={creating}
-        >
-          {creating ? 'Creating...' : 'Create link'}
-        </button>
-      </div>
-      {token && (
-        <div className="mt-3 space-y-2 text-xs text-slate-200">
-          <p className="break-all">{shareUrl}</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleCopy}
-              className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-100"
-            >
-              {copied ? 'Copied!' : 'Copy link'}
-            </button>
-            {isPublic && menuSlug && (
-              <Link
-                href={`/menus/${menuSlug}`}
-                className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-100"
-              >
-                View public page
-              </Link>
-            )}
-          </div>
-          {token.expires_at && (
-            <p className="text-[11px] text-slate-400">
-              Expires {new Date(token.expires_at).toLocaleString()}
-            </p>
-          )}
-        </div>
-      )}
-      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
-    </div>
-  );
-}
-
-function SpotifyExportPanel({ menuId, menuTitle }: { menuId: string; menuTitle: string }) {
-  const [playlistName, setPlaylistName] = useState(menuTitle);
-  const [publicPlaylist, setPublicPlaylist] = useState(false);
-  const [importTracks, setImportTracks] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setPlaylistName(menuTitle);
-  }, [menuTitle]);
-
-  async function handleExport() {
-    if (exporting) return;
-    setExporting(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const response = await apiFetch<SpotifyExportResponse>(
-        `/integrations/spotify/menus/${menuId}/export`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            playlist_name: playlistName || menuTitle,
-            public: publicPlaylist,
-            import_tracks: importTracks,
-          }),
-        }
-      );
-      setPlaylistUrl(response.playlist_url || null);
-      setStatus(`Created playlist with ${response.tracks_added} tracks.`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Spotify export failed.');
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  return (
-    <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-emerald-300">Spotify export</p>
-          <p className="text-xs text-slate-300">
-            Push music courses into a Spotify playlist once your account is linked.
-          </p>
-        </div>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
-        >
-          {exporting ? 'Exporting...' : 'Export menu'}
-        </button>
-      </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <label className="space-y-1 text-xs text-slate-300">
-          <span>Playlist name</span>
-          <input
-            value={playlistName}
-            onChange={(event) => setPlaylistName(event.target.value)}
-            className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-xs text-slate-300">
-          <input
-            type="checkbox"
-            checked={publicPlaylist}
-            onChange={(event) => setPublicPlaylist(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-400"
-          />
-          Public playlist
-        </label>
-        <label className="flex items-center gap-2 text-xs text-slate-300">
-          <input
-            type="checkbox"
-            checked={importTracks}
-            onChange={(event) => setImportTracks(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-400"
-          />
-          Import tracks into Tastebuds
-        </label>
-      </div>
-      {playlistUrl && (
-        <a
-          href={playlistUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-block text-xs font-semibold text-emerald-300 underline decoration-emerald-300/60"
-        >
-          Open playlist
-        </a>
-      )}
-      {status && <p className="mt-2 text-xs text-slate-200">{status}</p>}
-      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
-    </div>
-  );
-}
-
-function LineageSummary({ menuId }: { menuId: string }) {
-  const [lineage, setLineage] = useState<MenuLineage | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    getMenuLineage(menuId)
-      .then((data) => {
-        if (!mounted) return;
-        setLineage(data);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        const message = err instanceof Error ? err.message : 'Failed to load lineage.';
-        setError(message);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [menuId]);
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-200">
-      <p className="text-sm font-semibold text-emerald-300">Lineage</p>
-      {error && <p className="mt-2 text-red-300">{error}</p>}
-      {!error && lineage?.source_menu?.menu && (
-        <p className="mt-2">
-          Forked from{' '}
-          <span className="font-semibold text-emerald-200">{lineage.source_menu.menu.title}</span>
-        </p>
-      )}
-      {!error && (
-        <p className="mt-2 text-[11px] text-slate-400">Forks: {lineage?.fork_count ?? 0}</p>
       )}
     </div>
   );
 }
 
-function PairingsPanel({
-  menu,
-  onMenuMutate,
-}: {
-  menu: Menu;
-  onMenuMutate: (updater: (menu: Menu) => Menu) => void;
-}) {
-  const items = useMemo(
-    () =>
-      menu.courses.flatMap((course) =>
-        course.items.map((item) => ({
-          id: item.id,
-          label: `Course ${course.position}: ${item.media_item?.title || 'Untitled'}`,
-        }))
-      ),
-    [menu.courses]
-  );
-
-  const [draft, setDraft] = useState<MenuPairingInput>({
-    primary_course_item_id: items[0]?.id ?? '',
-    paired_course_item_id: items[1]?.id ?? '',
-    relationship: '',
-    note: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!items.length) return;
-    setDraft((current) => ({
-      ...current,
-      primary_course_item_id: current.primary_course_item_id || items[0]?.id || '',
-      paired_course_item_id: current.paired_course_item_id || items[1]?.id || '',
-    }));
-  }, [items]);
-
-  async function handleCreatePairing(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft.primary_course_item_id || !draft.paired_course_item_id) {
-      setError('Select two items to pair.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const pairing = await createMenuPairing(menu.id, draft);
-      onMenuMutate((current) => ({
-        ...current,
-        pairings: [...(current.pairings ?? []), pairing],
-      }));
-      setDraft((current) => ({ ...current, relationship: '', note: '' }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create pairing.';
-      setError(message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeletePairing(pairing: MenuItemPairing) {
-    setError(null);
-    try {
-      await deleteMenuPairing(menu.id, pairing.id);
-      onMenuMutate((current) => ({
-        ...current,
-        pairings: (current.pairings ?? []).filter((item) => item.id !== pairing.id),
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete pairing.';
-      setError(message);
-    }
-  }
-
+function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-300">Narrative pairings</p>
-          <p className="text-xs text-slate-300">Link items to reinforce a story arc.</p>
-        </div>
-      </div>
-      {menu.pairings && menu.pairings.length > 0 && (
-        <ul className="mt-3 space-y-2 text-xs text-slate-200">
-          {menu.pairings.map((pairing) => (
-            <li key={pairing.id} className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold text-white">
-                  {pairing.primary_item?.media_item?.title || 'Untitled'} {' <-> '}
-                  {pairing.paired_item?.media_item?.title || 'Untitled'}
-                </p>
-                {pairing.relationship && (
-                  <p className="text-[11px] uppercase tracking-wide text-emerald-200">
-                    {pairing.relationship}
-                  </p>
-                )}
-                {pairing.note && <p className="text-[11px] text-slate-300">{pairing.note}</p>}
-              </div>
-              <button
-                onClick={() => handleDeletePairing(pairing)}
-                className="text-[11px] font-semibold text-red-300 hover:text-red-200"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <form onSubmit={handleCreatePairing} className="mt-4 grid gap-3 text-xs text-slate-200">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-slate-400">Primary item</span>
-            <select
-              value={draft.primary_course_item_id}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, primary_course_item_id: event.target.value }))
-              }
-              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
-            >
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-slate-400">Paired item</span>
-            <select
-              value={draft.paired_course_item_id}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, paired_course_item_id: event.target.value }))
-              }
-              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
-            >
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-slate-400">Relationship</span>
-            <input
-              value={draft.relationship ?? ''}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, relationship: event.target.value }))
-              }
-              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
-              placeholder="Contrast, echo, bridge..."
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-slate-400">Note</span>
-            <input
-              value={draft.note ?? ''}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, note: event.target.value }))
-              }
-              className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-white"
-              placeholder="Why they pair"
-            />
-          </label>
-        </div>
-        <div className="flex items-center justify-between">
-          <button
-            type="submit"
-            disabled={saving || items.length < 2}
-            className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {saving ? 'Saving...' : 'Add pairing'}
-          </button>
-          {error && <p className="text-xs text-red-300">{error}</p>}
-        </div>
-      </form>
-    </div>
+    <span
+      className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-emerald-200"
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 20 20"
+        className={`h-3 w-3 transition ${expanded ? 'rotate-180' : ''}`}
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+        />
+      </svg>
+    </span>
   );
 }
-
 function CourseEditor({
   course,
   menuId,
@@ -716,12 +520,17 @@ function CourseEditor({
   >('idle');
   const [autoSaveMessage, setAutoSaveMessage] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<'search' | 'id'>('search');
+  const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [lastSaved, setLastSaved] = useState({
     title: course.title,
     description: course.description ?? '',
     intent: course.intent ?? '',
     updatedAt: course.updated_at,
   });
+  const openAddPanel = (mode: 'search' | 'id') => {
+    setAddMode(mode);
+    setAddPanelOpen(true);
+  };
   const normalizedDraft = useMemo(
     () => ({
       title: draftTitle.trim(),
@@ -1067,15 +876,13 @@ function CourseEditor({
       )}
 
       <div className="mt-4 space-y-3">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Items</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-wide text-slate-400">Items</p>
+        </div>
         {course.items.length === 0 ? (
-          <p className="text-sm text-slate-300">
-            Add an item via search/ingest or paste a known media ID to populate this course.
-          </p>
+          <p className="text-sm text-slate-300">No items yet.</p>
         ) : (
-          <p className="text-[11px] text-slate-500">
-            Drag the handle or use the up/down buttons to reorder; changes save automatically.
-          </p>
+          <p className="text-[11px] text-slate-500">Drag to reorder; changes save automatically.</p>
         )}
         {course.items.map((item, index) => (
           <CourseItemRow
@@ -1106,44 +913,72 @@ function CourseEditor({
       </div>
 
       <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        {!addPanelOpen ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4">
             <div>
               <p className="text-sm font-semibold text-emerald-300">Add items</p>
               <p className="text-xs text-slate-300">
-                Search, add annotations, then reorder without leaving this panel.
+                Search or paste an ID when you&apos;re ready.
               </p>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setAddMode('search')}
-                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                  addMode === 'search'
-                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
-                    : 'border-slate-800 text-slate-300'
-                }`}
+                onClick={() => openAddPanel('search')}
+                className="rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-slate-950 transition hover:bg-emerald-400"
               >
-                Search & ingest
+                Add item
               </button>
               <button
                 type="button"
-                onClick={() => setAddMode('id')}
-                className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                  addMode === 'id'
-                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
-                    : 'border-slate-800 text-slate-300'
-                }`}
+                onClick={() => openAddPanel('id')}
+                className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-slate-700"
               >
                 Quick add ID
               </button>
             </div>
           </div>
-        </div>
-        {addMode === 'id' ? (
-          <AddCourseItemForm course={course} menuId={menuId} onItemAdded={handleItemAdded} />
         ) : (
-          <CourseItemSearch menuId={menuId} course={course} onAdded={handleItemAdded} />
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddMode('search')}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                    addMode === 'search'
+                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                      : 'border-slate-800 text-slate-300'
+                  }`}
+                >
+                  Search & ingest
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddMode('id')}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                    addMode === 'id'
+                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                      : 'border-slate-800 text-slate-300'
+                  }`}
+                >
+                  Quick add ID
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddPanelOpen(false)}
+                className="text-xs font-semibold text-slate-400 underline decoration-slate-600 decoration-dotted"
+              >
+                Done adding
+              </button>
+            </div>
+            {addMode === 'id' ? (
+              <AddCourseItemForm course={course} menuId={menuId} onItemAdded={handleItemAdded} />
+            ) : (
+              <CourseItemSearch menuId={menuId} course={course} onAdded={handleItemAdded} />
+            )}
+          </>
         )}
       </div>
 
@@ -1455,21 +1290,6 @@ function CourseItemRow({
   );
 }
 
-function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
-  const copy = isPublic ? 'Public' : 'Private';
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
-        isPublic
-          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
-          : 'border-slate-800 bg-slate-900 text-slate-200'
-      }`}
-    >
-      {copy}
-    </span>
-  );
-}
-
 function AutoSaveBadge({
   state,
   message,
@@ -1500,15 +1320,6 @@ function AutoSaveBadge({
     >
       {label}
     </span>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="text-sm font-semibold text-white">{value}</dd>
-    </div>
   );
 }
 

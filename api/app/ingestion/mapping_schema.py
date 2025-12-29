@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator

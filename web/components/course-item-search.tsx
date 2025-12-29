@@ -14,12 +14,6 @@ import {
 } from 'react';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
-import {
-  ConnectorHealth,
-  fetchHealth,
-  formatConnectorSource,
-  normalizeConnectorHealth,
-} from '../lib/health';
 
 type CourseItemSearchProps = {
   menuId: string;
@@ -33,13 +27,6 @@ const mediaTypeOptions: { label: string; value: MediaType }[] = [
   { label: 'TV', value: 'tv' },
   { label: 'Games', value: 'game' },
   { label: 'Music', value: 'music' },
-];
-
-const promptSuggestions = [
-  { label: 'Cozy sci-fi', value: 'cozy science fiction' },
-  { label: 'Award winners', value: 'award winning novels 2023' },
-  { label: 'Movie night', value: 'animated adventure family' },
-  { label: 'New music', value: 'indie folk 2024' },
 ];
 
 const RESULTS_PER_PAGE = 10;
@@ -57,6 +44,7 @@ const sortOptions: { label: string; value: SortOption }[] = [
 
 export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchProps) {
   const [query, setQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
   const [includeExternal, setIncludeExternal] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOption>('title-asc');
@@ -73,13 +61,10 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [position, setPosition] = useState(course.items.length + 1);
   const [notes, setNotes] = useState('');
   const [addingId, setAddingId] = useState<string | null>(null);
-  const [connectorHealth, setConnectorHealth] = useState<ConnectorHealth[]>([]);
-  const [connectorMessage, setConnectorMessage] = useState<string | null>(null);
   const queryHelpId = useId();
   const resultsHeadingId = useId();
   const statusRegionId = useId();
   const resultsListId = useId();
-  const metadataRegionId = useId();
   const errorCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -91,47 +76,6 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       errorCardRef.current.focus();
     }
   }, [error]);
-
-  useEffect(() => {
-    // Fetch connector telemetry for external search messaging.
-    let cancelled = false;
-    fetchHealth()
-      .then((payload) => {
-        if (cancelled) return;
-        const connectors = normalizeConnectorHealth(payload);
-        setConnectorHealth(connectors);
-        if (connectors.some((item) => item.state !== 'ok')) {
-          setConnectorMessage('Connectors are cooling down—external searches may pause briefly.');
-        } else if (connectors.length === 0) {
-          setConnectorMessage('Sign in to view connector telemetry.');
-        } else {
-          setConnectorMessage(null);
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setConnectorHealth([]);
-        setConnectorMessage(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const metadataEntries = useMemo(() => {
-    if (!metadata) return [];
-    return Object.entries(metadata).map(([key, value]) => {
-      if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean' ||
-        value === null
-      ) {
-        return [key, String(value)] as [string, string];
-      }
-      return [key, JSON.stringify(value)] as [string, string];
-    });
-  }, [metadata]);
 
   const sourceCounts = useMemo(() => {
     const counts = (metadata as { source_counts?: Record<string, number> } | null)?.source_counts;
@@ -146,11 +90,16 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     return Object.entries(reasons).map(([key, value]) => [String(key), Number(value)]);
   }, [metadata]);
 
-  const connectorBadgeClass = (state: ConnectorHealth['state']) => {
-    if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
-    if (state === 'circuit_open') return 'border-amber-400/40 bg-amber-500/10 text-amber-100';
-    return 'border-red-500/50 bg-red-500/10 text-red-100';
-  };
+  const insightBadges = useMemo(() => {
+    const badges: { key: string; label: string }[] = [];
+    sourceCounts.slice(0, 2).forEach(([key, value]) => {
+      badges.push({ key: `source-${key}`, label: `${formatSearchSource(key)}: ${value}` });
+    });
+    dedupeEntries.slice(0, 1).forEach(([key, value]) => {
+      badges.push({ key: `dedupe-${key}`, label: `Dedupe ${key.replace(/_/g, ' ')}: ${value}` });
+    });
+    return badges;
+  }, [dedupeEntries, sourceCounts]);
 
   const sortedResults = useMemo(() => {
     if (sortOrder === 'search') {
@@ -194,10 +143,10 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
       return 'Searching...';
     }
     if (!hasSearched) {
-      return 'Use the search form to browse your catalog or ingest new matches.';
+      return 'Search to drop matches into this course.';
     }
     if (results.length === 0) {
-      return 'No matches yet. Try another query or toggle external sources.';
+      return 'No matches yet. Try another query or include external.';
     }
     const paging = metadata?.paging as { page?: number } | undefined;
     const pageNumber = paging?.page ?? currentPage;
@@ -206,22 +155,10 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${pageSuffix} (${sourceLabel})`;
   }, [currentPage, hasSearched, metadata, results.length, searching, source]);
 
-  const searchingTitle = includeExternal
-    ? 'Searching catalog & connectors...'
-    : 'Searching catalog...';
-  const searchingDescription = includeExternal
-    ? 'Pulling internal matches, then fanning out to Google Books, TMDB, IGDB, and Last.fm.'
-    : 'Pulling internal matches from your catalog. Toggle external sources to fan out.';
-
   const toggleType = (value: MediaType) => {
     setSelectedTypes((prev) =>
       prev.includes(value) ? prev.filter((type) => type !== value) : [...prev, value]
     );
-  };
-
-  const applyPrompt = (value: string) => {
-    setQuery(value);
-    setHasSearched(false);
   };
 
   async function performSearch(pageToLoad: number, append = false) {
@@ -332,103 +269,83 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
 
   return (
     <section className="space-y-4 rounded-lg border border-dashed border-slate-800 bg-slate-950/30 p-4">
-      <header className="space-y-1">
-        <p className="text-sm font-semibold text-slate-200">Search catalog & ingest</p>
-        <p id={queryHelpId} className="text-xs text-slate-400">
-          Look up existing media and optionally fan out to Google Books, TMDB, IGDB, and Last.fm.
-          New external matches are ingested automatically.
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-200">Search catalog</p>
+          <p id={queryHelpId} className="text-xs text-slate-400">
+            Drop matches straight into {course.title}.
+          </p>
+        </div>
       </header>
 
       <form
         onSubmit={handleSearch}
         className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
       >
-        <div className="flex flex-col gap-2 md:flex-row">
-          <input
-            type="text"
-            minLength={2}
-            required
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search title, artist, or keyword"
-            aria-describedby={queryHelpId}
-            className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
-          />
-          <button
-            type="submit"
-            disabled={searching}
-            aria-controls={resultsListId}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {searching ? 'Searching…' : 'Search'}
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {mediaTypeOptions.map((option) => {
-            const active = selectedTypes.includes(option.value);
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => toggleType(option.value)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                  active
-                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
-                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-          <label className="ml-auto flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-wide text-slate-400">Query</label>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <input
-              type="checkbox"
-              checked={includeExternal}
-              onChange={(event) => setIncludeExternal(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+              type="text"
+              minLength={2}
+              required
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search title, artist, or concept"
+              aria-describedby={queryHelpId}
+              className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
             />
-            Include external
-          </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={searching}
+                aria-controls={resultsListId}
+                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {searching ? 'Searching…' : 'Search'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilters((current) => !current)}
+                aria-pressed={showFilters}
+                className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/60 hover:text-emerald-100"
+              >
+                {showFilters ? 'Hide filters' : 'Filters'}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-[11px]">
-          {connectorHealth.map((connector) => (
-            <span
-              key={connector.source}
-              className={`rounded-full border px-3 py-1 ${connectorBadgeClass(connector.state)}`}
-              title={
-                connector.last_error
-                  ? `Last error: ${connector.last_error}`
-                  : connector.remaining_cooldown
-                    ? `Cooling down for ${connector.remaining_cooldown.toFixed(1)}s`
-                    : 'Healthy'
-              }
-            >
-              {formatConnectorSource(connector.source)}: {connector.state}
-            </span>
-          ))}
-          {connectorMessage && (
-            <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-amber-100">
-              {connectorMessage}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {promptSuggestions.map((prompt) => (
-            <button
-              key={prompt.value}
-              type="button"
-              onClick={() => applyPrompt(prompt.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-emerald-400/60 hover:text-emerald-100"
-            >
-              {prompt.label}
-            </button>
-          ))}
-        </div>
+        {showFilters && (
+          <div className="flex flex-wrap gap-2">
+            {mediaTypeOptions.map((option) => {
+              const active = selectedTypes.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggleType(option.value)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    active
+                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                      : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+            <label className="ml-auto flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+              <input
+                type="checkbox"
+                checked={includeExternal}
+                onChange={(event) => setIncludeExternal(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+              />
+              Include external
+            </label>
+          </div>
+        )}
       </form>
 
       <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3">
@@ -451,39 +368,13 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
               rows={2}
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="Serving notes for this course item."
+              placeholder="Notes for this course item."
               className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
             />
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          When you add an item from the results below it will use this position and notes.
-        </p>
+        <p className="mt-2 text-xs text-slate-500">Applies to the next add.</p>
       </div>
-
-      {(sourceCounts.length > 0 || dedupeEntries.length > 0) && (
-        <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Search trust signals</p>
-          {sourceCounts.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {sourceCounts.map(([key, value]) => (
-                <span key={key} className="rounded-full border border-slate-800 px-3 py-1">
-                  {formatSearchSource(key)}: {value}
-                </span>
-              ))}
-            </div>
-          )}
-          {dedupeEntries.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {dedupeEntries.map(([key, value]) => (
-                <span key={key} className="rounded-full border border-slate-800 px-3 py-1">
-                  Dedupe {key.replace(/_/g, ' ')}: {value}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       <div
         className="space-y-2"
@@ -516,11 +407,20 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         <p id={statusRegionId} className="text-xs text-slate-400" role="status" aria-live="polite">
           {resultSummary}
         </p>
+        {insightBadges.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+            {insightBadges.map((badge) => (
+              <span key={badge.key} className="rounded-full border border-slate-800 px-3 py-1">
+                {badge.label}
+              </span>
+            ))}
+          </div>
+        )}
         {searching && !loadingMore && (
           <DrawerStateCard
             tone="info"
-            title={searchingTitle}
-            description={searchingDescription}
+            title={includeExternal ? 'Searching catalog + external' : 'Searching catalog'}
+            description="Fetching matches..."
             role="status"
             ariaLive="polite"
             showSpinner
@@ -531,7 +431,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             role="status"
             ariaLive="polite"
             title="Nothing queued yet"
-            description="Enter a query to browse your catalog. Toggle on external sources to fan out to Google Books, TMDB, IGDB, and Last.fm."
+            description="Run a search to pull from your catalog. Toggle external if you want connectors."
           />
         )}
         {hasSearched && !searching && results.length === 0 && !error && (
@@ -539,23 +439,8 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             role="status"
             ariaLive="polite"
             title="No matches yet"
-            description="Try expanding your filters, tweak the query, or include external sources to ingest new media."
+            description="Try another phrase or include external sources."
           />
-        )}
-        {metadataEntries.length > 0 && (
-          <dl
-            id={metadataRegionId}
-            className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 sm:grid-cols-2"
-            aria-live="polite"
-            aria-label="Search metrics"
-          >
-            {metadataEntries.map(([key, value]) => (
-              <div key={key}>
-                <dt className="uppercase tracking-wide text-slate-500">{key}</dt>
-                <dd className="font-semibold text-white">{value}</dd>
-              </div>
-            ))}
-          </dl>
         )}
         {error && (
           <DrawerStateCard

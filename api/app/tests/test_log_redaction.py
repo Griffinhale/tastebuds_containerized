@@ -6,8 +6,8 @@ import logging
 
 from redis.exceptions import RedisError
 
-from app.core.config import settings
 import app.services.task_queue as task_queue_module
+from app.core.config import settings
 
 
 def test_task_queue_redacts_redis_url_in_logs(monkeypatch, caplog):
