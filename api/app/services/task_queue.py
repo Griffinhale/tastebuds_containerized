@@ -22,6 +22,7 @@ from rq_scheduler import Scheduler
 
 from app.core.config import settings
 from app.services.credential_vault import credential_vault
+from app.utils.redaction import redact_secrets
 
 logger = logging.getLogger("app.services.task_queue")
 
@@ -68,7 +69,7 @@ class TaskQueue:
             connection = Redis.from_url(settings.redis_url)
             connection.ping()
         except Exception as exc:  # pragma: no cover - network/redis specific
-            logger.warning("Redis unavailable; running jobs inline: %s", exc)
+            logger.warning("Redis unavailable; running jobs inline: %s", redact_secrets(str(exc)))
             self._connection = None
             self._enabled = False
             return
@@ -185,7 +186,10 @@ class TaskQueue:
         try:
             return await asyncio.to_thread(_enqueue_and_wait)
         except Exception as exc:  # pragma: no cover - network/redis specific
-            logger.warning("Falling back to inline execution after queue failure: %s", exc)
+            logger.warning(
+                "Falling back to inline execution after queue failure: %s",
+                redact_secrets(str(exc)),
+            )
             return await _run_fallback()
 
     def snapshot(self) -> dict[str, Any]:
@@ -226,7 +230,7 @@ class TaskQueue:
                     }
                 )
         except RedisError as exc:  # pragma: no cover - network/redis specific
-            logger.warning("Unable to list workers: %s", exc)
+            logger.warning("Unable to list workers: %s", redact_secrets(str(exc)))
 
         redis_info: dict[str, Any] = {"url": settings.redis_url}
         try:

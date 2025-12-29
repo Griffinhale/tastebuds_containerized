@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.jobs.automations import run_automation_rule_job
 from app.models.automation import AutomationRule
 from app.schema.automation import AutomationRuleCreate, AutomationRuleUpdate
+from app.services import automation_engine
 from app.services.task_queue import task_queue
-
-
-def _utcnow() -> datetime:
-    """Return a timezone-aware UTC timestamp."""
-    now = datetime.utcnow()
-    return now if now.tzinfo else now.replace(tzinfo=timezone.utc)
 
 
 async def list_rules(session: AsyncSession, *, user_id: uuid.UUID) -> list[AutomationRule]:
@@ -90,22 +85,22 @@ async def delete_rule(session: AsyncSession, *, rule: AutomationRule) -> None:
 
 async def run_rule(session: AsyncSession, *, rule: AutomationRule, requested_by: uuid.UUID) -> dict[str, Any]:
     """Execute an automation rule and update its last-run metadata."""
-    rule.last_run_at = _utcnow()
-    rule.last_error = None
-    await session.commit()
-    await task_queue.enqueue_or_run(
-        _execute_rule,
+    async def _fallback() -> dict[str, Any]:
+        return await automation_engine.execute_rule(
+            session,
+            rule=rule,
+            requested_by=requested_by,
+            allow_disabled=True,
+        )
+
+    result = await task_queue.enqueue_or_run(
+        run_automation_rule_job,
+        fallback=_fallback,
         queue_name="integrations",
         timeout_seconds=30,
         description=f"automation:{rule.id}",
         rule_id=str(rule.id),
-        user_id=str(requested_by),
+        requested_by=str(requested_by),
+        allow_disabled=True,
     )
-    return {"status": "queued"}
-
-
-def _execute_rule(*, rule_id: str, user_id: str) -> dict[str, Any]:
-    """Placeholder execution entrypoint for automation rules."""
-    _ = rule_id
-    _ = user_id
-    return {"status": "noop"}
+    return result

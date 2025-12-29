@@ -82,6 +82,6 @@ async def run_automation_rule(
     return AutomationRunResponse(
         rule_id=rule.id,
         status=result["status"],
-        ran_at=rule.last_run_at,
-        detail=result,
+        ran_at=result["ran_at"],
+        detail=result.get("detail"),
     )

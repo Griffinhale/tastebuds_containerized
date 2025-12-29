@@ -29,7 +29,8 @@ This document summarizes the current test suites and what each test checks.
 - `test_session_revoke_is_scoped_to_owner`: users cannot revoke another user's session (404).
 
 ### `api/app/tests/test_automations_routes.py`
-- `test_automation_rule_lifecycle`: create/list/update/run/delete automation rules.
+- `test_automation_rule_lifecycle`: create/list/update/run/delete automation rules and validate ingest execution output.
+- `test_automation_rule_sync_action`: sync action adapter returns a completed run with action results.
 
 ### `api/app/tests/test_credential_vault.py`
 - `test_credential_vault_store_and_read`: secrets can be stored and retrieved for a provider.
@@ -83,9 +84,13 @@ This document summarizes the current test suites and what each test checks.
 - `test_log_flow_updates_library`: log creation syncs library summary, next-up queue, and state status.
 - `test_log_filters_and_update`: log filters and patch updates work as expected.
 
+### `api/app/tests/test_log_redaction.py`
+- `test_task_queue_redacts_redis_url_in_logs`: secrets are scrubbed from queue failure logs.
+
 ### `api/app/tests/test_ops.py`
 - `test_ops_requires_auth`: unauthenticated requests to `/api/ops/queues` are rejected.
 - `test_ops_snapshot_with_auth`: admin allowlisted user receives status, queues, and vault in the snapshot.
+- `test_ops_requires_admin_allowlist`: non-admins are rejected when allowlist is configured.
 
 ### `api/app/tests/test_previews.py`
 - `test_preview_detail_scoped_and_expires`: preview details enforce ownership + TTL.
@@ -106,6 +111,9 @@ This document summarizes the current test suites and what each test checks.
 - `test_search_merge_order_follows_source_order`: result ordering follows requested source order.
 - `test_search_external_previews_cached`: external previews are stored with a future expiry.
 - `test_search_external_quota_enforced`: external search quota returns 429 once exceeded.
+
+### `api/app/tests/test_security_regressions.py`
+- `test_external_fanout_not_triggered_without_auth`: unauthenticated external fan-out is blocked even when requested.
 
 ### `api/app/tests/test_seed_script.py`
 - `test_seed_populates_demo_menu`: seed creates the demo menu with ordered courses/items and demo payloads.
@@ -128,3 +136,6 @@ This document summarizes the current test suites and what each test checks.
 
 ### `api/app/tests/test_user_states.py`
 - `test_user_state_upsert_and_list`: upserts state and lists updated values.
+
+### `api/app/tests/test_mapping_manifest_validation.py`
+- `test_mapping_manifests_are_valid`: mapping YAMLs pass schema validation.

@@ -26,11 +26,11 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 ## Delivery & Ops Dependencies
 - **Migrations:** `alembic upgrade head` is part of boot; initial revision `20240602_000001` creates the full schema.
 - **Tests/fixtures:** Pytest uses async fixtures and sample ingestion payloads; CI runs Ruff + pytest (SQLite) + frontend lint/typecheck plus proxy routing smokes.
-- **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners and long-running sync jobs now have dedicated RQ jobs + queues (`webhooks`, `sync`) and share the same worker pool (automation runs currently enqueue a placeholder no-op job).
+- **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners, automation runs, and long-running sync jobs have dedicated RQ jobs + queues (`webhooks`, `integrations`, `sync`) and share the same worker pool; automation execution now runs ingest/sync action adapters.
 - **Availability refresh:** rq-scheduler also runs availability refresh to mark stale provider entries until provider connectors are wired.
 - **Security controls:** Route-specific rate limits live at the proxy, session inventory/audit APIs are present, and external payloads now have retention/TTL enforcement (preview cache TTL + raw payload GC); see `docs/security.md` for current risks.
 
 ## Known Gaps to Align With Delivery Plan
 - Finalize production TLS (ACME/managed certs) and continue tuning rate-limit profiles before any public exposure.
-- Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, Jellyfin/Plex sync adapters ingest TMDB-backed items, and automation runs remain placeholder responses.
+- Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, Jellyfin/Plex sync adapters ingest TMDB-backed items, and automation triggers/additional action adapters are still pending.
 - Validate data-retention defaults (preview TTL + raw payload GC) against licensing policies once external payload sizes are better understood.

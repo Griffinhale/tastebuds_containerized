@@ -37,3 +37,15 @@ async def test_ops_snapshot_with_auth(client):
     assert "status" in data
     assert "queues" in data
     assert "vault" in data
+
+
+@pytest.mark.asyncio
+async def test_ops_requires_admin_allowlist(client, monkeypatch):
+    creds = _auth_payload()
+    await client.post("/api/auth/register", json=creds)
+    await client.post("/api/auth/login", json={"email": creds["email"], "password": creds["password"]})
+    monkeypatch.setattr(settings, "ops_admin_emails", ["admin@example.com"])
+
+    response = await client.get("/api/ops/queues")
+    assert response.status_code == 403
+    assert "admin" in response.json()["detail"].lower()

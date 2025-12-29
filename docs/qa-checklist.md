@@ -19,7 +19,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] If running locally, `TEST_DATABASE_URL=postgresql+asyncpg://... pytest app/tests` passes.
 
 ## 4) API Smoke Tests
-- [ ] Register + login via `README.md` examples; decode `access_token` to confirm subject and type.
+- [ ] Register + login via `docs/api.md` examples or `/docs`; decode `access_token` to confirm subject and type.
 - [ ] `GET /docs` renders OpenAPI successfully.
 - [ ] `POST /api/ingest/{source}` succeeds for each configured connector (requires valid API keys).
 - [ ] `POST /api/menus` with nested courses/items works; slug matches DB state.
@@ -35,7 +35,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] Availability lifecycle: `PUT /api/media/{media_item_id}/availability` upserts provider entries and `POST /api/media/availability/summary` returns expected counts.
 - [ ] Preview details: authenticated `GET /api/previews/{preview_id}` returns metadata and expires when `preview_expires_at` passes.
 - [ ] Integrations: `POST /api/integrations/arr/webhook-token` returns a URL + prefix, `GET /api/integrations` shows it, and `POST /api/integrations/jellyfin/sync` returns a sync summary with `status` + counts.
-- [ ] Automations: create a rule and `POST /api/automations/{rule_id}/run` returns `queued` with a placeholder detail payload.
+- [ ] Automations: create a rule with a valid `action_config` and `POST /api/automations/{rule_id}/run` returns `completed` plus `detail.action_result` and updates `last_run_at`.
 
 ## 5) Frontend App
 - [ ] `./scripts/dev.sh web` builds/serves the Next.js app on `https://localhost` and reads `.env`.
@@ -47,7 +47,10 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] Publish a menu and load `https://localhost/menus/{slug}` to confirm the share-ready preview renders, skeleton states display on reload, and the copy/share controls produce a usable link with the new SEO metadata.
 - [ ] Let a session expire and hit the `Refresh` button on the Signed-in widget; the UI should show "Session expired. Please log in again." once rotation fails.
 
-## 6) Docs & Artifacts
+## 6) Security Hardening
+- [ ] Execute `docs/security/production-hardening.md` for this release and note any deviations here.
+
+## 7) Docs & Artifacts
 - [ ] `README.md` and `docs/*.md` match the shipped commands/endpoints.
 - [ ] Postman collection (`docs/tastebuds.postman_collection.json`) is importable and points at the correct origin.
 - [ ] Note any deviations or flaky steps in `docs/qa-checklist.md` for the next iteration.

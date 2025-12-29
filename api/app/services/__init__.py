@@ -1,4 +1,5 @@
 from . import (
+    automation_engine,
     automation_service,
     availability_service,
     integration_queue_service,
@@ -19,6 +20,7 @@ from . import (
 
 __all__ = [
     "availability_service",
+    "automation_engine",
     "automation_service",
     "integration_queue_service",
     "integration_service",

@@ -4,6 +4,12 @@ Tastebuds ingests upstream payloads with an "always keep the source" policy: eve
 
 Structured manifests live under `mappings/{google_books,tmdb,igdb,lastfm}.yaml`, and captured samples live in `api/app/samples/ingestion/*.json`. The seed script and pytest fixtures reuse those samples.
 
+## Mapping Manifest Rules
+- Mapping files MUST pass schema validation (from `api/`): `python -m app.scripts.validate_mappings`.
+- Canonical fields map only to typed columns on `media_items` or extension tables.
+- Metadata fields must stay under `media_items.metadata.*` (no other destinations).
+- Raw-only fields stay in `media_sources.raw_payload` and are not exposed via API DTOs.
+
 ## Google Books
 - **Mapped:** `title`, `description`, `publishedDate` -> `release_date`, `imageLinks.thumbnail` -> `cover_image_url`, `infoLink` -> `canonical_url`. Metadata stores `categories`, `language`, `pageCount`. Extension `book_items` stores `authors`, `page_count`, `publisher`, `language`, `isbn_10`, `isbn_13`.
 - **Raw-only:** `searchInfo`, `panelizationSummary`, `accessInfo`, and other untouched keys stay in `raw_payload`.
@@ -24,4 +30,4 @@ Structured manifests live under `mappings/{google_books,tmdb,igdb,lastfm}.yaml`,
 1. Update `mappings/<provider>.yaml` to document whether the field should be canonical, metadata, or raw-only.
 2. Add or adjust columns (Alembic migration) or metadata keys, plus `ConnectorResult.extensions` entries if an extension table owns the field.
 3. Update the connector under `api/app/ingestion/` to populate it and extend tests in `api/app/tests`.
-4. Refresh this file and `README.md` so API consumers know which fields are queryable.
+4. From `api/`, run `python -m app.scripts.validate_mappings` and refresh this file if mappings change.
