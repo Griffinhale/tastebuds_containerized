@@ -62,6 +62,9 @@ jobs:
           if [ -n "${{ secrets.TMDB_API_KEY }}" ]; then
             echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
           fi
+          if [ -z "${{ secrets.TMDB_API_AUTH_HEADER }}" ] && [ -z "${{ secrets.TMDB_API_KEY }}" ]; then
+            echo "TMDB_API_AUTH_HEADER=dummy-token" >> .env
+          fi
           if [ -n "${{ secrets.IGDB_CLIENT_ID }}" ]; then
             echo "IGDB_CLIENT_ID=${{ secrets.IGDB_CLIENT_ID }}" >> .env
           fi
@@ -119,6 +122,9 @@ jobs:
           fi
           if [ -n "${{ secrets.TMDB_API_KEY }}" ]; then
             echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
+          fi
+          if [ -z "${{ secrets.TMDB_API_AUTH_HEADER }}" ] && [ -z "${{ secrets.TMDB_API_KEY }}" ]; then
+            echo "TMDB_API_AUTH_HEADER=dummy-token" >> .env
           fi
           if [ -n "${{ secrets.IGDB_CLIENT_ID }}" ]; then
             echo "IGDB_CLIENT_ID=${{ secrets.IGDB_CLIENT_ID }}" >> .env

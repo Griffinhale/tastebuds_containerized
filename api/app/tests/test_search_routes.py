@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.ingestion.base import BaseConnector, ConnectorResult
-from app.models.media import MediaItem, MediaType
+from app.models.media import BookItem, MediaItem, MediaType, MusicItem
 from app.models.search_preview import ExternalSearchPreview
 from app.services import search_preview_service
 
@@ -73,6 +73,52 @@ async def test_search_pagination_produces_metadata(client, session):
     assert payload["metadata"]["source_counts"]["internal"] == 2
     assert len(payload["results"]) == 2
     assert payload["source"] == "internal"
+
+
+@pytest.mark.asyncio
+async def test_search_matches_creator_and_description(client, session):
+    book = MediaItem(
+        media_type=MediaType.BOOK,
+        title="Left Hand of Darkness",
+        description="Icebound world of winter and shifting loyalties.",
+    )
+    music = MediaItem(
+        media_type=MediaType.MUSIC,
+        title="Kind of Blue",
+        description="Classic jazz album with modal improvisation.",
+    )
+    session.add_all([book, music])
+    await session.flush()
+    session.add(
+        BookItem(
+            media_item_id=book.id,
+            authors=["Ursula K. Le Guin"],
+            publisher="Ace",
+        )
+    )
+    session.add(
+        MusicItem(
+            media_item_id=music.id,
+            artist_name="Miles Davis",
+            album_name="Kind of Blue",
+        )
+    )
+    await session.commit()
+
+    response = await client.get("/api/search", params={"q": "Ursula"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Left Hand of Darkness" in titles
+
+    response = await client.get("/api/search", params={"q": "Miles"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Kind of Blue" in titles
+
+    response = await client.get("/api/search", params={"q": "icebound"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Left Hand of Darkness" in titles
 
 
 @pytest.mark.asyncio

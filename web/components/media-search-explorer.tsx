@@ -41,7 +41,7 @@ export function MediaSearchExplorer() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
   const [includeExternal, setIncludeExternal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOption>('title-asc');
+  const [sortOrder, setSortOrder] = useState<SortOption>('search');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);

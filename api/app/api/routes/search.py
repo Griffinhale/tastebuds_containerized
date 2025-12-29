@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from datetime import date
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -225,20 +224,8 @@ async def search(
         source_parts.append("external")
     source_label = "+".join(source_parts) if source_parts else "none"
 
-    # TODO(search-relevance): Replace deterministic ordering with relevance scoring once query parsing is designed
-    # (e.g., weighted Postgres FTS rank + trigram similarity, with optional recency/embedding boosts).
-    def _sort_key(hit: AggregatedSearchHit) -> tuple[Any, ...]:
-        release_key: date | None = hit.item.release_date if isinstance(hit.item.release_date, date) else None
-        return (
-            0 if hit.origin == "internal" else 1,
-            hit.source_rank,
-            media_service.normalize_title(hit.item.title),
-            release_key or date.max,
-            str(hit.item.id),
-        )
-
-    ordered_hits = sorted(merged_hits, key=_sort_key)
-    results = [hit.item for hit in ordered_hits]
+    # Preserve internal relevance order from Postgres FTS and connector-provided ordering per source.
+    results = [hit.item for hit in merged_hits]
     internal_count = len(internal_items)
     metadata: dict[str, Any] = {
         "paging": {

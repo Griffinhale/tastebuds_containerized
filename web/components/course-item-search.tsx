@@ -49,7 +49,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
   const [includeExternal, setIncludeExternal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOption>('title-asc');
+  const [sortOrder, setSortOrder] = useState<SortOption>('search');
   const [results, setResults] = useState<MediaSearchItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -472,9 +472,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
             tone="error"
             title={errorKind === 'external' ? 'External search unavailable' : 'Search failed'}
             description={
-              errorKind === 'external'
-                ? `${error} You can retry without external sources.`
-                : error
+              errorKind === 'external' ? `${error} You can retry without external sources.` : error
             }
             actionLabel={errorKind === 'external' ? 'Search internal only' : 'Try again'}
             onAction={() => {

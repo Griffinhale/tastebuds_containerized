@@ -15,7 +15,7 @@ from time import monotonic
 from typing import Any, Iterable, TypeAlias
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import Text, and_, cast, func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -189,13 +189,76 @@ async def search_media(
     offset: int = 0,
     limit: int = 20,
 ) -> tuple[list[MediaItem], int]:
-    """Search stored media items by title with pagination support."""
-    filtered_stmt = select(MediaItem).where(MediaItem.title.ilike(f"%{query}%"))
+    """Search stored media items by natural-language query with pagination support.
+
+    Implementation notes:
+    - Uses Postgres full-text search over title/description plus creator fields.
+    - Weighted vectors keep exact title hits above broader metadata matches.
+    """
+
+    normalized_query = query.strip()
+    if not normalized_query:
+        return [], 0
+
+    def _text_field(value):
+        # Use TEXT casts for JSON/array fields to avoid PostgreSQL cast errors on VARCHAR.
+        return func.coalesce(cast(value, Text), "")
+
+    other_fields = func.concat_ws(
+        " ",
+        _text_field(BookItem.authors),
+        _text_field(BookItem.publisher),
+        _text_field(BookItem.isbn_10),
+        _text_field(BookItem.isbn_13),
+        _text_field(MovieItem.directors),
+        _text_field(MovieItem.producers),
+        _text_field(GameItem.developers),
+        _text_field(GameItem.publishers),
+        _text_field(GameItem.genres),
+        _text_field(GameItem.platforms),
+        _text_field(MusicItem.artist_name),
+        _text_field(MusicItem.album_name),
+    )
+    # Use literal weights to let Postgres resolve the "char" overload for setweight.
+    weight_a = literal_column("'A'")
+    weight_b = literal_column("'B'")
+    weight_c = literal_column("'C'")
+    weight_d = literal_column("'D'")
+    title_vector = func.setweight(
+        func.to_tsvector("simple", func.coalesce(MediaItem.title, "")), weight_a
+    )
+    subtitle_vector = func.setweight(
+        func.to_tsvector("simple", func.coalesce(MediaItem.subtitle, "")), weight_b
+    )
+    description_vector = func.setweight(
+        func.to_tsvector("simple", func.coalesce(MediaItem.description, "")), weight_c
+    )
+    metadata_vector = func.setweight(func.to_tsvector("simple", other_fields), weight_d)
+    search_vector = (
+        title_vector.op("||")(subtitle_vector)
+        .op("||")(description_vector)
+        .op("||")(metadata_vector)
+    )
+    search_query = func.websearch_to_tsquery("simple", normalized_query)
+
+    filtered_stmt = (
+        select(MediaItem)
+        .outerjoin(BookItem, BookItem.media_item_id == MediaItem.id)
+        .outerjoin(MovieItem, MovieItem.media_item_id == MediaItem.id)
+        .outerjoin(GameItem, GameItem.media_item_id == MediaItem.id)
+        .outerjoin(MusicItem, MusicItem.media_item_id == MediaItem.id)
+        .where(search_vector.op("@@")(search_query))
+    )
     if media_types:
         filtered_stmt = filtered_stmt.where(MediaItem.media_type.in_(list(media_types)))
     count_stmt = select(func.count()).select_from(filtered_stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
-    paged_stmt = filtered_stmt.order_by(func.lower(MediaItem.title)).offset(offset).limit(limit)
+    rank = func.ts_rank_cd(search_vector, search_query)
+    paged_stmt = (
+        filtered_stmt.order_by(rank.desc(), func.lower(MediaItem.title), MediaItem.id)
+        .offset(offset)
+        .limit(limit)
+    )
     result = await session.execute(paged_stmt)
     return result.scalars().all(), total
 
