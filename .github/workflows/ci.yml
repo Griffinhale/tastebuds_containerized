@@ -48,6 +48,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare env file for compose
+        run: cp example.env .env
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -69,6 +72,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare env file for compose
+        run: cp example.env .env
 
       - name: Proxy smoke (TLS + routing)
         run: ./scripts/proxy_smoke.sh
