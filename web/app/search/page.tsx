@@ -1,23 +1,25 @@
 // Search workspace page.
 import Link from 'next/link';
 
+import { ApiStatus } from '../../components/api-status';
+import { CurrentUser } from '../../components/current-user';
 import { MediaSearchExplorer } from '../../components/media-search-explorer';
 
 export default function SearchPage() {
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12">
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <Link href="/" className="text-emerald-300 underline decoration-emerald-300/60">
-          {'<- Back home'}
+    <main className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-10">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-2">
+        <Link
+          href="/"
+          className="text-lg font-semibold text-emerald-200 transition hover:text-emerald-100"
+        >
+          Tastebuds.
         </Link>
-        <Link href="/library" className="text-emerald-300 underline decoration-emerald-300/60">
-          Library
-        </Link>
-        <Link href="/menus" className="text-emerald-300 underline decoration-emerald-300/60">
-          Menus
-        </Link>
-      </div>
-
+        <div className="flex flex-wrap items-center gap-3 text-xs lg:flex-nowrap">
+          <CurrentUser variant="compact" />
+          <ApiStatus variant="compact" />
+        </div>
+      </header>
       <MediaSearchExplorer />
     </main>
   );

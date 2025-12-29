@@ -1,19 +1,13 @@
 'use client';
 
-// Search explorer for the homepage hero panel.
+// Search explorer for the search workspace.
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 
 import { ingestMedia } from '../lib/media';
 import { upsertState } from '../lib/library';
 import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
-import {
-  ConnectorHealth,
-  fetchHealth,
-  formatConnectorSource,
-  normalizeConnectorHealth,
-} from '../lib/health';
 
 const typeOptions: { label: string; value: MediaType }[] = [
   { label: 'Books', value: 'book' },
@@ -23,13 +17,8 @@ const typeOptions: { label: string; value: MediaType }[] = [
   { label: 'Music', value: 'music' },
 ];
 
-const promptSuggestions = [
-  { label: 'Cozy sci-fi dinner', value: 'space opera comfort watch' },
-  { label: 'Award winners', value: '2023 award winning novels' },
-  { label: 'Road trip playlist', value: 'indie folk summer' },
-  { label: 'Family movie night', value: 'animated adventure' },
-  { label: 'New to play', value: 'co-op puzzle games' },
-];
+// Keyword/prompt chips are intentionally omitted until the search API supports reliable keyword filters
+// (e.g., add a `keywords` array to the search payload and map chip selections to that field).
 
 type SearchResultItem = MediaSearchItem & {
   resolved_media_id?: string;
@@ -37,6 +26,7 @@ type SearchResultItem = MediaSearchItem & {
 
 export function MediaSearchExplorer() {
   const [query, setQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([]);
   const [includeExternal, setIncludeExternal] = useState(true);
   const [results, setResults] = useState<SearchResultItem[]>([]);
@@ -45,8 +35,6 @@ export function MediaSearchExplorer() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectorHealth, setConnectorHealth] = useState<ConnectorHealth[]>([]);
-  const [connectorMessage, setConnectorMessage] = useState<string | null>(null);
   const [addingToLibraryId, setAddingToLibraryId] = useState<string | null>(null);
   const [libraryMessage, setLibraryMessage] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
@@ -62,68 +50,10 @@ export function MediaSearchExplorer() {
     return `Showing ${results.length} item${results.length === 1 ? '' : 's'}${suffix} (${sourceLabel})`;
   }, [metadata, results.length, searching, hasSearched, source]);
 
-  const selectedTypeLabels = selectedTypes
-    .map((value) => typeOptions.find((option) => option.value === value)?.label)
-    .filter(Boolean) as string[];
-
   const metadataEntries = useMemo(() => {
     if (!metadata?.counts) return [] as [string, string][];
     return Object.entries(metadata.counts).map(([key, value]) => [key, String(value)]);
   }, [metadata]);
-  const sourceCounts = useMemo((): [string, number][] => {
-    if (!metadata?.source_counts) return [];
-    return Object.entries(metadata.source_counts).map(
-      ([key, value]) => [key, Number(value)] as [string, number]
-    );
-  }, [metadata]);
-  const sourceMetrics = useMemo(() => {
-    if (!metadata?.source_metrics) return [] as [string, Record<string, unknown>][];
-    return Object.entries(metadata.source_metrics);
-  }, [metadata]);
-  const dedupeEntries = useMemo((): [string, number][] => {
-    const reasons = metadata?.dedupe_reasons;
-    if (!reasons) return [];
-    return Object.entries(reasons).map(([key, value]) => [String(key), Number(value)]);
-  }, [metadata]);
-
-  const dedupeLabel = (key: string) => {
-    if (key === 'canonical_url') return 'Canonical URL';
-    if (key === 'title_release_date') return 'Title + date';
-    if (key === 'title_only') return 'Title only';
-    return key;
-  };
-
-  const connectorBadgeClass = (state: ConnectorHealth['state']) => {
-    if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
-    if (state === 'circuit_open') return 'border-amber-400/40 bg-amber-500/10 text-amber-100';
-    return 'border-red-500/50 bg-red-500/10 text-red-100';
-  };
-
-  useEffect(() => {
-    // Load connector health once to annotate external fan-out status.
-    let cancelled = false;
-    fetchHealth()
-      .then((payload) => {
-        if (cancelled) return;
-        const connectors = normalizeConnectorHealth(payload);
-        setConnectorHealth(connectors);
-        if (connectors.some((item) => item.state !== 'ok')) {
-          setConnectorMessage('Connector issues detected—expect slower external fan-out.');
-        } else if (connectors.length === 0) {
-          setConnectorMessage('Sign in to view connector telemetry.');
-        } else {
-          setConnectorMessage(null);
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setConnectorHealth([]);
-        setConnectorMessage(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   function toggleType(value: MediaType) {
     setSelectedTypes((current) =>
@@ -168,11 +98,6 @@ export function MediaSearchExplorer() {
     }
   }
 
-  function applyPrompt(value: string) {
-    setQuery(value);
-    setHasSearched(false);
-  }
-
   async function handleAddToLibrary(item: SearchResultItem) {
     if (addingToLibraryId || item.in_collection) return;
     setAddingToLibraryId(item.id);
@@ -208,31 +133,26 @@ export function MediaSearchExplorer() {
 
   return (
     <section className="space-y-6 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-emerald-900/30 p-6 shadow-xl shadow-emerald-500/10">
-      <header className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-emerald-200">Search workspace</p>
-        <h2 className="text-2xl font-semibold text-white">Find media without leaving home.</h2>
-        <p className="text-sm text-emerald-100/80">
-          Use natural language to search by title, creator, or vibe. Toggle sources to pull from
-          your catalog first and then fan out to external providers.
-        </p>
+      <header>
+        <h1 className="text-2xl font-semibold text-white">Search workspace</h1>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-        <form
-          onSubmit={handleSearch}
-          className="space-y-4 rounded-xl border border-white/10 bg-slate-950/50 p-4"
-        >
-          <div className="space-y-2">
-            <label className="text-xs uppercase tracking-wide text-slate-400">Query</label>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <input
-                type="text"
-                minLength={2}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search title, artist, or concept"
-                className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
-              />
+      <form
+        onSubmit={handleSearch}
+        className="space-y-4 rounded-xl border border-white/10 bg-slate-950/50 p-4"
+      >
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-wide text-slate-400">Query</label>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <input
+              type="text"
+              minLength={2}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search title, artist, or concept"
+              className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-base text-white outline-none ring-emerald-400/50 focus:border-emerald-400/70 focus:ring-2"
+            />
+            <div className="flex flex-wrap gap-2">
               <button
                 type="submit"
                 disabled={searching}
@@ -240,9 +160,19 @@ export function MediaSearchExplorer() {
               >
                 {searching ? 'Searching…' : 'Run search'}
               </button>
+              <button
+                type="button"
+                onClick={() => setShowFilters((current) => !current)}
+                aria-pressed={showFilters}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-white/30 hover:text-white"
+              >
+                {showFilters ? 'Hide filters' : 'Show filters'}
+              </button>
             </div>
           </div>
+        </div>
 
+        {showFilters && (
           <div className="flex flex-wrap gap-2">
             {typeOptions.map((option) => {
               const active = selectedTypes.includes(option.value);
@@ -271,130 +201,8 @@ export function MediaSearchExplorer() {
               Include external
             </label>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {promptSuggestions.map((prompt) => (
-              <button
-                key={prompt.value}
-                type="button"
-                onClick={() => applyPrompt(prompt.value)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/80 transition hover:border-emerald-300/60 hover:text-emerald-100"
-              >
-                {prompt.label}
-              </button>
-            ))}
-          </div>
-        </form>
-
-        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-          <p className="text-xs uppercase tracking-wide text-emerald-200">Search context</p>
-          {connectorHealth.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              {connectorHealth.map((connector) => (
-                <span
-                  key={connector.source}
-                  className={`rounded-full border px-3 py-1 ${connectorBadgeClass(connector.state)}`}
-                  title={
-                    connector.last_error
-                      ? `Last error: ${connector.last_error}`
-                      : connector.remaining_cooldown
-                        ? `Cooling down for ${connector.remaining_cooldown.toFixed(1)}s`
-                        : 'Healthy'
-                  }
-                >
-                  {formatConnectorSource(connector.source)}: {connector.state}
-                </span>
-              ))}
-            </div>
-          )}
-          {connectorMessage && (
-            <p className="text-[11px] text-amber-200" role="status" aria-live="polite">
-              {connectorMessage}
-            </p>
-          )}
-          <ContextLine
-            label="Source"
-            value={source ? formatSearchSource(source) : 'Internal first'}
-          />
-          <ContextLine
-            label="Types"
-            value={selectedTypeLabels.length ? selectedTypeLabels.join(', ') : 'Any media type'}
-          />
-          <ContextLine
-            label="External fanout"
-            value={includeExternal ? 'Enabled' : 'Internal only'}
-            tone={includeExternal ? 'accent' : 'muted'}
-          />
-          {dedupeEntries.length > 0 && (
-            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
-              <p className="uppercase tracking-wide text-slate-400">Dedupe notes</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {dedupeEntries.map(([key, value]) => (
-                  <span
-                    key={key}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
-                  >
-                    {dedupeLabel(key)}: {value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {sourceCounts.length > 0 && (
-            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
-              <p className="uppercase tracking-wide text-slate-400">Source counts</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {sourceCounts.map(([key, value]) => (
-                  <span
-                    key={key}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
-                  >
-                    {formatSearchSource(key)}: {value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {sourceMetrics.length > 0 && (
-            <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-[11px] text-slate-200">
-              <p className="uppercase tracking-wide text-slate-400">Connector timings</p>
-              <div className="mt-2 space-y-2">
-                {sourceMetrics.map(([key, metrics]) =>
-                  (() => {
-                    const entries = Object.entries(metrics).flatMap(([metricKey, value]) => {
-                      if (!metricKey.endsWith('_ms') || typeof value !== 'number') return [];
-                      return [[metricKey, value] as [string, number]];
-                    });
-                    if (entries.length === 0) return null;
-                    return (
-                      <div key={key} className="flex flex-wrap gap-2">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                          {formatSearchSource(key)}
-                        </span>
-                        {entries.map(([metricKey, value]) => (
-                          <span
-                            key={`${key}-${metricKey}`}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
-                          >
-                            {metricKey.replace(/_/g, ' ')}: {value}ms
-                          </span>
-                        ))}
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
-          )}
-          <div className="rounded-lg border border-white/10 bg-slate-950/60 p-3 text-xs text-slate-300">
-            <p className="font-semibold text-white">Tip</p>
-            <p className="mt-1 leading-relaxed">
-              You can paste natural language prompts. The backend will still match against metadata
-              and title fields so you get sensible results without crafting boolean queries.
-            </p>
-          </div>
-        </div>
-      </div>
+        )}
+      </form>
 
       <div className="space-y-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -562,25 +370,6 @@ function AvailabilityBadge({
         {statusLabel}
       </span>
       <span className="text-slate-400">{providerLabel}</span>
-    </div>
-  );
-}
-
-function ContextLine({
-  label,
-  value,
-  tone = 'default',
-}: {
-  label: string;
-  value: string;
-  tone?: 'default' | 'accent' | 'muted';
-}) {
-  const toneClass =
-    tone === 'accent' ? 'text-emerald-200' : tone === 'muted' ? 'text-slate-400' : 'text-white';
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-xs">
-      <span className="uppercase tracking-wide text-slate-400">{label}</span>
-      <span className={`font-semibold ${toneClass}`}>{value}</span>
     </div>
   );
 }
