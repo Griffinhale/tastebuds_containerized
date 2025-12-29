@@ -51,6 +51,39 @@ jobs:
       - name: Prepare env file for compose
         run: cp example.env .env
 
+      - name: Overlay secrets for compose
+        run: |
+          if [ -n "${{ secrets.JWT_SECRET_KEY }}" ]; then
+            echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.TMDB_API_AUTH_HEADER }}" ]; then
+            echo "TMDB_API_AUTH_HEADER=${{ secrets.TMDB_API_AUTH_HEADER }}" >> .env
+          fi
+          if [ -n "${{ secrets.TMDB_API_KEY }}" ]; then
+            echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.IGDB_CLIENT_ID }}" ]; then
+            echo "IGDB_CLIENT_ID=${{ secrets.IGDB_CLIENT_ID }}" >> .env
+          fi
+          if [ -n "${{ secrets.IGDB_CLIENT_SECRET }}" ]; then
+            echo "IGDB_CLIENT_SECRET=${{ secrets.IGDB_CLIENT_SECRET }}" >> .env
+          fi
+          if [ -n "${{ secrets.LASTFM_API_KEY }}" ]; then
+            echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_CLIENT_ID }}" ]; then
+            echo "SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_CLIENT_SECRET }}" ]; then
+            echo "SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_REDIRECT_URI }}" ]; then
+            echo "SPOTIFY_REDIRECT_URI=${{ secrets.SPOTIFY_REDIRECT_URI }}" >> .env
+          fi
+          if [ -n "${{ secrets.OPS_ADMIN_EMAILS }}" ]; then
+            echo "OPS_ADMIN_EMAILS=${{ secrets.OPS_ADMIN_EMAILS }}" >> .env
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -75,6 +108,39 @@ jobs:
 
       - name: Prepare env file for compose
         run: cp example.env .env
+
+      - name: Overlay secrets for compose
+        run: |
+          if [ -n "${{ secrets.JWT_SECRET_KEY }}" ]; then
+            echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.TMDB_API_AUTH_HEADER }}" ]; then
+            echo "TMDB_API_AUTH_HEADER=${{ secrets.TMDB_API_AUTH_HEADER }}" >> .env
+          fi
+          if [ -n "${{ secrets.TMDB_API_KEY }}" ]; then
+            echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.IGDB_CLIENT_ID }}" ]; then
+            echo "IGDB_CLIENT_ID=${{ secrets.IGDB_CLIENT_ID }}" >> .env
+          fi
+          if [ -n "${{ secrets.IGDB_CLIENT_SECRET }}" ]; then
+            echo "IGDB_CLIENT_SECRET=${{ secrets.IGDB_CLIENT_SECRET }}" >> .env
+          fi
+          if [ -n "${{ secrets.LASTFM_API_KEY }}" ]; then
+            echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_CLIENT_ID }}" ]; then
+            echo "SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_CLIENT_SECRET }}" ]; then
+            echo "SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}" >> .env
+          fi
+          if [ -n "${{ secrets.SPOTIFY_REDIRECT_URI }}" ]; then
+            echo "SPOTIFY_REDIRECT_URI=${{ secrets.SPOTIFY_REDIRECT_URI }}" >> .env
+          fi
+          if [ -n "${{ secrets.OPS_ADMIN_EMAILS }}" ]; then
+            echo "OPS_ADMIN_EMAILS=${{ secrets.OPS_ADMIN_EMAILS }}" >> .env
+          fi
 
       - name: Proxy smoke (TLS + routing)
         run: ./scripts/proxy_smoke.sh

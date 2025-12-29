@@ -12,6 +12,8 @@ import {
   ForwardedRef,
   forwardRef,
 } from 'react';
+import { ApiError } from '../lib/api';
+import { ingestMedia } from '../lib/media';
 import { Course, CourseItem, createCourseItem } from '../lib/menus';
 import { MediaSearchItem, MediaType, formatSearchSource, searchMedia } from '../lib/search';
 
@@ -56,6 +58,7 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
   const [hasMoreInternal, setHasMoreInternal] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'external' | 'default' | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [position, setPosition] = useState(course.items.length + 1);
@@ -161,7 +164,12 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     );
   };
 
-  async function performSearch(pageToLoad: number, append = false) {
+  async function performSearch(
+    pageToLoad: number,
+    options: { append?: boolean; includeExternalOverride?: boolean } = {}
+  ) {
+    const append = options.append ?? false;
+    const includeExternalValue = options.includeExternalOverride ?? includeExternal;
     if (!query.trim()) {
       setError('Enter a search query (at least 2 characters).');
       return;
@@ -180,12 +188,16 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     if (!append) {
       setHasSearched(true);
     }
+    if (options.includeExternalOverride !== undefined) {
+      setIncludeExternal(includeExternalValue);
+    }
     setError(null);
+    setErrorKind(null);
     setStatusMessage(null);
     try {
       const response = await searchMedia({
         query,
-        includeExternal,
+        includeExternal: includeExternalValue,
         types: selectedTypes.length ? selectedTypes : undefined,
         page: pageToLoad,
         perPage: RESULTS_PER_PAGE,
@@ -217,7 +229,11 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Search failed.';
       setError(message);
-      if (!append) {
+      const apiError = err instanceof ApiError ? err : null;
+      const isExternalBlocked =
+        includeExternalValue && apiError ? [401, 403, 429].includes(apiError.status) : false;
+      setErrorKind(isExternalBlocked ? 'external' : 'default');
+      if (!append && !isExternalBlocked) {
         setResults([]);
         setMetadata(null);
         setSource(null);
@@ -241,17 +257,26 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
     if (loadingMore || searching) {
       return;
     }
-    await performSearch(currentPage + 1, true);
+    await performSearch(currentPage + 1, { append: true });
   }
 
   async function handleAdd(item: MediaSearchItem) {
     if (addingId) return;
     setAddingId(item.id);
     setError(null);
+    setErrorKind(null);
     setStatusMessage(null);
     try {
+      let mediaItemId = item.id;
+      if (item.preview_id) {
+        if (!item.source_name || !item.source_id) {
+          throw new Error('Missing source details for ingestion.');
+        }
+        const ingested = await ingestMedia(item.source_name, { external_id: item.source_id });
+        mediaItemId = ingested.media_item.id;
+      }
       const created = await createCourseItem(menuId, course.id, {
-        media_item_id: item.id,
+        media_item_id: mediaItemId,
         position,
         notes: notes || undefined,
       });
@@ -445,11 +470,22 @@ export function CourseItemSearch({ menuId, course, onAdded }: CourseItemSearchPr
         {error && (
           <DrawerStateCard
             tone="error"
-            title="Search failed"
-            description={error}
-            actionLabel="Try again"
+            title={errorKind === 'external' ? 'External search unavailable' : 'Search failed'}
+            description={
+              errorKind === 'external'
+                ? `${error} You can retry without external sources.`
+                : error
+            }
+            actionLabel={errorKind === 'external' ? 'Search internal only' : 'Try again'}
             onAction={() => {
+              if (errorKind === 'external') {
+                setError(null);
+                setErrorKind(null);
+                performSearch(1, { includeExternalOverride: false });
+                return;
+              }
               setError(null);
+              setErrorKind(null);
               setResults([]);
               setHasSearched(false);
               setMetadata(null);
