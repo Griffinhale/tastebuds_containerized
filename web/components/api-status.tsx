@@ -2,7 +2,7 @@
 
 // API health card with connector status badges.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   fetchHealth,
   normalizeConnectorHealth,
@@ -10,7 +10,11 @@ import {
   formatConnectorSource,
 } from '../lib/health';
 
-export function ApiStatus() {
+type ApiStatusProps = {
+  variant?: 'panel' | 'compact';
+};
+
+export function ApiStatus({ variant = 'panel' }: ApiStatusProps) {
   const [status, setStatus] = useState<'idle' | 'ok' | 'error'>('idle');
   const [message, setMessage] = useState<string>('Checking backend health...');
   const [connectors, setConnectors] = useState<ConnectorHealth[]>([]);
@@ -47,12 +51,27 @@ export function ApiStatus() {
   const color =
     status === 'ok' ? 'text-emerald-300' : status === 'error' ? 'text-red-300' : 'text-slate-200';
   const indicator = status === 'ok' ? '●' : status === 'error' ? '○' : '…';
+  const compactLabel = useMemo(() => {
+    if (status === 'ok') return 'healthy';
+    if (status === 'error') return 'offline';
+    return 'checking';
+  }, [status]);
 
   const badgeClass = (state: ConnectorHealth['state']) => {
     if (state === 'ok') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
     if (state === 'circuit_open') return 'border-amber-400/50 bg-amber-500/10 text-amber-100';
     return 'border-red-500/50 bg-red-500/10 text-red-100';
   };
+
+  if (variant === 'compact') {
+    return (
+      <div className="flex items-center gap-2 whitespace-nowrap text-xs text-slate-200">
+        <span className={color}>{indicator}</span>
+        <span className="text-slate-300">API</span>
+        <span className="font-semibold text-slate-100">{compactLabel}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">

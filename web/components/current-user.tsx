@@ -1,7 +1,7 @@
 'use client';
 
 // Current user panel that syncs session state across tabs.
-
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { SESSION_EVENT, SESSION_FLAG_KEY, User, logout, refreshTokens } from '../lib/auth';
@@ -16,7 +16,11 @@ function readSessionFlag() {
   }
 }
 
-export function CurrentUser() {
+type CurrentUserProps = {
+  variant?: 'panel' | 'compact';
+};
+
+export function CurrentUser({ variant = 'panel' }: CurrentUserProps) {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,12 +77,18 @@ export function CurrentUser() {
   }, []);
 
   const statusText = useMemo(() => {
-    if (!profile && !loading && !error)
-      return 'Not signed in yet. Log in or register to see your profile.';
-    if (loading) return 'Fetching your profile...';
+    if (!profile && !loading && !error) return 'Not signed in.';
+    if (loading) return 'Checking session...';
     if (error) return error;
     if (profile) return `Signed in as ${profile.display_name || profile.email}`;
     return 'Signed in.';
+  }, [loading, error, profile]);
+
+  const compactStatus = useMemo(() => {
+    if (loading) return 'Checking...';
+    if (error) return 'Session issue';
+    if (profile) return profile.display_name || profile.email;
+    return 'Signed out';
   }, [loading, error, profile]);
 
   async function handleRefresh() {
@@ -108,42 +118,101 @@ export function CurrentUser() {
     setError(null);
   }
 
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-300">Signed-in status</p>
-          <p className="text-sm text-slate-200">{statusText}</p>
-        </div>
-        {profile && (
-          <div className="flex gap-2">
+  if (variant === 'compact') {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-200">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+          Account
+        </span>
+        <span className="text-slate-200">{compactStatus}</span>
+        {profile ? (
+          <>
+            <Link
+              href="/account"
+              className="rounded-full border border-emerald-400/60 px-2 py-0.5 text-[11px] font-semibold text-emerald-100 transition hover:border-emerald-300 hover:text-emerald-50"
+            >
+              My account
+            </Link>
             <button
               onClick={handleRefresh}
-              className="rounded-md border border-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:border-emerald-400/60"
+              className="rounded-full border border-slate-800 px-2 py-0.5 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
             >
               Refresh
             </button>
             <button
               onClick={handleLogout}
-              className="rounded-md bg-slate-800 px-3 py-1 text-xs font-semibold text-white transition hover:bg-slate-700"
+              className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-white transition hover:bg-slate-700"
             >
               Log out
             </button>
-          </div>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-800 px-2 py-0.5 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-full border border-slate-800 px-2 py-0.5 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+            >
+              Register
+            </Link>
+          </>
         )}
       </div>
+    );
+  }
 
-      {profile && (
-        <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-white">
-              {profile.display_name || profile.email}
-            </span>
-            <span className="text-xs text-slate-400">User ID: {profile.id}</span>
-          </div>
-          <p className="text-xs text-slate-300">Email: {profile.email}</p>
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Account</p>
+          <p className="text-sm text-slate-200">{statusText}</p>
         </div>
-      )}
+        <div className="flex flex-wrap items-center gap-2">
+          {profile ? (
+            <>
+              <Link
+                href="/account"
+                className="rounded-full border border-emerald-400/60 px-3 py-1 text-[11px] font-semibold text-emerald-100 transition hover:border-emerald-300 hover:text-emerald-50"
+              >
+                My account
+              </Link>
+              <button
+                onClick={handleRefresh}
+                className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={handleLogout}
+                className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-slate-700"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-full border border-slate-800 px-3 py-1 text-[11px] font-semibold text-white transition hover:border-emerald-400/60"
+              >
+                Register
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

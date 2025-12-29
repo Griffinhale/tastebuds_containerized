@@ -127,7 +127,7 @@ export default async function PublicMenuPage({ params }: PageProps) {
           <p className="mt-3 text-xs text-slate-400">
             Want Spotify export or Jellyfin sync?{' '}
             <Link
-              href="/integrations"
+              href="/account#integrations"
               className="text-emerald-300 underline decoration-emerald-300/60"
             >
               Connect integrations
