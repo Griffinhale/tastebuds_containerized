@@ -10,7 +10,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 
 ### Plan Adjustments (Dec 2025)
 - Automation rules are stored and runnable via the API, but execution is still a placeholder (queued no-op) while real action adapters are built.
-- Jellyfin/Plex sync requests enqueue successfully, yet provider-specific sync handlers currently return `pending` until connectors are implemented.
+- Jellyfin/Plex sync requests now run real adapters that ingest TMDB-backed movies/series from linked libraries (selective sync via section/library IDs is supported).
 - Availability tracking supports manual upserts and stale marking; automated provider connectors are still planned work.
 
 ## 2. Experience Principles
@@ -77,7 +77,7 @@ TODO: draft RFCs for Library + Log, deeper narrative menus (story mode), taste p
 ### 7.3 Integration Burst (requires queue + credential vault from 7.1)
 - Spotify linking screen + backend credential vault (per-user encrypted store and token rotation). (initial API + UI now in place)
 - Arr suite integration kit: sample docker-compose w/ webhook forwarding, event schemas, automation recipes backed by the worker queue. (webhook intake + ingest queue now available)
-- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers. (sync queue stubs now live; provider adapters still pending)
+- Jellyfin/Plex connectors with selective sync (e.g., only import “Favorites” libraries) and token-scoped background sync workers. (sync adapters now ingest TMDB-backed movies/series; provider-specific enrichment still pending)
 - Automation hooks: webhooks + scheduled rules (“When IGDB releases follow list, propose menu update”). (automation rule CRUD now live; execution adapters still pending)
 
 ### 7.4 Ecosystem & Monetization Experiments (after moderation/abuse controls are defined)

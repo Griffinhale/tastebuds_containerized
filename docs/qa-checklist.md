@@ -34,7 +34,7 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] User state lifecycle: `PUT /api/me/states/{media_item_id}` upserts status/rating/favorite and returns updated data.
 - [ ] Availability lifecycle: `PUT /api/media/{media_item_id}/availability` upserts provider entries and `POST /api/media/availability/summary` returns expected counts.
 - [ ] Preview details: authenticated `GET /api/previews/{preview_id}` returns metadata and expires when `preview_expires_at` passes.
-- [ ] Integrations: `POST /api/integrations/arr/webhook-token` returns a URL + prefix, `GET /api/integrations` shows it, and `POST /api/integrations/jellyfin/sync` returns a placeholder `pending` status.
+- [ ] Integrations: `POST /api/integrations/arr/webhook-token` returns a URL + prefix, `GET /api/integrations` shows it, and `POST /api/integrations/jellyfin/sync` returns a sync summary with `status` + counts.
 - [ ] Automations: create a rule and `POST /api/automations/{rule_id}/run` returns `queued` with a placeholder detail payload.
 
 ## 5) Frontend App

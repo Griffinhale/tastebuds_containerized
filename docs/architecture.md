@@ -19,7 +19,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Taste Profile:** `/api/me/taste-profile` aggregates logs/tags/menus into `user_taste_profiles` with refresh-on-demand caching.
 - **Availability awareness:** provider/region/format entries live in `media_item_availability`; a scheduled job marks stale entries and UI overlays consume summaries.
 - **Community exchange:** menu forks are tracked in `menu_lineage`; draft share links are powered by `menu_share_tokens` and public draft access.
-- **Integrations:** `/api/integrations` manages OAuth and headless tokens, Arr webhooks persist payloads into `integration_ingest_events`, and manual sync tasks enqueue into the `sync` queue (provider adapters still pending).
+- **Integrations:** `/api/integrations` manages OAuth and headless tokens, Arr webhooks persist payloads into `integration_ingest_events`, and manual sync tasks enqueue into the `sync` queue (Jellyfin/Plex adapters now ingest TMDB-backed movies/series).
 - **Health/telemetry:** `/health` and `/api/health` return only `{status}` to anonymous callers; authenticated or allowlisted callers also see connector status, repeated failure alerts, and open circuits for ingestion/search fan-out.
 - **Ops/queues:** `/api/ops/queues` (auth + admin allowlist) surfaces Redis/RQ queue sizes, worker presence, scheduler health, and vault encryption status for quick triage; the Next.js home page now renders a queue health card for the same snapshot.
 
@@ -32,5 +32,5 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 
 ## Known Gaps to Align With Delivery Plan
 - Finalize production TLS (ACME/managed certs) and continue tuning rate-limit profiles before any public exposure.
-- Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, but Jellyfin/Plex sync and automation runs are still placeholder responses without provider-specific execution.
+- Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, Jellyfin/Plex sync adapters ingest TMDB-backed items, and automation runs remain placeholder responses.
 - Validate data-retention defaults (preview TTL + raw payload GC) against licensing policies once external payload sizes are better understood.

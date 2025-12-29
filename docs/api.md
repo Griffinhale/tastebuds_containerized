@@ -149,7 +149,7 @@ When `expected_updated_at` is supplied and stale, the API responds with `409 Con
 - `GET /api/integrations/arr/queue` - list Arr ingest queue events (auth required, optional `status_filter`).
 - `POST /api/integrations/arr/queue/{event_id}/ingest` - ingest a queued Arr event.
 - `POST /api/integrations/arr/queue/{event_id}/dismiss` - dismiss a queued Arr event.
-- `POST /api/integrations/{provider}/sync` - trigger Jellyfin/Plex sync (provider = `jellyfin` or `plex`). Current sync tasks return a placeholder `pending` status until provider adapters are implemented.
+- `POST /api/integrations/{provider}/sync` - trigger Jellyfin/Plex sync (provider = `jellyfin` or `plex`). Sync adapters pull movie/series items with TMDB IDs and return a summary (scanned/ingested/skipped); use `external_id="library"` to sync all or pass a library/section ID to scope the sync.
 
 ## Automations
 - `GET /api/automations` - list automation rules.
