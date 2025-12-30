@@ -6,7 +6,7 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Services (docker-compose.yml):** `api` (FastAPI + SQLAlchemy/Alembic), `db` (Postgres 15), `redis` (RQ broker), `worker` (`python -m app.worker`), `scheduler` (`rqscheduler`), `web` (Next.js), optional `pgadmin`, and `proxy` (local Nginx front door that routes `/api` to the backend and serves Next.js at the root).
 - **Edge routing:** The `proxy` service listens on 80/443 with a generated dev certificate, redirects HTTP to HTTPS, auto-rotates self-signed certs via `docker/proxy/entrypoint.sh`, validates `Host` for localhost-only dev use, applies per-route rate limits (auth, ingest, search, public), funnels `/api`/`/docs`/`/health` to `api:8000`, and hands the remaining traffic to `web:3000`.
 - **State:** Postgres owns canonical media (`media_items` + extensions), provenance (`media_sources`), menus/courses/items, tags, per-user states + logs, refresh tokens for session inventory, encrypted integration secrets in `user_credentials`, webhook tokens (`integration_webhook_tokens`), ingest queue entries (`integration_ingest_events`), and automation rules (`automation_rules`). Redis now holds the queue state for ingestion retries, webhook/sync jobs, integrations, and scheduled maintenance while UUIDs remain generated in the API.
-- **Env & secrets:** `.env` is consumed by API, worker, and web; external API keys (Google Books, TMDB v4 bearer, IGDB client/secret, Last.fm) are required for live ingestion.
+- **Env & secrets:** `.env` is consumed by API, worker, and web; external API keys (Google Books, TMDB v4 bearer, IGDB client/secret, Last.fm) are required for live ingestion. `docs/config.md` (with `example.env`) documents the canonical list of variables and defaults.
 - **Not yet present:** ACME/production cert issuance and provider-specific adapters for webhook and sync processing beyond the current queue/persistence scaffolding.
 
 ## Request & Data Flows
@@ -28,9 +28,9 @@ This snapshot ties the running Compose stack to the data model, request flows, a
 - **Tests/fixtures:** Pytest uses async fixtures and sample ingestion payloads; CI runs Ruff + pytest (SQLite) + frontend lint/typecheck plus proxy routing smokes.
 - **Background work:** Retryable ingestion/search fan-out now enqueues into Redis-backed RQ queues, with rq-scheduler keeping preview cache cleanup running. Webhook listeners, automation runs, and long-running sync jobs have dedicated RQ jobs + queues (`webhooks`, `integrations`, `sync`) and share the same worker pool; automation execution now runs ingest/sync action adapters.
 - **Availability refresh:** rq-scheduler also runs availability refresh to mark stale provider entries until provider connectors are wired.
-- **Security controls:** Route-specific rate limits live at the proxy, session inventory/audit APIs are present, and external payloads now have retention/TTL enforcement (preview cache TTL + raw payload GC); see `docs/security.md` for current risks.
+- **Security controls:** Route-specific rate limits live at the proxy, session inventory/audit APIs are present, and external payloads now have retention/TTL enforcement; see `docs/data-lifecycle.md` for the defaults and `docs/security.md` for current risks.
 
 ## Known Gaps to Align With Delivery Plan
 - Finalize production TLS (ACME/managed certs) and continue tuning rate-limit profiles before any public exposure.
 - Expand webhook and sync adapters beyond current scaffolding: Arr intake queues are persisted, Jellyfin/Plex sync adapters ingest TMDB-backed items, and automation triggers/additional action adapters are still pending.
-- Validate data-retention defaults (preview TTL + raw payload GC) against licensing policies once external payload sizes are better understood.
+- Validate the data-retention defaults documented in `docs/data-lifecycle.md` against licensing policies once external payload sizes are better understood.

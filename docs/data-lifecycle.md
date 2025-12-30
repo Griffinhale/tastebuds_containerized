@@ -1,27 +1,7 @@
 # Data Lifecycle
 
 This doc summarizes what data we store, how long it lives, and how it is
-bounded. For full schemas, see `schema.md`.
-
-## Data inventory (from `schema.md`)
-- `users`: auth accounts (email, password hash), owners for menus and states.
-- `media_items`: canonical catalog entries with typed fields and JSONB metadata.
-- `book_items` / `movie_items` / `game_items` / `music_items`: per-medium
-  extensions keyed by `media_item_id`.
-- `media_sources`: ingestion provenance with `source_name`, `external_id`,
-  `canonical_url`, `raw_payload`, and `fetched_at`.
-- `tags` / `media_item_tags`: owner-scoped tagging.
-- `user_item_states`: per-user status, rating, favorite, notes.
-- `user_item_logs`: timeline entries with progress, minutes, goals.
-- `menus` / `courses` / `course_items`: ordered menu structure and annotations.
-- `menu_item_pairings`: narrative links between course items.
-- `menu_lineage`: fork and lineage attribution.
-- `menu_share_tokens`: temporary tokens for draft share links.
-- `media_item_availability`: provider, region, and format availability snapshots.
-- `user_taste_profiles`: cached preference summaries derived from usage.
-- `integration_webhook_tokens`: hashed webhook tokens for inbound events.
-- `integration_ingest_events`: queued webhook events ready for ingestion.
-- `automation_rules`: user-defined automation rule definitions.
+bounded. For the canonical schema inventory refer to `schema.md`.
 
 ## Operational and ephemeral data
 - `external_search_previews`: short-lived previews for external search results.

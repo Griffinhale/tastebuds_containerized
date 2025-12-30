@@ -2,21 +2,12 @@
 
 This runbook covers common operational checks for the local Docker stack.
 
-## Startup order
-1. db (Postgres)
-2. redis
-3. api
-4. worker (RQ)
-5. scheduler (rq-scheduler)
-6. web
-7. proxy (nginx)
-8. optional: pgadmin
-
-Use `./scripts/dev.sh up` to start the full stack.
+## Runtime topology & order
+See `architecture.md` to understand the runtime topology and the recommended startup order. Use `./scripts/dev.sh up` to start the full stack; it handles service ordering and dependencies.
 
 ## Shutdown order
 Stop in reverse order to avoid dropping dependencies:
-proxy -> web -> scheduler -> worker -> api -> redis -> db.
+proxy -> web -> scheduler -> worker -> api -> redis -> db. See `architecture.md` for the full runtime layout when you need to adjust this sequence.
 
 ## Health endpoints
 - `/health` and `/api/health` return a status payload.
