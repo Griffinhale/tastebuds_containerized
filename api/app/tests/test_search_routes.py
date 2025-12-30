@@ -7,13 +7,276 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 import pytest
-from sqlalchemy import select
+import pytest_asyncio
+from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.ingestion.base import BaseConnector, ConnectorResult
 from app.models.media import BookItem, MediaItem, MediaType, MusicItem
 from app.models.search_preview import ExternalSearchPreview
 from app.services import search_preview_service
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _setup_search_fts(session):
+    if session.bind.dialect.name != "postgresql":
+        yield
+        return
+
+    schema_translate_map = None
+    if session.bind and hasattr(session.bind, "sync_engine"):
+        schema_translate_map = session.bind.sync_engine._execution_options.get("schema_translate_map")
+    schema_name = schema_translate_map.get(None) if schema_translate_map else None
+    if not schema_name:
+        schema_result = await session.execute(
+            text(
+                "SELECT table_schema FROM information_schema.tables "
+                "WHERE table_name = 'media_items' LIMIT 1"
+            )
+        )
+        schema_name = schema_result.scalar_one()
+    schema_prefix = f'"{schema_name}"'
+
+    await session.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+    await session.execute(
+        text(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'english_unaccent') THEN
+                    CREATE TEXT SEARCH CONFIGURATION english_unaccent ( COPY = english );
+                    ALTER TEXT SEARCH CONFIGURATION english_unaccent
+                        ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, word, hword, hword_part
+                        WITH unaccent, english_stem;
+                END IF;
+            END $$;
+            """
+        )
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION {schema_prefix}.media_items_search_vector(target_id uuid)
+            RETURNS tsvector
+            LANGUAGE sql
+            STABLE
+            AS $$
+            SELECT
+                setweight(to_tsvector('english_unaccent', coalesce(mi.title, '')), 'A') ||
+                setweight(to_tsvector('english_unaccent', coalesce(mi.subtitle, '')), 'B') ||
+                setweight(to_tsvector('english_unaccent', coalesce(mi.description, '')), 'C') ||
+                setweight(
+                    (
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(b.authors, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector('english_unaccent', coalesce(b.publisher, '')) ||
+                        to_tsvector('english_unaccent', coalesce(b.isbn_10, '')) ||
+                        to_tsvector('english_unaccent', coalesce(b.isbn_13, '')) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(mo.directors, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(mo.producers, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(g.developers, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(g.publishers, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(g.genres, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector(
+                            'english_unaccent',
+                            coalesce(
+                                array_to_string(
+                                    ARRAY(SELECT jsonb_array_elements_text(coalesce(g.platforms, '[]'::jsonb))),
+                                    ' '
+                                ),
+                                ''
+                            )
+                        ) ||
+                        to_tsvector('english_unaccent', coalesce(mu.artist_name, '')) ||
+                        to_tsvector('english_unaccent', coalesce(mu.album_name, ''))
+                    ),
+                    'D'
+                )
+            FROM {schema_prefix}.media_items mi
+            LEFT JOIN {schema_prefix}.book_items b ON b.media_item_id = mi.id
+            LEFT JOIN {schema_prefix}.movie_items mo ON mo.media_item_id = mi.id
+            LEFT JOIN {schema_prefix}.game_items g ON g.media_item_id = mi.id
+            LEFT JOIN {schema_prefix}.music_items mu ON mu.media_item_id = mi.id
+            WHERE mi.id = target_id;
+            $$;
+            """
+        )
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION {schema_prefix}.refresh_media_item_search_vector(target_id uuid)
+            RETURNS void
+            LANGUAGE sql
+            AS $$
+            UPDATE {schema_prefix}.media_items
+            SET search_vector = {schema_prefix}.media_items_search_vector(target_id)
+            WHERE id = target_id;
+            $$;
+            """
+        )
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION {schema_prefix}.media_items_search_vector_trigger()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            DECLARE
+                target_id uuid;
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    target_id := OLD.media_item_id;
+                ELSIF TG_TABLE_NAME = 'media_items' THEN
+                    target_id := NEW.id;
+                ELSE
+                    target_id := NEW.media_item_id;
+                END IF;
+                IF target_id IS NULL THEN
+                    IF TG_OP = 'DELETE' THEN
+                        RETURN OLD;
+                    END IF;
+                    RETURN NEW;
+                END IF;
+                PERFORM {schema_prefix}.refresh_media_item_search_vector(target_id);
+                IF TG_OP = 'DELETE' THEN
+                    RETURN OLD;
+                END IF;
+                RETURN NEW;
+            END;
+            $$;
+            """
+        )
+    )
+    await session.execute(
+        text(f"DROP TRIGGER IF EXISTS media_items_search_vector_update ON {schema_prefix}.media_items")
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE TRIGGER media_items_search_vector_update
+            AFTER INSERT OR UPDATE OF title, subtitle, description
+            ON {schema_prefix}.media_items
+            FOR EACH ROW EXECUTE FUNCTION {schema_prefix}.media_items_search_vector_trigger();
+            """
+        )
+    )
+    await session.execute(
+        text(f"DROP TRIGGER IF EXISTS book_items_search_vector_update ON {schema_prefix}.book_items")
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE TRIGGER book_items_search_vector_update
+            AFTER INSERT OR UPDATE OR DELETE
+            ON {schema_prefix}.book_items
+            FOR EACH ROW EXECUTE FUNCTION {schema_prefix}.media_items_search_vector_trigger();
+            """
+        )
+    )
+    await session.execute(
+        text(f"DROP TRIGGER IF EXISTS movie_items_search_vector_update ON {schema_prefix}.movie_items")
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE TRIGGER movie_items_search_vector_update
+            AFTER INSERT OR UPDATE OR DELETE
+            ON {schema_prefix}.movie_items
+            FOR EACH ROW EXECUTE FUNCTION {schema_prefix}.media_items_search_vector_trigger();
+            """
+        )
+    )
+    await session.execute(
+        text(f"DROP TRIGGER IF EXISTS game_items_search_vector_update ON {schema_prefix}.game_items")
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE TRIGGER game_items_search_vector_update
+            AFTER INSERT OR UPDATE OR DELETE
+            ON {schema_prefix}.game_items
+            FOR EACH ROW EXECUTE FUNCTION {schema_prefix}.media_items_search_vector_trigger();
+            """
+        )
+    )
+    await session.execute(
+        text(f"DROP TRIGGER IF EXISTS music_items_search_vector_update ON {schema_prefix}.music_items")
+    )
+    await session.execute(
+        text(
+            f"""
+            CREATE TRIGGER music_items_search_vector_update
+            AFTER INSERT OR UPDATE OR DELETE
+            ON {schema_prefix}.music_items
+            FOR EACH ROW EXECUTE FUNCTION {schema_prefix}.media_items_search_vector_trigger();
+            """
+        )
+    )
+    await session.execute(
+        text(
+            f"""
+            UPDATE {schema_prefix}.media_items
+            SET search_vector = {schema_prefix}.media_items_search_vector(id);
+            """
+        )
+    )
+    await session.commit()
+    yield
 
 
 class StubConnector(BaseConnector):
@@ -119,6 +382,61 @@ async def test_search_matches_creator_and_description(client, session):
     assert response.status_code == 200
     titles = [item["title"] for item in response.json()["results"]]
     assert "Left Hand of Darkness" in titles
+
+
+@pytest.mark.asyncio
+async def test_search_ranking_prioritizes_title_over_metadata(client, session):
+    title_hit = MediaItem(media_type=MediaType.BOOK, title="Zeta Atlas")
+    metadata_hit = MediaItem(media_type=MediaType.BOOK, title="Alpha Story")
+    session.add_all([title_hit, metadata_hit])
+    await session.flush()
+    session.add(BookItem(media_item_id=metadata_hit.id, authors=["Atlas Explorer"]))
+    await session.commit()
+
+    response = await client.get("/api/search", params={"q": "Atlas"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert titles[0] == "Zeta Atlas"
+
+
+@pytest.mark.asyncio
+async def test_search_handles_diacritics_and_punctuation(client, session):
+    session.add(MediaItem(media_type=MediaType.BOOK, title="Café Noir"))
+    await session.commit()
+
+    response = await client.get("/api/search", params={"q": "Cafe"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Café Noir" in titles
+
+    response = await client.get("/api/search", params={"q": "\"Cafe"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Café Noir" in titles
+
+
+@pytest.mark.asyncio
+async def test_search_vector_refreshes_after_extension_update(client, session):
+    book = MediaItem(media_type=MediaType.BOOK, title="Memory Line")
+    session.add(book)
+    await session.flush()
+    session.add(BookItem(media_item_id=book.id, authors=["Old Name"]))
+    await session.commit()
+
+    response = await client.get("/api/search", params={"q": "Old"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Memory Line" in titles
+
+    result = await session.execute(select(BookItem).where(BookItem.media_item_id == book.id))
+    book_item = result.scalar_one()
+    book_item.authors = ["New Name"]
+    await session.commit()
+
+    response = await client.get("/api/search", params={"q": "New"})
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["results"]]
+    assert "Memory Line" in titles
 
 
 @pytest.mark.asyncio

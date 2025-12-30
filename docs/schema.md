@@ -2,7 +2,7 @@
 
 ## Overview
 - **users**: auth accounts (email + hashed password), own menus and user-level media states.
-- **media_items**: canonical catalog table with `media_type`, `title`, `description`, `release_date`, `cover_image_url`, `canonical_url`, JSONB `metadata`, timestamps.
+- **media_items**: canonical catalog table with `media_type`, `title`, `description`, `release_date`, `cover_image_url`, `canonical_url`, JSONB `metadata`, persisted `search_vector`, timestamps.
 - **book_items / movie_items / game_items / music_items**: one-to-one extension tables keyed by `media_item_id` for medium-specific attributes.
 - **media_sources**: ingestion provenance per item (`source_name`, `external_id`, `canonical_url`, `raw_payload`, `fetched_at`), unique on `(source_name, external_id)`.
 - **tags / media_item_tags**: free-form tagging with optional owner scope.
@@ -44,6 +44,12 @@ course_items --> menu_item_pairings
 - `media_sources` unique `(source_name, external_id)`; `media_item_id` indexed for lookups.
 - `user_item_states` unique `(user_id, media_item_id)` with rating range check (0-10).
 - `tags` unique `(owner_id, name)` to prevent duplicates per user namespace.
+- `media_items.search_vector` is indexed with GIN for full-text search; triggers refresh the vector on media + extension updates.
+
+## Search indexing
+- Full-text search uses the `english_unaccent` configuration (English stemming + diacritic folding).
+- Triggers update `media_items.search_vector` whenever `media_items` or extension tables change.
+- Non-Postgres engines store `search_vector` as plain text and internal search falls back to normalized substring matching without GIN indexing.
 
 ## Canonical vs Metadata vs Raw
 - **Canonical columns**: typed fields on `media_items` or extension tables (e.g., `runtime_minutes`, `authors`).

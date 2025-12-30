@@ -26,8 +26,10 @@ Tastebuds ships Docker-first. Use this checklist for release candidates to confi
 - [ ] `GET /api/public/menus/{slug}` returns the published menu when `is_public=true` and 404 when toggled off.
 - [ ] `GET /health` and `GET /api/health` return `status: "ok"` plus ingestion telemetry when connectors are healthy; temporarily force a connector failure/open circuit and confirm `status: "degraded"` lists the affected source/operation.
 - [ ] `GET /api/search?q=demo` anonymously returns internal results only.
+- [ ] Internal search handles diacritics + punctuation (ex: `Cafe` matches `Café`, malformed quotes do not 500).
 - [ ] Authenticated: `GET /api/search?q=demo&sources=internal&sources=google_books&page=2&per_page=5&external_per_source=2` returns paging/source metadata and external previews; confirm per-source timings and dedupe counts.
 - [ ] Cross-connector dedupe: ingest a movie internally, run `/api/search` with `sources=tmdb&sources=google_books&include_external=true` as an authenticated user, and confirm the internal hit is first, external duplicates are counted in `metadata.counts.external_deduped`, and per-source timings appear under `metadata.source_metrics`.
+- [ ] Update an extension field (ex: book author) and confirm the internal search reflects the change without manual reindexing.
 - [ ] Verify that unauthenticated external fan-out (`include_external=true` or external `sources`) is rejected (401/403) or ignored per deployment policy.
 - [ ] `/api/auth/refresh` rotates the refresh cookie and rejects the previous cookie (expect 401 if you reuse it); `/api/auth/logout` revokes the most recent refresh token.
 - [ ] Tags lifecycle: create tag -> assign to ingested media -> list media tags -> delete assignment and tag.

@@ -101,8 +101,12 @@ This document summarizes the current test suites and what each test checks.
 - `test_public_menu_route_hides_owner_id`: public menu route omits `owner_id`.
 
 ### `api/app/tests/test_search_routes.py`
+Note: CI runs these tests against SQLite, so internal search uses the normalized substring fallback instead of Postgres FTS.
 - `test_search_pagination_produces_metadata`: paging metadata and counts align with internal results.
 - `test_external_search_requires_auth`: external fan-out without auth returns 401.
+- `test_search_ranking_prioritizes_title_over_metadata`: title matches rank above metadata-only matches.
+- `test_search_handles_diacritics_and_punctuation`: diacritic folding + malformed punctuation remain safe.
+- `test_search_vector_refreshes_after_extension_update`: extension updates refresh the stored search vector.
 - `test_search_external_ingests_multi_source`: external sources ingest and report per-source counts.
 - `test_search_sources_filter_limits_external_only`: filtering to sources limits fan-out and metadata to those sources.
 - `test_search_types_filter_drops_incompatible_sources`: type filters prevent incompatible connectors from running.

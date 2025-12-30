@@ -8,6 +8,9 @@ Invariants:
 from __future__ import annotations
 
 import json
+import logging
+import re
+import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -15,7 +18,8 @@ from time import monotonic
 from typing import Any, Iterable, TypeAlias
 
 from fastapi import HTTPException
-from sqlalchemy import Text, and_, cast, func, literal_column, select, update
+from sqlalchemy import and_, func, select, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,12 +40,38 @@ from app.schema.search import SearchResultItem
 from app.services import search_preview_service
 
 DEFAULT_EXTERNAL_SOURCES = ("google_books", "tmdb", "igdb", "lastfm")
+SEARCH_CONFIG = "english_unaccent"
+MAX_INTERNAL_QUERY_LENGTH = 256
 DedupeKey: TypeAlias = tuple[str, ...]
+
+logger = logging.getLogger("app.services.media")
 
 
 def normalize_title(value: str) -> str:
     """Normalize titles for dedupe comparisons."""
     return " ".join(value.casefold().split())
+
+
+def _normalize_search_text(value: str) -> str:
+    if not value:
+        return ""
+    folded = value.casefold()
+    normalized = unicodedata.normalize("NFKD", folded)
+    stripped = "".join(char for char in normalized if not unicodedata.combining(char))
+    cleaned = re.sub(r"[^\w\s]", " ", stripped)
+    return " ".join(cleaned.split())
+
+
+def _join_search_values(*values: Any) -> str:
+    parts: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            parts.extend(str(item) for item in value if item)
+        else:
+            parts.append(str(value))
+    return " ".join(parts)
 
 
 def _bounded_payload(payload: dict[str, Any], max_bytes: int, *, kind: str) -> dict[str, Any]:
@@ -194,73 +224,126 @@ async def search_media(
     Implementation notes:
     - Uses Postgres full-text search over title/description plus creator fields.
     - Weighted vectors keep exact title hits above broader metadata matches.
+    - Non-Postgres engines fall back to normalized substring matching.
     """
 
+    search_start = monotonic()
     normalized_query = query.strip()
     if not normalized_query:
         return [], 0
+    original_length = len(normalized_query)
+    if original_length > MAX_INTERNAL_QUERY_LENGTH:
+        normalized_query = normalized_query[:MAX_INTERNAL_QUERY_LENGTH]
 
-    def _text_field(value):
-        # Use TEXT casts for JSON/array fields to avoid PostgreSQL cast errors on VARCHAR.
-        return func.coalesce(cast(value, Text), "")
+    query_truncated = original_length > MAX_INTERNAL_QUERY_LENGTH
+    media_type_list = list(media_types) if media_types else None
+    dialect_name = session.bind.dialect.name if session.bind else None
 
-    other_fields = func.concat_ws(
-        " ",
-        _text_field(BookItem.authors),
-        _text_field(BookItem.publisher),
-        _text_field(BookItem.isbn_10),
-        _text_field(BookItem.isbn_13),
-        _text_field(MovieItem.directors),
-        _text_field(MovieItem.producers),
-        _text_field(GameItem.developers),
-        _text_field(GameItem.publishers),
-        _text_field(GameItem.genres),
-        _text_field(GameItem.platforms),
-        _text_field(MusicItem.artist_name),
-        _text_field(MusicItem.album_name),
-    )
-    # Use literal weights to let Postgres resolve the "char" overload for setweight.
-    weight_a = literal_column("'A'")
-    weight_b = literal_column("'B'")
-    weight_c = literal_column("'C'")
-    weight_d = literal_column("'D'")
-    title_vector = func.setweight(
-        func.to_tsvector("simple", func.coalesce(MediaItem.title, "")), weight_a
-    )
-    subtitle_vector = func.setweight(
-        func.to_tsvector("simple", func.coalesce(MediaItem.subtitle, "")), weight_b
-    )
-    description_vector = func.setweight(
-        func.to_tsvector("simple", func.coalesce(MediaItem.description, "")), weight_c
-    )
-    metadata_vector = func.setweight(func.to_tsvector("simple", other_fields), weight_d)
-    search_vector = (
-        title_vector.op("||")(subtitle_vector)
-        .op("||")(description_vector)
-        .op("||")(metadata_vector)
-    )
-    search_query = func.websearch_to_tsquery("simple", normalized_query)
+    if dialect_name != "postgresql":
+        stmt = (
+            select(MediaItem, BookItem, MovieItem, GameItem, MusicItem)
+            .outerjoin(BookItem, BookItem.media_item_id == MediaItem.id)
+            .outerjoin(MovieItem, MovieItem.media_item_id == MediaItem.id)
+            .outerjoin(GameItem, GameItem.media_item_id == MediaItem.id)
+            .outerjoin(MusicItem, MusicItem.media_item_id == MediaItem.id)
+        )
+        if media_type_list:
+            stmt = stmt.where(MediaItem.media_type.in_(media_type_list))
+        result = await session.execute(stmt)
+        rows = result.all()
+        normalized_query = _normalize_search_text(normalized_query)
+        if not normalized_query:
+            return [], 0
+        scored: list[tuple[int, str, str, MediaItem]] = []
+        for media_item, book, movie, game, music in rows:
+            title_text = _normalize_search_text(media_item.title or "")
+            subtitle_text = _normalize_search_text(media_item.subtitle or "")
+            description_text = _normalize_search_text(media_item.description or "")
+            metadata_text = _normalize_search_text(
+                _join_search_values(
+                    book.authors if book else None,
+                    book.publisher if book else None,
+                    book.isbn_10 if book else None,
+                    book.isbn_13 if book else None,
+                    movie.directors if movie else None,
+                    movie.producers if movie else None,
+                    game.developers if game else None,
+                    game.publishers if game else None,
+                    game.genres if game else None,
+                    game.platforms if game else None,
+                    music.artist_name if music else None,
+                    music.album_name if music else None,
+                )
+            )
+            score = 0
+            if normalized_query in title_text:
+                score = max(score, 4)
+            if normalized_query in subtitle_text:
+                score = max(score, 3)
+            if normalized_query in description_text:
+                score = max(score, 2)
+            if normalized_query in metadata_text:
+                score = max(score, 1)
+            if score:
+                scored.append((score, media_item.title.casefold(), str(media_item.id), media_item))
+        scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+        total = len(scored)
+        items = [item[3] for item in scored][offset : offset + limit]
+        search_ms = (monotonic() - search_start) * 1000
+        logger.info(
+            "Internal search completed",
+            extra={
+                "query_length": len(normalized_query),
+                "query_truncated": query_truncated,
+                "query_mode": "fallback",
+                "offset": offset,
+                "limit": limit,
+                "returned": len(items),
+                "total": total,
+                "search_ms": round(search_ms, 2),
+                "media_types": [media_type.value for media_type in media_type_list] if media_type_list else None,
+            },
+        )
+        return items, total
 
-    filtered_stmt = (
-        select(MediaItem)
-        .outerjoin(BookItem, BookItem.media_item_id == MediaItem.id)
-        .outerjoin(MovieItem, MovieItem.media_item_id == MediaItem.id)
-        .outerjoin(GameItem, GameItem.media_item_id == MediaItem.id)
-        .outerjoin(MusicItem, MusicItem.media_item_id == MediaItem.id)
-        .where(search_vector.op("@@")(search_query))
+    def _build_stmt(ts_query):
+        rank = func.ts_rank_cd(MediaItem.search_vector, ts_query).label("rank")
+        # Window count avoids a second round-trip; if deep pagination needs tuning, skip this when offset > 0.
+        total_count = func.count().over().label("total_count")
+        stmt = select(MediaItem, total_count, rank).where(MediaItem.search_vector.op("@@")(ts_query))
+        if media_type_list:
+            stmt = stmt.where(MediaItem.media_type.in_(media_type_list))
+        return stmt.order_by(rank.desc(), func.lower(MediaItem.title), MediaItem.id).offset(offset).limit(limit)
+
+    search_query = func.websearch_to_tsquery(SEARCH_CONFIG, normalized_query)
+    query_mode = "websearch"
+    try:
+        result = await session.execute(_build_stmt(search_query))
+    except DBAPIError:
+        await session.rollback()
+        search_query = func.plainto_tsquery(SEARCH_CONFIG, normalized_query)
+        query_mode = "plain"
+        result = await session.execute(_build_stmt(search_query))
+
+    rows = result.all()
+    items = [row[0] for row in rows]
+    total = rows[0].total_count if rows else 0
+    search_ms = (monotonic() - search_start) * 1000
+    logger.info(
+        "Internal search completed",
+        extra={
+            "query_length": len(normalized_query),
+            "query_truncated": query_truncated,
+            "query_mode": query_mode,
+            "offset": offset,
+            "limit": limit,
+            "returned": len(items),
+            "total": total,
+            "search_ms": round(search_ms, 2),
+            "media_types": [media_type.value for media_type in media_type_list] if media_type_list else None,
+        },
     )
-    if media_types:
-        filtered_stmt = filtered_stmt.where(MediaItem.media_type.in_(list(media_types)))
-    count_stmt = select(func.count()).select_from(filtered_stmt.subquery())
-    total = (await session.execute(count_stmt)).scalar_one()
-    rank = func.ts_rank_cd(search_vector, search_query)
-    paged_stmt = (
-        filtered_stmt.order_by(rank.desc(), func.lower(MediaItem.title), MediaItem.id)
-        .offset(offset)
-        .limit(limit)
-    )
-    result = await session.execute(paged_stmt)
-    return result.scalars().all(), total
+    return items, total
 
 
 async def search_external_sources(

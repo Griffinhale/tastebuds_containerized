@@ -16,14 +16,16 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 
 JSON_COMPATIBLE = JSON().with_variant(JSONB, "postgresql")
+SEARCH_VECTOR_TYPE = Text().with_variant(TSVECTOR, "postgresql")
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from app.models.menu import CourseItem
@@ -82,6 +84,7 @@ class MediaItem(Base):
     cover_image_url: Mapped[str | None] = mapped_column(String(1024))
     canonical_url: Mapped[str | None] = mapped_column(String(1024))
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSON_COMPATIBLE, default=dict)
+    search_vector: Mapped[str | None] = mapped_column(SEARCH_VECTOR_TYPE)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow

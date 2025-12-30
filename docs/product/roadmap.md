@@ -12,6 +12,7 @@ Tastebuds helps people compose “media tasting menus” that bridge books, film
 - Automation rules are stored and runnable via the API; execution now supports ingest + sync actions while additional adapters are built.
 - Jellyfin/Plex sync requests now run real adapters that ingest TMDB-backed movies/series from linked libraries (selective sync via section/library IDs is supported).
 - Availability tracking supports manual upserts and stale marking; automated provider connectors are still planned work.
+- Internal search now uses stored full-text vectors (English stemming + diacritic folding) with triggers to keep extension fields in sync.
 
 ## 2. Experience Principles
 1. **Menus over media dumps:** Every workflow reinforces curation—courses, pacing, annotations, share cards.

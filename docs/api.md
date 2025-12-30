@@ -35,6 +35,7 @@ curl -k -X POST https://localhost/api/auth/login \
 - External results are preview-only until explicit ingest/save actions.
 - Ops endpoints (`/api/ops/*`) require admin allowlisting.
 - `/health` and `/api/health` return telemetry only to auth/allowlisted callers.
+- Internal search falls back to plain-text parsing for malformed operators and truncates overly long queries; non-Postgres engines use normalized substring matching with simplified ranking.
 
 ## Example Flow
 1. Register/login to obtain an access token.

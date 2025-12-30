@@ -22,6 +22,9 @@ Local (no Docker):
   migrations fast and predictable.
 - For new non-null columns, use a temporary `server_default` and remove it
   after backfill if needed.
+- If a change depends on extensions or database-side configs (ex: `unaccent` or
+  text search configs), create them in the same migration before any functions
+  or triggers reference them.
 
 ## Rollback guidance
 - Always implement `downgrade` for schema changes.
