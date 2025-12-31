@@ -21,6 +21,9 @@ Tests:
 - Docker: `./scripts/dev.sh test`
 - Local: `cd api && TEST_DATABASE_URL=... pytest app/tests`
 
+## Start here
+- Prioritized TODO list for new contributors: `docs/todo.md`
+
 ## Trust Boundaries (high level)
 - Edge proxy (Nginx): TLS termination, host validation, and rate limits before
   routing to API or web.
